@@ -68,6 +68,13 @@ class Ledger:
     def is_processed_guid(self, guid: str) -> bool:
         return f"guid:{guid}" in self._data
 
+    def guid_output_folder(self, guid: str):
+        """Return the stored output folder for a processed GUID, or None."""
+        entry = self._data.get(f"guid:{guid}")
+        if entry:
+            return entry.get("output_folder") or None
+        return None
+
     def mark_processed_guid(self, guid: str, output_folder: str = "", skipped: bool = False):
         self._data[f"guid:{guid}"] = {
             "status": "skipped" if skipped else "ok",

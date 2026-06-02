@@ -662,8 +662,9 @@ async def _run_coaching_job(
 
     if win is None and loss is None:
         await p.error(
-            f"No full {gamemode} games found in your recent history. "
-            "Play a few ranked games then try again."
+            f"No full competitive {gamemode} games found in your recent history. "
+            f"The plan only uses ranked {gamemode} matches (not casual, and not "
+            "Dropshot/Rumble/Hoops/Snow Day). Play a few ranked games, then try again."
         )
         return
 
