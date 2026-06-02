@@ -3,6 +3,9 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>RLCoach</title>
+<link rel="icon" type="image/png" href="/static/favicon.png"/>
+<link rel="shortcut icon" href="/static/favicon.ico"/>
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png"/>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 :root{
@@ -229,7 +232,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 <div class="wrap">
   <!-- NAV -->
   <nav class="nav" id="nav" style="display:none">
-    <div class="brand" onclick="goHome()">RL<span>Coach</span></div>
+    <div class="brand" onclick="goHome()" style="cursor:pointer"><img src="/static/logo.png" alt="RLCoach" style="height:30px;width:auto;display:block"/></div>
     <div class="nav-tabs" id="nav-tabs" style="display:none">
       <button class="nav-tab active" data-tab="coaching" onclick="switchTab('coaching')">Coaching Plan</button>
       <button class="nav-tab" data-tab="history" onclick="switchTab('history')">Match History</button>
@@ -245,7 +248,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
   <!-- LANDING: Login / Register (full-viewport fixed modal) -->
   <div id="landing-screen">
     <div class="landing-card">
-      <div class="auth-logo">RL<span>Coach</span></div>
+      <div class="auth-logo"><img src="/static/logo.png" alt="RLCoach" style="height:54px;width:auto"/></div>
       <p class="auth-tagline">AI-powered Rocket League coaching for every rank</p>
       <div class="auth-tabs">
         <button class="auth-tab active" onclick="authTab('login')">Log In</button>

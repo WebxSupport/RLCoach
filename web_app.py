@@ -158,6 +158,14 @@ async def frontend():
     return HTMLResponse(index.read_text(encoding="utf-8"))
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    p = Path("static/favicon.ico")
+    if p.exists():
+        return FileResponse(str(p), media_type="image/x-icon")
+    raise HTTPException(404)
+
+
 # ── RLCoach account auth ───────────────────────────────────────────────────────
 
 @app.post("/api/register")
@@ -468,10 +476,10 @@ def _inject_dashboard_nav(html: str) -> str:
     """Prepend a slim 'back to RLCoach' bar to a generated match dashboard."""
     nav = (
         '<div style="position:sticky;top:0;z-index:9999;display:flex;align-items:center;'
-        'gap:14px;padding:10px 18px;background:#0b1420;border-bottom:1px solid #1b2a3e;'
+        'gap:14px;padding:9px 18px;background:#0b1420;border-bottom:1px solid #1b2a3e;'
         'font-family:Oxanium,system-ui,sans-serif">'
-        '<a href="/" style="color:#34d6f7;text-decoration:none;font-weight:700;font-size:15px">'
-        '&larr; RL<span style="color:#e7eff8">Coach</span></a>'
+        '<a href="/" style="display:inline-flex;align-items:center;gap:8px;color:#34d6f7;text-decoration:none;font-weight:700;font-size:15px">'
+        '&larr; <img src="/static/logo.png" alt="RLCoach" style="height:22px;width:auto"/></a>'
         '<span style="font-family:IBM Plex Mono,monospace;font-size:11px;color:#56697f">'
         'AI Match Report</span></div>'
     )
