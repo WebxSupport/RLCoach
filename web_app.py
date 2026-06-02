@@ -696,11 +696,16 @@ async def _run_coaching_job(
     async def _cb(msg: str):
         await p.msg(msg)
 
-    win, loss = await find_win_and_loss(
-        access_token, account_id, display_name,
-        player_id, gamemode, team_size,
-        output_dir, ledger, progress_cb=_cb,
-    )
+    try:
+        win, loss = await find_win_and_loss(
+            access_token, account_id, display_name,
+            player_id, gamemode, team_size,
+            output_dir, ledger, progress_cb=_cb,
+        )
+    except Exception as e:
+        # Transient PsyNet/connection failure — tell the user to retry
+        await p.error(str(e))
+        return
 
     if win is None and loss is None:
         await p.error(

@@ -82,8 +82,11 @@ Return EXACTLY this JSON shape (fill every field; arrays must not be empty):
 Rules:
 - `week` MUST have exactly 7 entries (Mon-Sun). Block minutes per active day should sum to ~{mins}.
   Use a "rest" kind for rest days (theme "Rest", blocks can be a single light task or empty).
-- `drills` = 4-7 concrete items actually referenced in the week. Use REAL training-pack codes /
-  workshop maps from the resources for PC; pack codes / freeplay only for console.
+- `drills` = 4-7 concrete items. Use REAL training-pack codes / workshop maps from the resources
+  for PC; pack codes / freeplay only for console.
+- IMPORTANT: every specific drill you put in a `week` block must ALSO appear in `drills`, and the
+  block's `name` must be the EXACT same text as that drill's `name` (so they can be cross-linked
+  day-by-day). Generic blocks like "Ranked + review" or "Warm-up freeplay" don't need a drill entry.
 - `tracker.targetMmr`: estimate the MMR for {target_rank} (roughly current MMR + {gap}x30 if unknown).
 - `tracker.weeklyTargets`: 2-3 measurable things from the weaknesses (e.g. double-commits 32->10).
 - Be specific and honest. Tie everything to the replay numbers.

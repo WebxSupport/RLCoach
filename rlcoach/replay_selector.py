@@ -211,13 +211,41 @@ async def find_win_and_loss(
 
     if progress_cb:
         await progress_cb("Connecting to PsyNet for replay selection…")
-    try:
-        client = await create_client(access_token, account_id, display_name)
-        matches = await client.get_match_history(timeout=20.0)
-        await client.close()
-    except Exception as e:
-        log.error("Failed to fetch match history for selection: %s", e)
-        return None, None
+
+    # PsyNet can be flaky — retry the connect + history fetch a few times.
+    # Distinguish a genuine empty history from a transient failure so the user
+    # gets an accurate message (and we avoid the "no match, but works on retry").
+    matches = None
+    last_err = None
+    for attempt in range(3):
+        try:
+            client = await create_client(access_token, account_id, display_name)
+            try:
+                matches = await client.get_match_history(timeout=20.0)
+            finally:
+                try:
+                    await client.close()
+                except Exception:
+                    pass
+            if matches:  # non-empty → good
+                break
+            log.warning("match history empty on attempt %d", attempt + 1)
+        except Exception as e:
+            last_err = e
+            log.warning("match-history fetch attempt %d failed: %s", attempt + 1, e)
+        if attempt < 2:
+            if progress_cb:
+                await progress_cb("PsyNet was slow — retrying…")
+            await asyncio.sleep(1.5 * (attempt + 1))
+
+    if matches is None and last_err is not None:
+        # Never got a successful response — transient connection problem.
+        raise RuntimeError(
+            "Couldn't reach PsyNet to read your match history. This is usually "
+            "temporary — please click Generate/Retry again."
+        )
+    if not matches:
+        return None, None  # genuinely no recent matches
 
     required_pl = RANKED_PLAYLIST.get(gamemode)
     win: Optional[SelectedReplay] = None

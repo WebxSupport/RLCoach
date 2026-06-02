@@ -262,29 +262,59 @@ function renderMmrBar(){
       <span style="color:var(--green)">■ application</span><span style="color:var(--purple)">■ freestyle</span></div></div>`;
 })();
 
-/* ===== DRILLS ===== */
+/* ===== DRILLS (grouped by day) ===== */
+function _drillId(d){ return d.id||d.name; }
+function _isCode(s){ return /^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/.test((s||'').trim()); }
+function _findDrill(name){
+  const drills=PLAN.drills||[]; const n=(name||'').toLowerCase().trim();
+  if(!n) return null;
+  return drills.find(d=>(d.name||'').toLowerCase().trim()===n)
+      || drills.find(d=>{const dn=(d.name||'').toLowerCase().trim();return dn&&(dn.includes(n)||n.includes(dn));})
+      || null;
+}
+function drillCard(d){
+  const id=_drillId(d); const done=!!(TRACK.drillsDone||{})[id];
+  const res=_isCode(d.resource)
+    ? `<div class="res"><span>${esc(d.resource)}</span><button onclick="copyCode('${esc(d.resource)}',this)">copy</button></div>`
+    : `<div class="res" style="color:var(--muted)">${esc(d.resource||'Freeplay')}</div>`;
+  return `<div class="drill">
+    <div class="dtop"><span class="dname">${esc(d.name)}</span><span class="kbadge ${esc(d.kind||'pack')}">${esc(d.kind||'')}</span></div>
+    <div class="goal">🎯 ${esc(d.goal||'')}</div>
+    ${d.movesMetric?`<div class="meta">Improves: ${esc(d.movesMetric)}</div>`:''}
+    ${res}
+    <div class="donerow"><input type="checkbox" data-drill="${esc(id)}" ${done?'checked':''} onchange="toggleDrill('${esc(id)}',this.checked)"/> Done this week</div>
+  </div>`;
+}
 function renderDrills(){
-  const drills=PLAN.drills||[];
-  if(!drills.length){$("#p-drills").innerHTML='<div class="card"><div class="empty">No drills in this generation.</div></div>';return;}
-  $("#p-drills").innerHTML=`<div class="card"><h2>Your drill library</h2><div class="sub">Tap a code to copy it · tick a drill once you've done it this week</div></div>`+
-    drills.map(d=>{
-      const id=d.id||d.name;
-      const done=!!(TRACK.drillsDone||{})[id];
-      const isCode=/^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/.test((d.resource||'').trim());
-      const res=isCode
-        ? `<div class="res"><span>${esc(d.resource)}</span><button onclick="copyCode('${esc(d.resource)}',this)">copy</button></div>`
-        : `<div class="res" style="color:var(--muted)">${esc(d.resource||'Freeplay')}</div>`;
-      return `<div class="drill">
-        <div class="dtop"><span class="dname">${esc(d.name)}</span><span class="kbadge ${esc(d.kind||'pack')}">${esc(d.kind||'')}</span></div>
-        <div class="goal">🎯 ${esc(d.goal||'')}</div>
-        ${d.movesMetric?`<div class="meta">Improves: ${esc(d.movesMetric)}</div>`:''}
-        ${res}
-        <div class="donerow"><input type="checkbox" ${done?'checked':''} onchange="toggleDrill('${esc(id)}',this.checked)"/> Done this week</div>
-      </div>`;
-    }).join('');
+  const drills=PLAN.drills||[]; const week=PLAN.week||[];
+  if(!drills.length && !week.length){$("#p-drills").innerHTML='<div class="card"><div class="empty">No drills in this generation.</div></div>';return;}
+  const used=new Set();
+  let html=`<div class="card"><h2>Drills by day</h2><div class="sub">Everything you need for each session — codes, goals, and a tick when you're done</div></div>`;
+  week.forEach(day=>{
+    const blocks=(day.blocks||[]); if(!blocks.length) return;
+    let inner='';
+    blocks.forEach(b=>{
+      const d=_findDrill(b.name);
+      if(d){ used.add(_drillId(d)); inner+=drillCard(d); }
+      else {
+        inner+=`<div class="drill" style="opacity:.85"><div class="dtop"><span class="dname" style="font-size:13.5px">${esc(b.name)}</span>${b.kind?`<span class="kbadge ${esc(b.kind)}">${esc(b.kind)}</span>`:''}</div>${b.mins?`<div class="meta">${b.mins} min</div>`:''}</div>`;
+      }
+    });
+    if(!inner) return;
+    html+=`<div class="card"><h2 style="color:var(--cyan)">${esc(day.day)} — ${esc(day.theme||'')}</h2>${inner}</div>`;
+  });
+  const leftover=drills.filter(d=>!used.has(_drillId(d)));
+  if(leftover.length){
+    html+=`<div class="card"><h2>More drills in your plan</h2><div class="sub">Extra drills from your library not tied to a specific day</div>${leftover.map(drillCard).join('')}</div>`;
+  }
+  $("#p-drills").innerHTML=html;
 }
 function copyCode(code,btn){navigator.clipboard.writeText(code).then(()=>{btn.textContent='copied!';setTimeout(()=>btn.textContent='copy',1200);});}
-function toggleDrill(id,v){TRACK.drillsDone=TRACK.drillsDone||{};TRACK.drillsDone[id]=v;saveTracker();}
+function toggleDrill(id,v){
+  TRACK.drillsDone=TRACK.drillsDone||{};TRACK.drillsDone[id]=v;
+  document.querySelectorAll('input[type=checkbox][data-drill]').forEach(c=>{ if(c.getAttribute('data-drill')===id) c.checked=v; });
+  saveTracker();
+}
 
 /* ===== TRACKER ===== */
 function latestMmr(){const l=(TRACK.mmrLog||[]);return l.length?l[l.length-1].mmr:null;}
