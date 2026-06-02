@@ -1,0 +1,16 @@
+.git
+.gitignore
+.gitattributes
+data
+output
+*.db
+*.db-wal
+*.db-shm
+*.log
+__pycache__
+**/__pycache__
+.venv
+*.pyc
+DEPLOYMENT.md
+handover.md
+README.md

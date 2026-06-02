@@ -31,7 +31,11 @@ __pycache__/
 # ── Build / binaries ──────────────────────────────────────────────────────────
 dist/
 build/
-rrrocket_bin/
+# Vendor ONLY the Linux rrrocket binary; ignore anything else under rrrocket_bin/
+rrrocket_bin/*
+!rrrocket_bin/linux
+rrrocket_bin/linux/*
+!rrrocket_bin/linux/rrrocket
 
 # ── Replay / parquet artefacts ────────────────────────────────────────────────
 *.replay

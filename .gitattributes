@@ -4,3 +4,5 @@
 *.png binary
 *.ico binary
 *.zip binary
+# The vendored rrrocket ELF binary must NOT be line-ending converted
+rrrocket_bin/linux/rrrocket binary
