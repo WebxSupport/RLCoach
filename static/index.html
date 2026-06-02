@@ -202,6 +202,23 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 .empty-state{text-align:center;padding:60px 20px;color:var(--muted);grid-column:1/-1}
 .empty-state p{font-family:var(--mono);font-size:13px;margin-top:8px}
 
+/* ── match toolbar ── */
+.match-toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+
+/* ── card analysis button states ── */
+.mc-analyzing{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--cyan)}
+
+/* ── stats page ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:20px}
+.stat-card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:18px 20px;display:flex;align-items:center;gap:16px}
+.stat-card img{width:60px;height:60px;flex-shrink:0}
+.stat-card .pl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.stat-card .rk{font-size:18px;font-weight:800;margin-top:3px}
+.stat-card .mmr{font-family:var(--mono);font-size:12px;color:var(--cyan);margin-top:4px}
+.stat-card .div{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:2px}
+.stats-note{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:16px;line-height:1.5}
+.stats-empty{text-align:center;padding:60px 20px;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
+
 /* ── toast ── */
 .toast{position:fixed;bottom:24px;right:24px;background:#1a0d12;border:1px solid var(--red);
   border-radius:10px;padding:12px 18px;font-family:var(--mono);font-size:12px;color:var(--red);
@@ -216,6 +233,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
     <div class="nav-tabs" id="nav-tabs" style="display:none">
       <button class="nav-tab active" data-tab="coaching" onclick="switchTab('coaching')">Coaching Plan</button>
       <button class="nav-tab" data-tab="history" onclick="switchTab('history')">Match History</button>
+      <button class="nav-tab" data-tab="stats" onclick="switchTab('stats')">My Stats</button>
     </div>
     <div class="nav-right">
       <span class="chip" id="usage-chip" style="display:none"></span>
@@ -361,9 +379,27 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
         <div class="prog-bar-wrap"><div class="prog-bar" id="fp-bar" style="width:0%"></div></div>
         <div class="prog-msgs" id="fp-msgs"></div>
       </div>
+      <!-- search + sort -->
+      <div class="match-toolbar" id="match-toolbar" style="display:none">
+        <input class="input" id="match-search" type="text" placeholder="Search map, mode or result…" oninput="renderMatches()" style="flex:1;min-width:160px"/>
+        <select class="input" id="match-sort" onchange="renderMatches()" style="max-width:210px">
+          <option value="date_desc">Newest played first</option>
+          <option value="date_asc">Oldest played first</option>
+          <option value="result_win">Wins first</option>
+          <option value="result_loss">Losses first</option>
+        </select>
+      </div>
       <div class="match-grid" id="match-grid">
         <div class="empty-state"><div style="font-size:36px">🏎</div><p>No replays yet — click Fetch Latest Replays.</p></div>
       </div>
+    </div>
+
+    <div class="tab-panel" id="tab-stats">
+      <div class="fetch-bar">
+        <h1>My Stats</h1>
+        <button class="btn btn-ghost btn-sm" id="stats-refresh" onclick="loadStats(true)">↻ Refresh</button>
+      </div>
+      <div id="stats-body"></div>
     </div>
   </div>
 </div>
@@ -438,6 +474,7 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
   if (tab==='history') loadMatches();
+  if (tab==='stats') loadStats();
 }
 function goHome() { switchTab('coaching'); showScreen('main-screen'); }
 
@@ -782,6 +819,16 @@ function wizNext() {
     if (cs) _wiz.current_rank=cs.value;
     if (ts) _wiz.target_rank=ts.value;
     if (!_wiz.current_rank||!_wiz.target_rank) {toast('Please select both ranks'); return;}
+    const ranks=_resources.ranks||[];
+    const ci=ranks.indexOf(_wiz.current_rank), ti=ranks.indexOf(_wiz.target_rank);
+    if (ci>=0 && ti>=0 && ti<ci) {
+      toast('Your target rank must be the same or higher than your current rank');
+      return;
+    }
+    if (ci>=0 && ti>=0 && ti===ci) {
+      toast('Pick a target rank above your current rank to aim for');
+      return;
+    }
   }
   _wizStep++; renderWizStep(_wizStep);
 }
@@ -883,13 +930,41 @@ function onProg(p, type) {
 
 function openCoachingPlan() { window.open('/api/coaching/view','_blank'); }
 
+let _allMatches = [];
 async function loadMatches() {
   const grid=document.getElementById('match-grid');
+  const toolbar=document.getElementById('match-toolbar');
   try {
-    const ms=await get('/api/matches');
-    if (!ms.length){grid.innerHTML=`<div class="empty-state"><div style="font-size:36px">🏎</div><p>No replays yet.</p></div>`;return;}
-    grid.innerHTML=ms.map(renderCard).join('');
+    _allMatches = await get('/api/matches');
+    if (!_allMatches.length){
+      if (toolbar) toolbar.style.display='none';
+      grid.innerHTML=`<div class="empty-state"><div style="font-size:36px">🏎</div><p>No replays yet — click Fetch Latest Replays.</p></div>`;
+      return;
+    }
+    if (toolbar) toolbar.style.display='flex';
+    renderMatches();
   } catch(e){grid.innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
+}
+
+function renderMatches() {
+  const grid=document.getElementById('match-grid');
+  const q=(document.getElementById('match-search')?.value||'').toLowerCase().trim();
+  const sort=document.getElementById('match-sort')?.value||'date_desc';
+  const dkey=m=>(m.summary&&m.summary.date)||'';
+  const isWin=m=>((m.summary&&m.summary.result)||'').startsWith('W');
+  let list=_allMatches.slice();
+  if (q) list=list.filter(m=>{
+    const s=m.summary||{};
+    return [s.map_display,s.map,s.mode,s.result].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+  list.sort((a,b)=>{
+    if (sort==='date_asc')  return dkey(a)<dkey(b)?-1:dkey(a)>dkey(b)?1:0;
+    if (sort==='result_win')  return (isWin(b)-isWin(a)) || (dkey(a)<dkey(b)?1:-1);
+    if (sort==='result_loss') return (isWin(a)-isWin(b)) || (dkey(a)<dkey(b)?1:-1);
+    return dkey(a)<dkey(b)?1:dkey(a)>dkey(b)?-1:0;   // date_desc (default)
+  });
+  if (!list.length){grid.innerHTML=`<div class="empty-state"><p>No matches match your search.</p></div>`;return;}
+  grid.innerHTML=list.map(renderCard).join('');
 }
 
 function renderCard(m) {
@@ -902,20 +977,81 @@ function renderCard(m) {
   const oppScore=myTeam==='orange'?s.blue_score:s.orange_score;
   const date=(s.date||'').slice(0,10);
   const map=s.map_display||s.map||'Unknown'; const mode=s.mode||'';
-  const dcs=s.double_commits!=null?s.double_commits:'—';
   const mid=m.match_id;
   const blue=(s.players_blue||[]).map(p=>`<span style="color:var(--cyan)">${p.name}${p.is_me?' ★':''}</span>`).join(' · ');
   const orange=(s.players_orange||[]).map(p=>`<span style="color:var(--orange)">${p.name}${p.is_me?' ★':''}</span>`).join(' · ');
-  const analysisBtn=m.has_analysis
-    ?`<button class="btn btn-primary btn-sm" onclick="window.open('/api/matches/${mid}/dashboard','_blank')">View AI Report</button>`
-    :`<span class="no-analysis">No AI report</span>`;
-  return `<div class="match-card ${cls}">
-    <div class="mc-top"><div><div class="mc-map">${map}</div><div class="mc-mode">${mode}·${date}</div></div><span class="mc-badge ${badgeCls}">${win?'WIN':loss?'LOSS':'DRAW'}</span></div>
+  const footer = m.has_analysis
+    ? `<button class="btn btn-primary btn-sm" onclick="window.open('/api/matches/${mid}/dashboard','_blank')">View Match Analysis ↗</button>`
+    : `<button class="btn btn-ghost btn-sm" onclick="runAnalysis('${mid}')">Run Match Analysis</button>`;
+  return `<div class="match-card ${cls}" id="card-${mid}">
+    <div class="mc-top"><div><div class="mc-map">${map}</div><div class="mc-mode">${mode} · ${date}</div></div><span class="mc-badge ${badgeCls}">${win?'WIN':loss?'LOSS':'DRAW'}</span></div>
     <div class="mc-score"><span class="mine">${myScore??'?'}</span> – ${oppScore??'?'}</div>
-    <div style="font-size:11px;color:var(--dim);margin-bottom:8px;font-family:var(--mono)">🔵${blue||'—'}<br>🟠${orange||'—'}</div>
-    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:10px">DC: <b>${dcs}</b></div>
-    <div class="mc-footer">${analysisBtn}</div>
+    <div style="font-size:11px;color:var(--dim);margin-bottom:10px;font-family:var(--mono)">🔵 ${blue||'—'}<br>🟠 ${orange||'—'}</div>
+    <div class="mc-footer" id="footer-${mid}">${footer}</div>
   </div>`;
+}
+
+async function runAnalysis(mid) {
+  const footer=document.getElementById('footer-'+mid);
+  if (footer) footer.innerHTML=`<span class="mc-analyzing"><span class="spinner"></span> Starting…</span>`;
+  try {
+    const r=await post('/api/matches/'+mid+'/analyze');
+    if (r.status==='already_done'){ await loadMatches(); return; }
+    streamAnalysis(r.job_id, mid);
+  } catch(e) {
+    toast(e.message);
+    if (footer) footer.innerHTML=`<button class="btn btn-ghost btn-sm" onclick="runAnalysis('${mid}')">Run Match Analysis</button>`;
+  }
+}
+
+function streamAnalysis(jobId, mid) {
+  const es=new EventSource('/api/fetch/stream/'+jobId);
+  es.onmessage=ev=>{
+    let p; try{p=JSON.parse(ev.data);}catch(e){return;}
+    const footer=document.getElementById('footer-'+mid);
+    if (footer && p.status!=='complete' && p.status!=='error')
+      footer.innerHTML=`<span class="mc-analyzing"><span class="spinner"></span> ${p.step||'Analyzing…'}</span>`;
+    if (p.status==='complete'||p.status==='error'){
+      es.close();
+      if (p.status==='error') toast(p.step||'Analysis failed');
+      loadUsage(); loadMatches();
+    }
+  };
+  es.onerror=()=>es.close();
+}
+
+// ── stats page ─────────────────────────────────────────────────────────────
+let _statsLoaded=false;
+async function loadStats(force) {
+  const body=document.getElementById('stats-body');
+  if (_statsLoaded && !force) return;
+  body.innerHTML=`<div class="prog-card"><div class="prog-head"><span class="spinner"></span><span class="prog-title">Loading your ranks…</span></div></div>`;
+  try {
+    const r=await get('/api/rank');
+    _statsLoaded=true;
+    if (!r.available || !r.ranks || !Object.keys(r.ranks).length) {
+      body.innerHTML=`<div class="stats-empty"><div style="font-size:40px">📊</div>
+        <h2>No rank data right now</h2>
+        <p style="font-family:var(--mono);font-size:13px;margin-top:8px">We couldn't read your ranks from your account.<br>Play a ranked match, then hit Refresh.</p></div>`;
+      return;
+    }
+    const order=['1v1','2v2','3v3'];
+    const labels={'1v1':'Ranked Duel 1v1','2v2':'Ranked Doubles 2v2','3v3':'Ranked Standard 3v3'};
+    const cards=order.filter(k=>r.ranks[k]).map(k=>{
+      const d=r.ranks[k];
+      return `<div class="stat-card">${rankImgTag(d.rank,60)}
+        <div>
+          <div class="pl">${labels[k]||k}</div>
+          <div class="rk">${d.rank}${d.division?' · Div '+d.division:''}</div>
+          ${d.mmr_estimate?`<div class="mmr">~${d.mmr_estimate} MMR</div>`:''}
+          ${d.matches_played?`<div class="div">${d.matches_played} matches played</div>`:''}
+        </div></div>`;
+    }).join('');
+    body.innerHTML=`<div class="stats-note">Live ranks from your connected Epic / Rocket League account.</div>
+      <div class="stats-grid">${cards}</div>`;
+  } catch(e) {
+    body.innerHTML=`<div class="stats-empty"><p>Error loading stats: ${e.message}</p></div>`;
+  }
 }
 
 // ── boot ─────────────────────────────────────────────────────────────────

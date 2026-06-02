@@ -424,7 +424,60 @@ async def match_dashboard(match_id: str, session_id: Optional[str] = Cookie(defa
     path = Path(m["folder_path"]) / "dashboard.html"
     if not path.exists():
         raise HTTPException(404, "AI dashboard not yet generated for this match")
-    return FileResponse(str(path), media_type="text/html")
+    html = path.read_text(encoding="utf-8")
+    html = _inject_dashboard_nav(html)
+    return HTMLResponse(html)
+
+
+@app.post("/api/matches/{match_id}/analyze")
+async def analyze_match(match_id: str, session_id: Optional[str] = Cookie(default=None)):
+    """Trigger on-demand AI analysis for a single already-parsed match."""
+    session = await _require_session(session_id)
+    m = await db.get_match(match_id, session["session_id"])
+    if not m:
+        raise HTTPException(404)
+    if m.get("has_analysis"):
+        return {"status": "already_done"}
+
+    # Daily cap check up-front (the job re-checks too)
+    today = date.today().isoformat()
+    if session.get("eos_account_id"):
+        used = await db.get_usage(session["eos_account_id"], today)
+        if used >= DAILY_LIMIT:
+            raise HTTPException(429, f"Daily AI limit reached ({used}/{DAILY_LIMIT}). Try again tomorrow.")
+
+    active = await db.get_active_job(session["session_id"])
+    if active:
+        prog = json.loads(active["progress"])
+        if prog.get("type") == "analysis" and prog.get("match_id") == match_id:
+            return {"job_id": active["job_id"], "status": "already_running"}
+
+    from rlcoach.web_pipeline import run_analysis_job
+    job_id = str(uuid.uuid4())
+    await db.create_job(job_id, session["session_id"])
+    asyncio.create_task(run_analysis_job(job_id, dict(session), dict(m), db, ANTHROPIC_API_KEY))
+    return {"job_id": job_id, "status": "started"}
+
+
+def _inject_dashboard_nav(html: str) -> str:
+    """Prepend a slim 'back to RLCoach' bar to a generated match dashboard."""
+    nav = (
+        '<div style="position:sticky;top:0;z-index:9999;display:flex;align-items:center;'
+        'gap:14px;padding:10px 18px;background:#0b1420;border-bottom:1px solid #1b2a3e;'
+        'font-family:Oxanium,system-ui,sans-serif">'
+        '<a href="/" style="color:#34d6f7;text-decoration:none;font-weight:700;font-size:15px">'
+        '&larr; RL<span style="color:#e7eff8">Coach</span></a>'
+        '<span style="font-family:IBM Plex Mono,monospace;font-size:11px;color:#56697f">'
+        'AI Match Report</span></div>'
+    )
+    marker = '<div class="wrap">'
+    i = html.find(marker)
+    if i != -1:
+        return html[:i] + nav + html[i:]
+    if "<body" in html:
+        idx = html.find(">", html.find("<body")) + 1
+        return html[:idx] + nav + html[idx:]
+    return nav + html
 
 
 # ── usage ─────────────────────────────────────────────────────────────────────

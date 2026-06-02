@@ -476,7 +476,8 @@ async def run_pipeline_job(
         if summary is None:
             continue
 
-        # Store basic record in DB (no analysis yet)
+        # Store the match card in DB. NO AI analysis here — that's now an
+        # explicit, per-match action the user triggers from the card.
         await db.upsert_match(
             match_id=guid,
             session_id=session_id,
@@ -485,37 +486,73 @@ async def run_pipeline_job(
             has_analysis=False,
         )
         processed_summaries.append(summary)
-        await progress.msg(f"Processed: {summary.get('map_display', short)} {summary.get('result', '')}")
-
-        # 7. Claude analysis (if daily cap not reached)
-        usage = await db.get_usage(eos_account_id, today_str)
-        if usage < DAILY_LIMIT and api_key:
-            await progress.msg(f"Running AI analysis ({usage+1}/{DAILY_LIMIT} today)…")
-            folder_path = Path(summary["folder_path"])
-            match_json_path = folder_path / "match.json"
-            frames_path = folder_path / "frames.parquet"
-
-            if match_json_path.exists():
-                html = await loop.run_in_executor(
-                    None, _run_claude_analysis_sync, match_json_path, frames_path, api_key
-                )
-                if html:
-                    dashboard_path = folder_path / "dashboard.html"
-                    dashboard_path.write_text(html, encoding="utf-8")
-                    await db.mark_analysis_done(guid)
-                    await db.increment_usage(eos_account_id, today_str)
-                    summary["has_analysis"] = True
-                    await progress.msg(f"AI report ready for {summary.get('map_display', short)}")
-                else:
-                    await progress.msg(f"AI analysis skipped (error) for {short}")
-            else:
-                await progress.msg(f"match.json missing for {short}")
-        elif not api_key:
-            await progress.msg("AI analysis skipped (no API key configured)")
-        else:
-            remaining = DAILY_LIMIT - usage
-            await progress.msg(f"Daily AI limit reached ({usage}/{DAILY_LIMIT}) — skipping analysis")
+        await progress.msg(f"Added: {summary.get('map_display', short)} {summary.get('result', '')}")
 
     await progress.update(current=total)
     await progress.done(processed_summaries)
-    log.info("Pipeline job %s complete — %d replays processed", job_id, len(processed_summaries))
+    log.info("Fetch job %s complete — %d replays added (analysis on demand)", job_id, len(processed_summaries))
+
+
+# ── single-match analysis (on-demand) ─────────────────────────────────────────
+
+async def run_analysis_job(
+    job_id: str,
+    session: dict,
+    match: dict,
+    db,
+    api_key: str,
+) -> None:
+    """
+    Run Claude analysis for ONE already-parsed match, on demand.
+    Respects the daily AI cap. Writes dashboard.html + marks the match analysed.
+    """
+    progress = _Progress(job_id, db)
+    await progress.update(status="running", step="Starting analysis…",
+                          type="analysis", match_id=match["match_id"])
+
+    session_id = session["session_id"]
+    eos_account_id = session.get("eos_account_id", "")
+    today_str = date.today().isoformat()
+
+    if not api_key:
+        await progress.error("AI analysis is not configured on this server")
+        return
+
+    # Daily cap
+    usage = await db.get_usage(eos_account_id, today_str)
+    if usage >= DAILY_LIMIT:
+        await progress.error(f"Daily AI limit reached ({usage}/{DAILY_LIMIT}). Try again tomorrow.")
+        return
+
+    folder_path = Path(match["folder_path"])
+    match_json_path = folder_path / "match.json"
+    frames_path = folder_path / "frames.parquet"
+    if not match_json_path.exists():
+        await progress.error("Match data missing — re-fetch this replay and try again")
+        return
+
+    await progress.update(step="Computing advanced metrics…")
+    await progress.msg("Running Claude Sonnet 4.6 analysis…")
+
+    loop = asyncio.get_event_loop()
+    try:
+        html = await loop.run_in_executor(
+            None, _run_claude_analysis_sync, match_json_path, frames_path, api_key
+        )
+    except Exception as e:
+        await progress.error(f"Analysis failed: {e}")
+        return
+
+    if not html:
+        await progress.error("Analysis failed — the AI response could not be parsed. Please retry.")
+        return
+
+    (folder_path / "dashboard.html").write_text(html, encoding="utf-8")
+    await db.mark_analysis_done(match["match_id"])
+    await db.increment_usage(eos_account_id, today_str)
+
+    state = {"status": "complete", "step": "Analysis ready!", "type": "analysis",
+             "analysis_ready": True, "match_id": match["match_id"],
+             "total": 0, "current": 0, "messages": []}
+    await db.update_job(job_id, state)
+    log.info("Analysis job %s complete for match %s", job_id, match["match_id"])
