@@ -10,7 +10,7 @@ WORKDIR /app
 # rrrocket Linux binary (x86_64 musl static) is vendored in the repo — copy it in.
 # No build-time download, so the build is fully reproducible and offline-safe.
 COPY rrrocket_bin/linux/rrrocket /app/rrrocket_bin/rrrocket
-RUN chmod +x /app/rrrocket_bin/rrrocket && /app/rrrocket_bin/rrrocket --version
+RUN chmod +x /app/rrrocket_bin/rrrocket && /app/rrrocket_bin/rrrocket --help >/dev/null
 
 ENV RRROCKET_PATH=/app/rrrocket_bin/rrrocket
 # Matplotlib non-interactive backend
