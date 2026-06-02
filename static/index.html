@@ -597,11 +597,46 @@ document.getElementById('pid-save-btn').onclick = async () => {
 document.getElementById('pid-input').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('pid-save-btn').click();});
 
 // ── rank detection ────────────────────────────────────────────────────────
-async function fetchDetectedRanks() {
-  try {
-    const r = await get('/api/rank');
-    if (r.available && r.ranks) { _detectedRanks = r.ranks; }
-  } catch(e) { _detectedRanks = {}; }
+let _ranksPromise = null;
+function fetchDetectedRanks() {
+  _ranksPromise = (async () => {
+    try {
+      const r = await get('/api/rank');
+      if (r && r.available && r.ranks) { _detectedRanks = r.ranks; }
+    } catch(e) { /* leave _detectedRanks as-is */ }
+    return _detectedRanks;
+  })();
+  return _ranksPromise;
+}
+
+// Fill the wizard's current-rank field + banner from the detected rank.
+// Reactive: if the PsyNet lookup is still in flight, show a spinner and
+// populate the moment it resolves.
+async function applyDetectedRank() {
+  const banner = document.getElementById('rank-detect-banner');
+  const gm = _wiz.gamemode || '2v2';
+  const fill = (det) => {
+    if (!banner || !det || !det.rank) return;
+    banner.innerHTML = `<div class="rank-banner">${rankImgTag(det.rank,52)}
+      <div class="info"><div class="label">Your current rank in ${gm}</div>
+        <div class="name">${det.rank}</div>
+        <div class="meta">${det.mmr_estimate?'~'+det.mmr_estimate+' MMR · ':''}auto-detected from your account</div>
+      </div></div>`;
+    if (!_wiz.current_rank || _wiz.current_rank === det.rank) {
+      _wiz.current_rank = det.rank;
+      const sel = document.getElementById('cur-rank-sel');
+      if (sel) sel.value = det.rank;
+      updateRankImg('cur-rank-img', det.rank);
+    }
+  };
+  if (_detectedRanks && _detectedRanks[gm]) { fill(_detectedRanks[gm]); return; }
+  if (banner) banner.innerHTML = `<div class="rank-banner" style="border-color:var(--line2)">
+    <span class="spinner"></span>
+    <div class="info"><div class="label">Detecting your rank…</div>
+      <div class="meta" style="margin-top:2px">reading your ${gm} rank from your account</div></div></div>`;
+  try { await (_ranksPromise || fetchDetectedRanks()); } catch(e) {}
+  if (_detectedRanks && _detectedRanks[gm]) fill(_detectedRanks[gm]);
+  else if (banner) banner.innerHTML = `<div class="input-hint" style="margin:0 0 14px">Couldn't auto-detect your ${gm} rank — pick it below.</div>`;
 }
 
 // ── wizard ────────────────────────────────────────────────────────────────
@@ -656,27 +691,18 @@ function renderWizStep(step) {
     }).join('')}
     </div>`;
   } else if (step===2) {
-    // Ranks — show detected rank as a prominent banner if available
-    const det = _detectedRanks[_wiz.gamemode||'2v2'];
+    // Ranks — current rank is auto-detected into the banner + field via applyDetectedRank()
     const ranks=_resources.ranks||['Unranked','Bronze I','Bronze II','Bronze III','Silver I','Silver II','Silver III','Gold I','Gold II','Gold III','Platinum I','Platinum II','Platinum III','Diamond I','Diamond II','Diamond III','Champion I','Champion II','Champion III','Grand Champion I','Grand Champion II','Grand Champion III','Supersonic Legend'];
     const mkOpts=(sel)=>ranks.map(r=>`<option value="${r}" ${sel===r?'selected':''}>${r}</option>`).join('');
-    const currentPrefill = (det&&det.rank) ? det.rank : (_wiz.current_rank||null);
-    const detBanner = det ? `<div class="rank-banner">
-      ${rankImgTag(det.rank,52)}
-      <div class="info">
-        <div class="label">Your current rank in ${_wiz.gamemode||'this playlist'}</div>
-        <div class="name">${det.rank}</div>
-        <div class="meta">${det.mmr_estimate?'~'+det.mmr_estimate+' MMR · ':''} auto-detected from your account</div>
-      </div>
-    </div>` : '';
+    const cur=_wiz.current_rank||null;
     body=`<h2 class="wiz-title">What are your ranks?</h2>
     <p class="wiz-sub">We'll build a plan bridging the gap between where you are and where you want to be</p>
-    ${detBanner}
+    <div id="rank-detect-banner"></div>
     <div class="input-group">
       <label class="input-label">Current Rank</label>
       <div class="rank-select-row">
-        <img id="cur-rank-img" src="${rankIconUrl(currentPrefill||'Unranked')}" width="44" height="44" alt=""/>
-        <select class="input" id="cur-rank-sel" onchange="_wiz.current_rank=this.value;updateRankImg('cur-rank-img',this.value)">${mkOpts(currentPrefill)}</select>
+        <img id="cur-rank-img" src="${rankIconUrl(cur||'Unranked')}" width="44" height="44" alt=""/>
+        <select class="input" id="cur-rank-sel" onchange="_wiz.current_rank=this.value;updateRankImg('cur-rank-img',this.value)">${mkOpts(cur)}</select>
       </div>
     </div>
     <div class="input-group">
@@ -723,11 +749,8 @@ function renderWizStep(step) {
   </div>`;
 
   wb.innerHTML=`<div class="wiz-steps">${stepsHtml}</div>${body}${footer}`;
-  // If ranks step, pre-fill from detected
-  if (step===2) {
-    const det=_detectedRanks[_wiz.gamemode||'2v2'];
-    if (det&&!_wiz.current_rank) { _wiz.current_rank=det.rank; document.getElementById('cur-rank-sel').value=det.rank; }
-  }
+  // Ranks step: reactively fill the current rank from the detected data
+  if (step===2) { applyDetectedRank(); }
 }
 
 function updateRankImg(imgId, rank) {
