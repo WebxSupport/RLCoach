@@ -407,7 +407,9 @@ async def trigger_fetch(session_id: Optional[str] = Cookie(default=None)):
 
     active = await db.get_active_job(session["session_id"])
     if active:
-        return {"job_id": active["job_id"], "status": "already_running"}
+        prog = json.loads(active["progress"])
+        return {"job_id": active["job_id"], "status": "already_running",
+                "active_type": prog.get("type", "fetch")}
 
     job_id = str(uuid.uuid4())
     await db.create_job(job_id, session["session_id"])
@@ -496,11 +498,13 @@ async def analyze_match(match_id: str, session_id: Optional[str] = Cookie(defaul
         if used >= DAILY_LIMIT:
             raise HTTPException(429, f"Daily AI limit reached ({used}/{DAILY_LIMIT}). Try again tomorrow.")
 
+    # One job at a time per session (prevents ledger/output races)
     active = await db.get_active_job(session["session_id"])
     if active:
         prog = json.loads(active["progress"])
-        if prog.get("type") == "analysis" and prog.get("match_id") == match_id:
-            return {"job_id": active["job_id"], "status": "already_running"}
+        return {"job_id": active["job_id"], "status": "already_running",
+                "active_type": prog.get("type", "fetch"),
+                "active_match": prog.get("match_id")}
 
     from rlcoach.web_pipeline import run_analysis_job
     job_id = str(uuid.uuid4())
@@ -578,11 +582,12 @@ async def coaching_generate(session_id: Optional[str] = Cookie(default=None)):
     if not profile:
         raise HTTPException(400, "Complete your profile setup first")
 
+    # One job at a time per session (prevents ledger/output races)
     active = await db.get_active_job(session["session_id"])
     if active:
         prog = json.loads(active["progress"])
-        if prog.get("type") == "coaching":
-            return {"job_id": active["job_id"], "status": "already_running"}
+        return {"job_id": active["job_id"], "status": "already_running",
+                "active_type": prog.get("type", "fetch")}
 
     job_id = str(uuid.uuid4())
     await db.create_job(job_id, session["session_id"])

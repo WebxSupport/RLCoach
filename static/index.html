@@ -940,26 +940,42 @@ async function loadCoachingStatus() {
   } catch(e) {}
 }
 
-async function triggerCoaching() {
-  const prog=document.getElementById('coaching-progress');
+function busyMsg(t){
+  if(t==='coaching') return 'Your coaching plan is still generating — please wait for it to finish.';
+  if(t==='analysis') return 'A match analysis is running — please wait for it to finish.';
+  if(t==='fetch')    return 'A replay fetch is already running — please wait for it to finish.';
+  return 'Something is already running — please wait.';
+}
+function showCoachingProgress(){
   document.getElementById('coaching-empty').style.display='none';
   document.getElementById('coaching-info').style.display='none';
-  prog.style.display='block';
+  document.getElementById('coaching-progress').style.display='block';
   document.getElementById('regen-btn').disabled=true;
+}
+async function triggerCoaching() {
   try {
     const r=await post('/api/coaching/generate');
-    if (r.status==='already_running') {toast('Already generating…','var(--amber)'); prog.style.display='none'; document.getElementById('regen-btn').disabled=false; return;}
+    if (r.status==='already_running') {
+      if (r.active_type==='coaching') { showCoachingProgress(); streamJob(r.job_id,'coaching'); }
+      else { toast(busyMsg(r.active_type),'var(--amber)'); }
+      return;
+    }
+    showCoachingProgress();
     streamJob(r.job_id,'coaching');
-  } catch(e) {toast('Failed: '+e.message); prog.style.display='none'; document.getElementById('regen-btn').disabled=false;}
+  } catch(e) { toast('Failed: '+e.message); }
 }
 
 async function triggerFetch() {
   const btn=document.getElementById('fetch-btn');
-  btn.disabled=true;
-  document.getElementById('fetch-progress').style.display='block';
+  const showProg=()=>{ btn.disabled=true; document.getElementById('fetch-progress').style.display='block'; };
   try {
     const r=await post('/api/fetch');
-    if (r.status==='already_running') {toast('Fetch already running','var(--amber)'); btn.disabled=false; return;}
+    if (r.status==='already_running') {
+      if (r.active_type==='fetch') { showProg(); streamJob(r.job_id,'fetch'); }
+      else { toast(busyMsg(r.active_type),'var(--amber)'); }
+      return;
+    }
+    showProg();
     streamJob(r.job_id,'fetch');
   } catch(e) {toast('Fetch failed: '+e.message); btn.disabled=false; document.getElementById('fetch-progress').style.display='none';}
 }
@@ -1056,15 +1072,18 @@ function renderCard(m) {
 
 async function runAnalysis(mid) {
   const footer=document.getElementById('footer-'+mid);
+  const revert=()=>{ if(footer) footer.innerHTML=`<button class="btn btn-ghost btn-sm" onclick="runAnalysis('${mid}')">Run Match Analysis</button>`; };
   if (footer) footer.innerHTML=`<span class="mc-analyzing"><span class="spinner"></span> Starting…</span>`;
   try {
     const r=await post('/api/matches/'+mid+'/analyze');
     if (r.status==='already_done'){ await loadMatches(); return; }
+    if (r.status==='already_running'){
+      if (r.active_type==='analysis' && r.active_match===mid){ streamAnalysis(r.job_id, mid); }
+      else { toast(busyMsg(r.active_type),'var(--amber)'); revert(); }
+      return;
+    }
     streamAnalysis(r.job_id, mid);
-  } catch(e) {
-    toast(e.message);
-    if (footer) footer.innerHTML=`<button class="btn btn-ghost btn-sm" onclick="runAnalysis('${mid}')">Run Match Analysis</button>`;
-  }
+  } catch(e) { toast(e.message); revert(); }
 }
 
 function streamAnalysis(jobId, mid) {
