@@ -40,30 +40,17 @@ sudo apt install -y docker-compose-plugin nginx certbot python3-certbot-nginx
 
 ### Step 2 — Clone the repo from GitHub
 
+The repo is public, so this is a plain clone:
 ```bash
 cd /home/ubuntu
+git clone https://github.com/WebxSupport/RLCoach.git rlcoach
+cd rlcoach
+ls -la            # sanity check: you should see .env.example, Dockerfile, rlcoach/, etc.
 ```
 
-**If the repo is PUBLIC:**
-```bash
-git clone https://github.com/<you>/<repo>.git rlcoach
-```
-
-**If the repo is PRIVATE** (recommended): create a GitHub Personal Access Token first —
-github.com → your avatar → **Settings → Developer settings → Personal access tokens →
-Tokens (classic) → Generate new token (classic)** → tick the **`repo`** scope → Generate →
-copy the `ghp_...` value. Then:
-```bash
-git clone https://ghp_YOURTOKEN@github.com/<you>/<repo>.git rlcoach
-```
-
-Then enter the folder and confirm your real secrets did NOT get committed:
-```bash
-cd /home/ubuntu/rlcoach
-ls -la            # you should see .env.example — but NOT a real .env
-```
-> If a real `.env` with live keys came down, delete it now and rotate those keys —
-> only `.env.example` belongs in git.
+> If you later switch the repo to **private**, clone with a GitHub Personal Access Token instead:
+> `git clone https://ghp_YOURTOKEN@github.com/WebxSupport/RLCoach.git rlcoach`
+> (github.com → Settings → Developer settings → Personal access tokens → Tokens (classic) → `repo` scope).
 
 ### Step 3 — Create the secrets file (.env)
 
@@ -149,15 +136,16 @@ crontab -e
 
 ## Updating after code changes
 
-Push from your PC as normal (`git push`), then in the **browser SSH terminal**:
+Push from your PC as normal (edit in `C:\Users\lukeb\Desktop\RLCoach` → `git push`), then in
+the **browser SSH terminal**:
 ```bash
 cd /home/ubuntu/rlcoach
 git pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 Your `.env` and `data/` are git-ignored / volume-mounted, so they survive every update.
-> Private repo: if `git pull` asks for credentials, the token in the original clone URL is
-> stored in `.git/config`. To refresh it: `git remote set-url origin https://ghp_NEWTOKEN@github.com/<you>/<repo>.git`.
+> If you later make the repo private and `git pull` asks for credentials, refresh the stored token:
+> `git remote set-url origin https://ghp_NEWTOKEN@github.com/WebxSupport/RLCoach.git`.
 
 ---
 
