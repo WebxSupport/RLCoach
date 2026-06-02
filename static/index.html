@@ -290,13 +290,19 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
     <div style="max-width:480px;width:100%">
       <div class="card">
         <h2>One last thing</h2>
-        <p class="sub">We need your Rocket League Player ID to identify you in replays.</p>
+        <p class="sub">Tell us which player is you, so we can find you in each replay.</p>
         <div class="input-group">
           <label class="input-label">Your Player ID</label>
-          <input class="input" id="pid-input" type="text" placeholder="steam:76561198335346016"/>
+          <input class="input" id="pid-input" type="text" placeholder="steam:7656119XXXXXXXXXX"/>
+          <div id="pid-epic-suggest" style="margin-top:8px"></div>
           <div class="input-hint">
-            Find it on <strong>ballchasing.com</strong> — search your name and copy the ID from the URL.<br>
-            Format: <code>steam:&lt;17-digit-ID&gt;</code> · <code>epic:&lt;account-id&gt;</code> · <code>ps4:username</code>
+            <b>PC / Steam (most players):</b> go to <b>steamid.io</b>, paste your Steam profile link,
+            and copy the <b>steamID64</b> (17 digits, starts <code>7656</code>). Enter it as
+            <code>steam:&lt;that number&gt;</code>.<br>
+            <b>Already numeric?</b> If your Steam profile URL looks like
+            <code>steamcommunity.com/profiles/7656119…</code>, that number <em>is</em> your ID.<br>
+            <b>Console:</b> use your platform username — <code>ps4:PSNname</code> ·
+            <code>xbl:Gamertag</code> · <code>switch:Name</code>.
           </div>
         </div>
         <button class="btn btn-primary" id="pid-save-btn" style="width:100%;justify-content:center">Continue</button>
@@ -411,9 +417,19 @@ function toast(msg, col='var(--red)') {
   document.body.appendChild(el); setTimeout(()=>el.remove(), 4000);
 }
 
+const _FLEX_SCREENS = {'landing-screen':1,'epic-screen':1,'pid-screen':1,'wizard-screen':1};
 function showScreen(id) {
   ['landing-screen','epic-screen','pid-screen','wizard-screen','main-screen'].forEach(s => {
-    document.getElementById(s).style.display = s===id ? 'block' : 'none';
+    const el = document.getElementById(s);
+    if (s !== id) { el.style.display = 'none'; return; }
+    if (_FLEX_SCREENS[s]) {
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.minHeight = '82vh';
+    } else {
+      el.style.display = 'block';
+    }
   });
   document.getElementById('nav').style.display = (id==='landing-screen') ? 'none' : 'flex';
 }
@@ -557,10 +573,14 @@ async function pollEpic() {
 // ── player ID ────────────────────────────────────────────────────────────
 function showPidScreen() {
   showScreen('pid-screen');
-  document.getElementById('pid-screen').style.display='flex';
-  document.getElementById('pid-screen').style.alignItems='center';
-  document.getElementById('pid-screen').style.justifyContent='center';
-  document.getElementById('pid-screen').style.minHeight='72vh';
+  // Offer a one-click fill for Epic (PC) players using their connected account
+  const sug = document.getElementById('pid-epic-suggest');
+  if (sug && _me && _me.eos_account_id) {
+    const epicId = 'epic:' + _me.eos_account_id;
+    sug.innerHTML = `<button class="btn btn-ghost btn-sm" id="use-epic-id" style="width:100%;justify-content:center">`
+      + `Use my connected Epic account &nbsp;<code style="color:var(--cyan)">${epicId.slice(0,18)}…</code></button>`;
+    document.getElementById('use-epic-id').onclick = () => { document.getElementById('pid-input').value = epicId; };
+  } else if (sug) { sug.innerHTML = ''; }
 }
 
 document.getElementById('pid-save-btn').onclick = async () => {
@@ -588,7 +608,6 @@ async function fetchDetectedRanks() {
 function showWizard() {
   _wizStep=0;
   showScreen('wizard-screen');
-  document.getElementById('wizard-screen').style.display='flex';
   renderWizStep(_wizStep);
 }
 

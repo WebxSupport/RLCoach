@@ -1,5 +1,8 @@
 """Rocket League API endpoint mixins."""
+import logging
 from typing import Any, Dict, List, Optional
+
+_log = logging.getLogger(__name__)
 
 
 class MatchesAPI:
@@ -13,16 +16,30 @@ class MatchesAPI:
 class SkillsAPI:
     async def get_player_skills(self, timeout: float = 10.0):
         """
-        Fetch the authenticated player's skills/rankings.
-        Tries two known PsyNet RPC endpoint variants; returns raw dict or None.
+        Fetch the authenticated player's skills/rankings from PsyNet.
+
+        The exact RPC method + body shape isn't publicly documented, so we try
+        several plausible variants and log what each returns. Once we see which
+        one yields data (check `docker compose logs`), the parser in
+        rlcoach/stats_api.py can be locked to that shape.
         """
-        for method in ("Skills/GetSkills v2", "1/skill/2"):
+        pid = str(self.local_player_id)
+        attempts = [
+            ("Skills/GetSkills v1", {"Players": [{"PlayerID": pid}]}),
+            ("Skills/GetSkills v1", {"PlayerID": pid}),
+            ("Skills/GetPlayerSkill v1", {"PlayerID": pid}),
+            ("Skills/GetSkills v2", {"PlayerID": pid}),
+        ]
+        for method, body in attempts:
             try:
-                result = await self.send_request_sync(method, {}, timeout)
+                result = await self.send_request_sync(method, body, timeout)
+                shape = list(result.keys()) if isinstance(result, dict) else type(result).__name__
+                _log.info("Skills probe OK  method=%r body=%r -> %s", method, body, shape)
                 if result:
                     return result
-            except Exception:
-                pass
+            except Exception as e:
+                _log.info("Skills probe FAIL method=%r body=%r -> %s", method, body, e)
+        _log.warning("All skills probes returned nothing — rank will fall back to self-reported")
         return None
 class StatsAPI: pass
 class ClubsAPI: pass
