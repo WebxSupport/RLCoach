@@ -244,3 +244,24 @@ def wait_for_device_authorization(
 
 def new_egs() -> "EGS":
     return EGS()
+
+
+def get_eos_display_name(access_token: str, account_id: str) -> Optional[str]:
+    """
+    Look up the human-readable Epic display name for an account id.
+    Best-effort: returns None if the lookup fails (caller falls back to the id).
+    """
+    url = "https://api.epicgames.dev/epic/id/v2/accounts"
+    try:
+        with httpx.Client(timeout=10.0) as c:
+            r = c.get(url, headers={"Authorization": f"Bearer {access_token}"},
+                      params={"accountId": account_id})
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, list) and data:
+                    name = data[0].get("displayName")
+                    if name:
+                        return name
+    except Exception:
+        pass
+    return None

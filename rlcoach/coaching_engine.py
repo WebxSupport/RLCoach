@@ -1,202 +1,141 @@
 """
-Coaching plan generator.
+Coaching plan generator — structured output.
 
-Takes player profile + 1 WIN + 1 LOSS replay analysis → calls Claude Sonnet 4.6
-→ produces coaching.md (a personalised, platform-aware, rank-scaled training plan).
+Takes player profile + 1 WIN + 1 LOSS replay analysis + live stats, and asks
+Claude Sonnet 4.6 to return a structured PLAN object (JSON). The web app renders
+that into an interactive training dashboard and seeds a progress tracker from it.
 """
 from __future__ import annotations
 import json
 import logging
+import re
 from datetime import date
-from pathlib import Path
 from typing import Optional
 
 log = logging.getLogger(__name__)
 
 MODEL = "claude-sonnet-4-6"
-MAX_TOKENS = 6000
+MAX_TOKENS = 7000
 
-_SYSTEM = """You are an expert Rocket League coach. You produce personalised, data-driven coaching plans.
-Return ONLY the coaching.md markdown document. No preamble, no code blocks around it — just raw markdown."""
+_SYSTEM = """You are an elite Rocket League coach who builds structured, data-driven training plans.
+You return ONLY a single JSON object inside a ```json code block — no prose outside it.
+The JSON must be valid and complete, matching the requested schema exactly."""
 
-_PROMPT_TEMPLATE = """
-# Generate a Personalised Rocket League Coaching Plan
+_PROMPT = """
+# Build a structured Rocket League training plan
 
-## Player Profile
-- **Gamer tag / display name:** {display_name}
-- **Platform:** {platform_label}
-- **Training availability:** {mins_per_day} minutes/day, {days_per_week} days/week
-- **Ranked playlist to climb:** {gamemode}
-- **Current rank:** {current_rank}
-- **Target rank:** {target_rank}
-- **Rank gap:** {rank_gap} tiers
-- **Duo partner:** {duo_partner}
-- **Freestyle / tricks interest:** {freestyle}
+## Player
+- Name: {player}
+- Platform: {platform_label}
+- Playlist to climb: {gamemode}
+- Current rank: {current_rank}{mmr_str}
+- Target rank: {target_rank}  (gap: {gap} tiers)
+- Time budget: {mins} min/day, {days} days/week
+- Duo partner: {duo}
+- Freestyle interest: {freestyle}
 
-## Current Stats
-{stats_section}
-
-## WIN Replay Analysis
-**{win_map} — {win_result} — {win_duration}s**
+## WIN replay (match.json)
 ```json
 {win_json}
 ```
 
-## LOSS Replay Analysis
-**{loss_map} — {loss_result} — {loss_duration}s**
+## LOSS replay (match.json)
 ```json
 {loss_json}
 ```
 
-## Training Resources Available
-{resources_section}
+## Training resources you may reference
+{resources}
 
----
+## Your task
+Analyse the WIN vs the LOSS, find the 1-2 recurring weaknesses that show up in BOTH,
+and build a plan that bridges {current_rank} -> {target_rank} on {gamemode}, scaled to
+{mins} min/day. {platform_guidance}
 
-## Your Task
+Return EXACTLY this JSON shape (fill every field; arrays must not be empty):
 
-Analyse the two replays (WIN vs LOSS) and produce a **coaching.md** document.
-
-### Analysis requirements
-1. **Win vs loss comparison:** What did the player do better in the win? What collapsed in the loss?
-2. **Identify 1-2 primary recurring weaknesses** that appear in BOTH replays — these become the week's priority.
-3. **Identify 1-2 genuine strengths** so the plan builds on them.
-4. Focus specifically on the **{gamemode}** playlist context (rotation roles, spacing, communication if duo).
-
-### Plan requirements
-- **7-day split** with daily blocks that sum to exactly {mins_per_day} minutes.
-- **Scale content to the rank gap:** a {rank_gap}-tier gap means {rank_guidance}.
-- **This week's focus** must be derived directly from the replay weaknesses, not generic advice.
-- **Every day** should have a specific drill/task, not "play ranked games" alone.
-- **Platform awareness:** {platform_guidance}
-- If duo partner is set ({duo_partner}), include one joint session per week focused on communication and staggered challenges.
-- If freestyle is enabled, include one lighter technical/creative session.
-
-### Output format — produce this exact markdown structure:
-
+```json
+{{
+  "focus": "one sentence — the single highest-impact priority this week, from the replays",
+  "headline": "2-3 sentences: where they are, the main thing holding them back, the path up",
+  "winLoss": {{
+    "win":  {{ "label": "Map — W#-#", "worked": ["2-4 specific things, cite numbers"], "leaked": ["1-3 things that still slipped"] }},
+    "loss": {{ "label": "Map — L#-#", "causes": ["2-4 root causes, cite numbers"], "kept": ["1-2 things that still went well"] }}
+  }},
+  "strengths": [ {{ "title": "short", "detail": "one line with a number" }} ],
+  "weaknesses": [ {{ "title": "short", "detail": "one line with a number", "priority": true }} ],
+  "week": [
+    {{ "day": "Mon", "theme": "short theme", "blocks": [ {{ "name": "task", "mins": 0, "kind": "warmup|skill|application|freestyle|rest" }} ] }}
+  ],
+  "drills": [
+    {{ "id": "kebab-case-id", "name": "drill name", "kind": "pack|workshop|freeplay",
+       "resource": "training-pack code OR 'Workshop: <name> (ID ...)' OR 'Freeplay'",
+       "goal": "a concrete, measurable target", "movesMetric": "what it improves" }}
+  ],
+  "tracker": {{
+    "targetMmr": 0,
+    "weeklyTargets": [ {{ "id": "kebab-id", "label": "metric to move", "from": 0, "to": 0, "unit": "" }} ]
+  }}
+}}
 ```
-# RL Coaching Plan — {display_name} → {target_rank}
-Generated: {today} | Playlist: {gamemode} | Budget: {mins_per_day} min/day, {days_per_week} days
 
-## This Week's Priority
-> [One-sentence priority derived from replay patterns — specific, not generic]
-
----
-
-## 1. Current Stats
-| Playlist | Rank | MMR | Source |
-|----------|------|-----|--------|
-| {gamemode} | [rank] | [mmr or N/A] | [source] |
-
----
-
-## 2. Replay Analysis
-
-### Win — {win_map} ({win_result})
-**What worked:**
-- [3-4 specific bullet points with data citations]
-
-**What still leaked:**
-- [2-3 specific bullet points]
-
-### Loss — {loss_map} ({loss_result})
-**Root causes:**
-- [3-4 specific bullet points with data citations from the replay JSON]
-
-**Under pressure your strongest habit was:**
-- [1 line]
-
-### Recurring patterns (appear in both replays)
-1. **[Pattern 1]** — [evidence from both replays, specific metrics]
-2. **[Pattern 2 if applicable]** — [evidence]
-
----
-
-## 3. 7-Day Training Plan ({mins_per_day} min/day)
-
-| Day | Theme | Blocks (times sum to {mins_per_day} min) |
-|-----|-------|------------------------------------------|
-| Mon | [theme] | [block 1 Xmin] · [block 2 Xmin] · [block 3 Xmin] |
-| Tue | [theme] | ... |
-| Wed | [theme] | ... |
-| Thu | [theme] | ... |
-| Fri | [theme] | ... |
-| Sat | [theme] | ... |
-| Sun | [theme] | ... |
-
-### Drill Details
-
-**[Drill Name]** (Day X, Y min)
-- What: [specific description]
-- Resource: [training pack code / workshop map / freeplay challenge]
-- Track: [measurable outcome — e.g. "complete rings map without touching walls 3 times"]
-
-[Repeat for each unique drill in the plan]
-
----
-
-## 4. Progress Tracking
-- **This week's number to move:** [the one metric — e.g. "reduce double-commits from N to < N/2"]
-- **Weekly MMR check:** note your MMR each Sunday
-- **Replay review:** after each session block that includes ranked play, watch one replay focusing solely on [the week's priority]
-
----
-
-## 5. Next Generation Triggers
-Re-generate this plan when:
-- You reach {target_rank} in {gamemode}
-- You've played 15+ ranked games since this plan was made
-- One of the recurring patterns has clearly improved (use that as a strength next time)
-```
+Rules:
+- `week` MUST have exactly 7 entries (Mon-Sun). Block minutes per active day should sum to ~{mins}.
+  Use a "rest" kind for rest days (theme "Rest", blocks can be a single light task or empty).
+- `drills` = 4-7 concrete items actually referenced in the week. Use REAL training-pack codes /
+  workshop maps from the resources for PC; pack codes / freeplay only for console.
+- `tracker.targetMmr`: estimate the MMR for {target_rank} (roughly current MMR + {gap}x30 if unknown).
+- `tracker.weeklyTargets`: 2-3 measurable things from the weaknesses (e.g. double-commits 32->10).
+- Be specific and honest. Tie everything to the replay numbers.
 """
 
 
-def _build_stats_section(profile: dict, stats: Optional[dict]) -> str:
-    if stats and stats.get("rank"):
-        return (
-            f"| {profile.get('gamemode','2v2')} | {stats['rank']} | "
-            f"{stats.get('mmr_estimate', 'N/A')} | "
-            f"{stats.get('source','psynet_api')} |"
-        )
-    rank = profile.get("current_rank") or "Unknown"
-    return f"| {profile.get('gamemode','2v2')} | {rank} | N/A | self-reported |"
-
-
-def _rank_gap_guidance(gap: int) -> str:
-    if gap <= 3:
-        return "small gap — polish existing skills, reduce mistakes, consistency over ceiling"
-    if gap <= 8:
-        return "moderate gap — one new mechanic per two weeks max, focus on decisions and rotation"
-    return "large gap — fundamentals and decisions dominate, keep mechanics aspirational but not the daily focus"
+def _extract_json(text: str) -> Optional[dict]:
+    m = re.search(r"```json\s*([\s\S]+?)\s*```", text, re.IGNORECASE)
+    if m:
+        try:
+            return json.loads(m.group(1))
+        except json.JSONDecodeError:
+            pass
+    start = text.find("{")
+    if start != -1:
+        depth = 0
+        for i, ch in enumerate(text[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        break
+    return None
 
 
 def generate_coaching_plan(
     profile: dict,
-    win_replay: Optional["SelectedReplay"],
-    loss_replay: Optional["SelectedReplay"],
+    win_replay,
+    loss_replay,
     stats: Optional[dict],
     api_key: str,
-) -> str:
-    """
-    Call Claude Sonnet 4.6 to generate coaching.md.
-    Returns the markdown string.
-    """
+) -> dict:
+    """Call Claude and return a validated PLAN dict (meta is filled deterministically)."""
     import anthropic
     from rlcoach.training_resources import (
-        PLATFORM_OPTIONS, rank_gap as calc_gap, format_resources_for_prompt
+        PLATFORM_OPTIONS, rank_gap as calc_gap, format_resources_for_prompt,
     )
 
     platform = profile.get("platform", "steam")
-    plat_info = next((p for p in PLATFORM_OPTIONS if p["value"] == platform), PLATFORM_OPTIONS[0])
-    has_bakkesmod = plat_info["has_bakkesmod"]
+    plat = next((p for p in PLATFORM_OPTIONS if p["value"] == platform), PLATFORM_OPTIONS[0])
+    has_bm = plat["has_bakkesmod"]
     platform_guidance = (
-        "Use training pack codes AND workshop maps AND BakkesMod plugins as appropriate."
-        if has_bakkesmod else
-        "Console player — use ONLY official in-game training packs (include pack codes). "
-        "NO workshop maps, NO BakkesMod. Replace any PC-only resource with a freeplay challenge."
+        "Use training-pack codes, Steam Workshop maps and BakkesMod where useful."
+        if has_bm else
+        "Console player: use ONLY official in-game training packs (give codes) and freeplay — NO workshop/BakkesMod."
     )
 
-    current_rank = profile.get("current_rank") or "Diamond I"
+    current_rank = profile.get("current_rank") or (stats or {}).get("rank") or "Diamond I"
     target_rank = profile.get("target_rank") or "Champion I"
     gap = calc_gap(current_rank, target_rank)
     gamemode = profile.get("gamemode", "2v2")
@@ -204,59 +143,52 @@ def generate_coaching_plan(
     days = profile.get("days_per_week", 5)
     duo = profile.get("duo_partner") or "None"
     freestyle = "Yes" if profile.get("freestyle") else "No"
-    display_name = profile.get("display_name") or "Player"
+    player = profile.get("display_name") or "Player"
+    cur_mmr = (stats or {}).get("mmr_estimate")
+    mmr_str = f" (~{cur_mmr} MMR)" if cur_mmr else ""
 
-    def _replay_json_str(r: Optional["SelectedReplay"]) -> str:
+    def _rj(r):
         if r is None:
-            return '{"error": "No replay available"}'
-        return json.dumps(r.match_json, indent=2, ensure_ascii=False)[:8000]
+            return '{"error":"no replay available"}'
+        return json.dumps(r.match_json, ensure_ascii=False)[:7000]
 
-    win_map = win_replay.map_display if win_replay else "N/A"
-    win_result = win_replay.result_str if win_replay else "N/A"
-    win_dur = str(round(win_replay.duration_s)) if win_replay else "N/A"
-    loss_map = loss_replay.map_display if loss_replay else "N/A"
-    loss_result = loss_replay.result_str if loss_replay else "N/A"
-    loss_dur = str(round(loss_replay.duration_s)) if loss_replay else "N/A"
-
-    resources = format_resources_for_prompt(platform, current_rank)
-    stats_section = _build_stats_section(profile, stats)
-
-    prompt = _PROMPT_TEMPLATE.format(
-        display_name=display_name,
-        platform_label=plat_info["label"],
-        mins_per_day=mins,
-        days_per_week=days,
-        gamemode=gamemode,
-        current_rank=current_rank,
-        target_rank=target_rank,
-        rank_gap=gap,
-        duo_partner=duo,
-        freestyle=freestyle,
-        stats_section=stats_section,
-        win_map=win_map,
-        win_result=win_result,
-        win_duration=win_dur,
-        win_json=_replay_json_str(win_replay),
-        loss_map=loss_map,
-        loss_result=loss_result,
-        loss_duration=loss_dur,
-        loss_json=_replay_json_str(loss_replay),
-        resources_section=resources,
-        rank_guidance=_rank_gap_guidance(gap),
+    prompt = _PROMPT.format(
+        player=player, platform_label=plat["label"], gamemode=gamemode,
+        current_rank=current_rank, target_rank=target_rank, gap=gap, mmr_str=mmr_str,
+        mins=mins, days=days, duo=duo, freestyle=freestyle,
+        win_json=_rj(win_replay), loss_json=_rj(loss_replay),
+        resources=format_resources_for_prompt(platform, current_rank),
         platform_guidance=platform_guidance,
-        today=date.today().isoformat(),
     )
 
     client = anthropic.Anthropic(api_key=api_key)
-    log.info("Calling Claude %s to generate coaching plan…", MODEL)
-
-    message = client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        system=_SYSTEM,
+    log.info("Generating structured coaching plan via %s...", MODEL)
+    msg = client.messages.create(
+        model=MODEL, max_tokens=MAX_TOKENS, system=_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
+    plan = _extract_json(msg.content[0].text)
+    if plan is None:
+        raise ValueError("Could not parse the coaching plan JSON from Claude")
 
-    plan_md = message.content[0].text
-    log.info("Coaching plan generated: %d chars", len(plan_md))
-    return plan_md
+    est_target_mmr = (plan.get("tracker") or {}).get("targetMmr") or (
+        (cur_mmr + gap * 30) if cur_mmr else None
+    )
+    plan["meta"] = {
+        "player": player,
+        "platform": platform,
+        "platformLabel": plat["label"],
+        "hasBakkesmod": has_bm,
+        "gamemode": gamemode,
+        "currentRank": current_rank,
+        "targetRank": target_rank,
+        "currentMmr": cur_mmr,
+        "targetMmr": est_target_mmr,
+        "minsPerDay": mins,
+        "daysPerWeek": days,
+        "rankGap": gap,
+        "generated": date.today().isoformat(),
+    }
+    plan.setdefault("tracker", {})
+    plan["tracker"]["targetMmr"] = est_target_mmr
+    return plan

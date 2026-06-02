@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RLCoach — Training Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg:#070b11;--panel:#0d1521;--panel2:#101c2c;--line:#1b2a3e;--line2:#26384f;
+  --txt:#e7eff8;--muted:#8093a8;--dim:#56697f;
+  --cyan:#34d6f7;--blue:#3a8dff;--amber:#ffb347;--green:#34e0a0;--red:#ff5d73;--orange:#ff9e42;--purple:#a855f7;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Oxanium',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--txt);font-family:var(--disp);-webkit-font-smoothing:antialiased}
+body{background:radial-gradient(900px 500px at 80% -10%,#0f2236 0%,transparent 60%),
+  radial-gradient(700px 400px at -10% 110%,#131b2e 0%,transparent 55%),var(--bg);min-height:100vh}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.3;
+  background-image:linear-gradient(#13202f 1px,transparent 1px),linear-gradient(90deg,#13202f 1px,transparent 1px);
+  background-size:42px 42px;mask:radial-gradient(circle at 50% 20%,#000 0%,transparent 80%)}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;
+  padding:11px 22px;background:#0b1420ee;border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.topbar a.home{color:var(--cyan);text-decoration:none;font-weight:800;font-size:16px}
+.topbar a.home span{color:var(--txt)}
+.topbar .kick{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em}
+.topbar .who{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+.wrap{max-width:1120px;margin:0 auto;padding:24px 20px;position:relative}
+
+/* hero header */
+.hero{display:flex;align-items:center;gap:26px;flex-wrap:wrap;
+  border:1px solid var(--line2);border-radius:18px;padding:22px 26px;margin-bottom:20px;
+  background:linear-gradient(120deg,#0f1f30,#0b1420)}
+.journey{display:flex;align-items:center;gap:16px}
+.journey .rk{text-align:center}
+.journey .rk img{width:64px;height:64px;display:block;margin:0 auto 4px}
+.journey .rk .lab{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.journey .rk .nm{font-size:13px;font-weight:700}
+.journey .arrow{font-size:26px;color:var(--cyan)}
+.hero .info{flex:1;min-width:220px}
+.hero h1{font-size:24px;font-weight:800;line-height:1.1}
+.hero .sub{font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+.hero .sub b{color:var(--txt)}
+
+/* tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line2);margin-bottom:22px;flex-wrap:wrap}
+.tab{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  background:none;border:0;padding:12px 16px;cursor:pointer;position:relative;transition:color .2s}
+.tab:hover{color:var(--txt)} .tab.active{color:var(--cyan)}
+.tab.active::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}
+.panel{display:none;animation:fade .35s ease} .panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* cards */
+.card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:20px 22px;margin-bottom:16px}
+.card h2{font-size:15px;font-weight:800;margin-bottom:4px}
+.card .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:780px){.grid2{grid-template-columns:1fr}}
+
+/* focus hero */
+.focus{border:1px solid var(--cyan);border-radius:14px;background:linear-gradient(120deg,#0d2233,#0b1420);
+  padding:20px 24px;margin-bottom:16px;position:relative;overflow:hidden}
+.focus .k{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan)}
+.focus .t{font-size:19px;font-weight:800;margin-top:8px;line-height:1.35}
+.focus .h{font-size:13.5px;color:#c8d4e2;margin-top:10px;line-height:1.6}
+
+/* mmr progress bar */
+.mmrbar-wrap{margin-top:6px}
+.mmrbar{height:14px;border-radius:8px;background:#0c1623;border:1px solid var(--line);overflow:hidden;position:relative}
+.mmrbar>div{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:8px;transition:width 1s ease}
+.mmrbar-labels{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px}
+
+/* lists */
+.swcols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:780px){.swcols{grid-template-columns:1fr}}
+.swcol h3{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+.swcol.s h3{color:var(--green)} .swcol.w h3{color:var(--red)}
+.item{border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:9px;background:#0c1623}
+.item.prio{border-left:3px solid var(--red)}
+.item .it{font-size:13.5px;font-weight:700}
+.item .id{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45}
+
+/* win/loss */
+.wl{border:1px solid var(--line);border-radius:12px;padding:16px;background:#0c1623}
+.wl.win{border-top:3px solid var(--green)} .wl.loss{border-top:3px solid var(--red)}
+.wl .lab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted)}
+.wl .mp{font-size:15px;font-weight:800;margin:3px 0 12px}
+.wl h4{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:10px 0 5px}
+.wl ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.wl li{font-size:12.5px;color:#cdd9e6;line-height:1.45;display:flex;gap:8px}
+.wl li::before{content:"▸";color:var(--cyan)}
+
+/* weekly plan */
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+@media(max-width:900px){.week{grid-template-columns:repeat(2,1fr)}}
+.day{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:12px;display:flex;flex-direction:column}
+.day .dh{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+.day .dn{font-weight:800;font-size:13px} .day .dt{font-family:var(--mono);font-size:10px;color:var(--cyan);text-align:right;max-width:64px}
+.day.rest{opacity:.62}
+.blk{border-radius:7px;padding:7px 9px;margin-bottom:6px;font-size:11.5px;line-height:1.3;border-left:3px solid var(--dim);background:#0c1623}
+.blk .bn{font-weight:600} .blk .bm{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.blk.warmup{border-left-color:var(--amber)} .blk.skill{border-left-color:var(--cyan)}
+.blk.application{border-left-color:var(--green)} .blk.freestyle{border-left-color:var(--purple)} .blk.rest{border-left-color:var(--dim)}
+.day .tot{margin-top:auto;font-family:var(--mono);font-size:10px;color:var(--dim);padding-top:6px}
+
+/* drills */
+.drill{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:16px 18px;margin-bottom:12px}
+.drill .dtop{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.drill .dname{font-size:15px;font-weight:800}
+.kbadge{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid currentColor}
+.kbadge.pack{color:var(--cyan)} .kbadge.workshop{color:var(--purple)} .kbadge.freeplay{color:var(--amber)}
+.drill .goal{font-size:13px;color:#cdd9e6;line-height:1.5;margin:4px 0}
+.drill .meta{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.res{display:inline-flex;align-items:center;gap:8px;background:#0c1623;border:1px solid var(--line2);border-radius:8px;padding:6px 10px;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--cyan)}
+.res button{background:none;border:1px solid var(--line2);color:var(--muted);border-radius:5px;font-size:10px;padding:2px 7px;cursor:pointer;font-family:var(--mono)}
+.res button:hover{color:var(--cyan);border-color:var(--cyan)}
+.drill .donerow{margin-top:10px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+
+/* tracker */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:680px){.kpis{grid-template-columns:1fr}}
+.kpi{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:14px 16px}
+.kpi .l{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.kpi .v{font-size:26px;font-weight:800;margin-top:5px}
+.kpi .s{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:2px}
+.addmmr{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.inp{background:#0c1623;border:1px solid var(--line2);border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:13px;padding:9px 12px;outline:none}
+.inp:focus{border-color:var(--cyan)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;
+  border:1px solid var(--cyan);background:var(--cyan);color:#04121a;cursor:pointer;font-family:var(--disp)}
+.btn:hover{filter:brightness(1.1)} .btn.ghost{background:none;color:var(--muted);border-color:var(--line2)} .btn.ghost:hover{color:var(--cyan);border-color:var(--cyan)}
+.tt{border:1px solid var(--line);border-radius:10px;background:#0c1623;padding:12px 14px;margin-bottom:9px}
+.tt .row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.tt .nm{font-size:13px;font-weight:700}
+.tt .from-to{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.tbar{height:9px;border-radius:5px;background:#0a131e;border:1px solid var(--line);overflow:hidden;margin-top:9px}
+.tbar>div{height:100%;background:linear-gradient(90deg,var(--amber),var(--green));transition:width .6s}
+.checkrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dotted var(--line)}
+.checkrow input{width:18px;height:18px;accent-color:var(--cyan);cursor:pointer}
+.checkrow .cn{font-size:13px} .checkrow.done .cn{color:var(--dim);text-decoration:line-through}
+.savechip{position:fixed;bottom:20px;right:20px;font-family:var(--mono);font-size:11px;color:var(--green);
+  background:#0d2b1a;border:1px solid var(--green);border-radius:999px;padding:7px 14px;opacity:0;transition:opacity .3s;z-index:99}
+.savechip.show{opacity:1}
+.empty{color:var(--muted);font-family:var(--mono);font-size:12px;padding:10px 0}
+.foot{font-family:var(--mono);font-size:11px;color:var(--dim);text-align:center;margin:26px 0}
+</style>
+
+<div class="topbar">
+  <a class="home" href="/">&larr; RL<span>Coach</span></a>
+  <span class="kick">TRAINING PLAN</span>
+  <span class="who" id="who"></span>
+</div>
+
+<div class="wrap">
+  <div class="hero" id="hero"></div>
+  <div class="tabs" id="tabs"></div>
+  <div class="panel active" data-p="overview" id="p-overview"></div>
+  <div class="panel" data-p="week" id="p-week"></div>
+  <div class="panel" data-p="drills" id="p-drills"></div>
+  <div class="panel" data-p="tracker" id="p-tracker"></div>
+  <div class="foot" id="foot"></div>
+</div>
+<div class="savechip" id="savechip">saved ✓</div>
+
+<script>
+/* ===== injected by the server ===== */
+const PLAN = {};
+/* ================================== */
+
+const RANK_ICON={'Unranked':'Unranked.svg','Bronze I':'b1.svg','Bronze II':'b2.svg','Bronze III':'b3.svg','Silver I':'s1.svg','Silver II':'s2.svg','Silver III':'s3.svg','Gold I':'g1.svg','Gold II':'g2.svg','Gold III':'g3.svg','Platinum I':'p1.svg','Platinum II':'p2.svg','Platinum III':'p3.svg','Diamond I':'d1.svg','Diamond II':'d2.svg','Diamond III':'d3.svg','Champion I':'c1.svg','Champion II':'c2.svg','Champion III':'c3.svg','Grand Champion I':'gc.svg','Grand Champion II':'gc.svg','Grand Champion III':'gc.svg','Supersonic Legend':'gc.svg'};
+const rkUrl=r=>'/static/rank-icons/'+(RANK_ICON[r]||'Unranked.svg');
+const esc=s=>(s==null?'':(''+s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const $=s=>document.querySelector(s);
+let TRACK={mmrLog:[],drillsDone:{},weeklyDone:{}};
+
+const M=PLAN.meta||{};
+$("#who").textContent=M.player?('👤 '+M.player):'';
+$("#foot").textContent='Generated '+(M.generated||'')+' · RLCoach';
+
+/* hero */
+$("#hero").innerHTML=`
+  <div class="journey">
+    <div class="rk"><img src="${rkUrl(M.currentRank)}" alt=""/><div class="lab">NOW</div><div class="nm">${esc(M.currentRank||'—')}</div></div>
+    <div class="arrow">→</div>
+    <div class="rk"><img src="${rkUrl(M.targetRank)}" alt=""/><div class="lab">GOAL</div><div class="nm">${esc(M.targetRank||'—')}</div></div>
+  </div>
+  <div class="info">
+    <h1>${esc(M.player||'Your')} — Road to ${esc(M.targetRank||'the next rank')}</h1>
+    <div class="sub">
+      <span><b>${esc(M.gamemode||'')}</b></span>
+      <span><b>${M.minsPerDay||0}</b> min/day</span>
+      <span><b>${M.daysPerWeek||0}</b> days/week</span>
+      <span>${esc(M.platformLabel||'')}</span>
+    </div>
+  </div>`;
+
+/* tabs */
+const TABS=[['overview','Overview'],['week','Weekly Plan'],['drills','Drills'],['tracker','Progress Tracker']];
+$("#tabs").innerHTML=TABS.map((t,i)=>`<button class="tab ${i==0?'active':''}" data-t="${t[0]}">${t[1]}</button>`).join('');
+$("#tabs").addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');document.querySelector(`.panel[data-p="${b.dataset.t}"]`).classList.add('active');
+  if(b.dataset.t==='tracker')renderTracker();});
+
+/* ===== OVERVIEW ===== */
+(function(){
+  const wl=PLAN.winLoss||{};const w=wl.win||{},l=wl.loss||{};
+  const sw=(arr,cls)=>(arr||[]).map(x=>`<div class="item ${cls&&x.priority?'prio':''}"><div class="it">${esc(x.title)}</div><div class="id">${esc(x.detail)}</div></div>`).join('')||'<div class="empty">—</div>';
+  const li=a=>(a||[]).map(x=>`<li>${esc(x)}</li>`).join('')||'<li>—</li>';
+  $("#p-overview").innerHTML=`
+    <div class="focus"><div class="k">This week's #1 focus</div><div class="t">${esc(PLAN.focus||'')}</div><div class="h">${esc(PLAN.headline||'')}</div></div>
+    <div class="card"><h2>Rank progress</h2><div class="sub">Climb from ${esc(M.currentRank)} to ${esc(M.targetRank)}</div>
+      <div class="mmrbar-wrap" id="ov-mmr"></div></div>
+    <div class="card"><h2>Strengths &amp; weaknesses</h2><div class="sub">From your win and loss replays</div>
+      <div class="swcols">
+        <div class="swcol s"><h3>✓ Strengths to build on</h3>${sw(PLAN.strengths,false)}</div>
+        <div class="swcol w"><h3>✗ Fix these to rank up</h3>${sw(PLAN.weaknesses,true)}</div>
+      </div></div>
+    <div class="card"><h2>Win vs Loss</h2><div class="sub">What changed between your best and worst game</div>
+      <div class="grid2">
+        <div class="wl win"><div class="lab">WON</div><div class="mp">${esc(w.label||'Win')}</div>
+          <h4>What worked</h4><ul>${li(w.worked)}</ul><h4>Still leaked</h4><ul>${li(w.leaked)}</ul></div>
+        <div class="wl loss"><div class="lab">LOST</div><div class="mp">${esc(l.label||'Loss')}</div>
+          <h4>Root causes</h4><ul>${li(l.causes)}</ul><h4>Still went well</h4><ul>${li(l.kept)}</ul></div>
+      </div></div>`;
+  renderMmrBar();
+})();
+
+function renderMmrBar(){
+  const el=$("#ov-mmr");if(!el)return;
+  const cur=latestMmr()??M.currentMmr, tgt=M.targetMmr;
+  if(!cur||!tgt){el.innerHTML=`<div class="empty">Log your MMR in the Tracker tab to see progress here.</div>`;return;}
+  const start=M.currentMmr||cur;
+  const pct=Math.max(2,Math.min(100,Math.round((cur-start)/Math.max(1,(tgt-start))*100)));
+  el.innerHTML=`<div class="mmrbar"><div style="width:${pct}%"></div></div>
+    <div class="mmrbar-labels"><span>${start} MMR</span><span style="color:var(--cyan)">now ${cur}</span><span>${tgt} (target)</span></div>`;
+}
+
+/* ===== WEEKLY ===== */
+(function(){
+  const week=PLAN.week||[];
+  if(!week.length){$("#p-week").innerHTML='<div class="card"><div class="empty">No weekly plan in this generation.</div></div>';return;}
+  const days=week.map(d=>{
+    const blocks=(d.blocks||[]);
+    const tot=blocks.reduce((a,b)=>a+(+b.mins||0),0);
+    const isRest=(d.theme||'').toLowerCase().includes('rest')||!blocks.length;
+    return `<div class="day ${isRest?'rest':''}">
+      <div class="dh"><span class="dn">${esc(d.day)}</span><span class="dt">${esc(d.theme||'')}</span></div>
+      ${blocks.map(b=>`<div class="blk ${esc(b.kind||'skill')}"><div class="bn">${esc(b.name)}</div><div class="bm">${b.mins?b.mins+' min':''} ${esc(b.kind||'')}</div></div>`).join('')||'<div class="blk rest"><div class="bn">Rest / light freeplay</div></div>'}
+      <div class="tot">${tot?tot+' min total':''}</div></div>`;
+  }).join('');
+  $("#p-week").innerHTML=`<div class="card"><h2>Your 7-day split</h2><div class="sub">Tuned to ${M.minsPerDay} min/day · colour = block type</div>
+    <div class="week">${days}</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:14px;display:flex;gap:16px;flex-wrap:wrap">
+      <span style="color:var(--amber)">■ warm-up</span><span style="color:var(--cyan)">■ skill</span>
+      <span style="color:var(--green)">■ application</span><span style="color:var(--purple)">■ freestyle</span></div></div>`;
+})();
+
+/* ===== DRILLS ===== */
+function renderDrills(){
+  const drills=PLAN.drills||[];
+  if(!drills.length){$("#p-drills").innerHTML='<div class="card"><div class="empty">No drills in this generation.</div></div>';return;}
+  $("#p-drills").innerHTML=`<div class="card"><h2>Your drill library</h2><div class="sub">Tap a code to copy it · tick a drill once you've done it this week</div></div>`+
+    drills.map(d=>{
+      const id=d.id||d.name;
+      const done=!!(TRACK.drillsDone||{})[id];
+      const isCode=/^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/.test((d.resource||'').trim());
+      const res=isCode
+        ? `<div class="res"><span>${esc(d.resource)}</span><button onclick="copyCode('${esc(d.resource)}',this)">copy</button></div>`
+        : `<div class="res" style="color:var(--muted)">${esc(d.resource||'Freeplay')}</div>`;
+      return `<div class="drill">
+        <div class="dtop"><span class="dname">${esc(d.name)}</span><span class="kbadge ${esc(d.kind||'pack')}">${esc(d.kind||'')}</span></div>
+        <div class="goal">🎯 ${esc(d.goal||'')}</div>
+        ${d.movesMetric?`<div class="meta">Improves: ${esc(d.movesMetric)}</div>`:''}
+        ${res}
+        <div class="donerow"><input type="checkbox" ${done?'checked':''} onchange="toggleDrill('${esc(id)}',this.checked)"/> Done this week</div>
+      </div>`;
+    }).join('');
+}
+function copyCode(code,btn){navigator.clipboard.writeText(code).then(()=>{btn.textContent='copied!';setTimeout(()=>btn.textContent='copy',1200);});}
+function toggleDrill(id,v){TRACK.drillsDone=TRACK.drillsDone||{};TRACK.drillsDone[id]=v;saveTracker();}
+
+/* ===== TRACKER ===== */
+function latestMmr(){const l=(TRACK.mmrLog||[]);return l.length?l[l.length-1].mmr:null;}
+function renderTracker(){
+  const cur=latestMmr()??M.currentMmr, tgt=M.targetMmr;
+  const delta=(cur!=null&&M.currentMmr!=null)?(cur-M.currentMmr):null;
+  const toGo=(cur!=null&&tgt!=null)?(tgt-cur):null;
+  const wt=(PLAN.tracker||{}).weeklyTargets||[];
+  const drills=PLAN.drills||[];
+  const doneCount=drills.filter(d=>(TRACK.drillsDone||{})[d.id||d.name]).length;
+  $("#p-tracker").innerHTML=`
+    <div class="kpis">
+      <div class="kpi"><div class="l">Current MMR</div><div class="v" style="color:var(--cyan)">${cur??'—'}</div><div class="s">${delta!=null?(delta>=0?'+':'')+delta+' since plan start':'log your MMR below'}</div></div>
+      <div class="kpi"><div class="l">Target MMR</div><div class="v" style="color:var(--green)">${tgt??'—'}</div><div class="s">${esc(M.targetRank||'')}</div></div>
+      <div class="kpi"><div class="l">To go</div><div class="v" style="color:var(--amber)">${toGo!=null?toGo:'—'}</div><div class="s">${toGo!=null&&toGo<=0?'target reached! 🎉':'MMR to climb'}</div></div>
+    </div>
+    <div class="card"><h2>MMR progression</h2><div class="sub">Log your ${esc(M.gamemode)} MMR after sessions to watch the trend</div>
+      <div id="mmrchart"></div>
+      <div class="addmmr">
+        <input class="inp" id="mmr-in" type="number" placeholder="e.g. ${cur||M.currentMmr||950}" style="width:130px"/>
+        <button class="btn" onclick="logMmr()">Log today's MMR</button>
+        ${(TRACK.mmrLog||[]).length?'<button class="btn ghost" onclick="undoMmr()">Undo last</button>':''}
+      </div>
+    </div>
+    <div class="card"><h2>Weekly targets</h2><div class="sub">Move these numbers — log where you're at</div>
+      ${wt.length?wt.map(renderWeeklyTarget).join(''):'<div class="empty">No measurable targets in this plan.</div>'}
+    </div>
+    <div class="card"><h2>Drill checklist</h2><div class="sub">${doneCount}/${drills.length} done this week</div>
+      ${drills.map(d=>{const id=d.id||d.name;const done=!!(TRACK.drillsDone||{})[id];
+        return `<label class="checkrow ${done?'done':''}"><input type="checkbox" ${done?'checked':''} onchange="toggleDrill('${esc(id)}',this.checked);renderTracker()"/><span class="cn">${esc(d.name)}</span></label>`;}).join('')}
+    </div>`;
+  drawMmrChart();
+}
+function renderWeeklyTarget(t){
+  const cur=(TRACK.weeklyDone||{})[t.id];
+  const from=+t.from,to=+t.to;const has=cur!=null&&cur!=='';
+  let pct=0;
+  if(has){const span=Math.abs(from-to)||1;pct=Math.max(0,Math.min(100,Math.round((Math.abs(from-(+cur)))/span*100)));}
+  return `<div class="tt"><div class="row">
+      <div><div class="nm">${esc(t.label)}</div><div class="from-to">${from}${esc(t.unit||'')} → ${to}${esc(t.unit||'')} (target)</div></div>
+      <div style="display:flex;gap:8px;align-items:center"><input class="inp" type="number" style="width:90px" placeholder="current" value="${has?esc(cur):''}" onchange="logWeekly('${esc(t.id)}',this.value)"/></div>
+    </div><div class="tbar"><div style="width:${pct}%"></div></div></div>`;
+}
+function logMmr(){
+  const v=parseInt($("#mmr-in").value,10);if(!v){return;}
+  TRACK.mmrLog=TRACK.mmrLog||[];
+  const today=new Date().toISOString().slice(0,10);
+  const last=TRACK.mmrLog[TRACK.mmrLog.length-1];
+  if(last&&last.date===today){last.mmr=v;}else{TRACK.mmrLog.push({date:today,mmr:v});}
+  saveTracker();renderTracker();renderMmrBar();
+}
+function undoMmr(){TRACK.mmrLog=TRACK.mmrLog||[];TRACK.mmrLog.pop();saveTracker();renderTracker();renderMmrBar();}
+function logWeekly(id,v){TRACK.weeklyDone=TRACK.weeklyDone||{};TRACK.weeklyDone[id]=v;saveTracker();renderTracker();}
+
+function drawMmrChart(){
+  const el=$("#mmrchart");if(!el)return;
+  const log=(TRACK.mmrLog||[]);
+  if(log.length<1){el.innerHTML='<div class="empty">No data yet — log your MMR to start the chart.</div>';return;}
+  const W=1000,H=200,pl=44,pr=16,pt=14,pb=26;
+  const tgt=M.targetMmr, start=M.currentMmr;
+  const vals=log.map(p=>p.mmr).concat(tgt?[tgt]:[]).concat(start?[start]:[]);
+  let mn=Math.min(...vals),mx=Math.max(...vals);if(mn===mx){mn-=20;mx+=20;}
+  const pad=(mx-mn)*0.12;mn-=pad;mx+=pad;
+  const x=i=>pl+(log.length<=1?0.5:i/(log.length-1))*(W-pl-pr);
+  const y=v=>pt+(1-(v-mn)/(mx-mn))*(H-pt-pb);
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="overflow:visible">`;
+  for(let g=0;g<=3;g++){const v=mn+(mx-mn)*g/3;s+=`<line x1="${pl}" y1="${y(v)}" x2="${W-pr}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl-8}" y="${y(v)+3}" fill="var(--dim)" font-size="10" font-family="var(--mono)" text-anchor="end">${Math.round(v)}</text>`;}
+  if(tgt){s+=`<line x1="${pl}" y1="${y(tgt)}" x2="${W-pr}" y2="${y(tgt)}" stroke="var(--green)" stroke-dasharray="5 4" opacity=".7"/><text x="${W-pr}" y="${y(tgt)-5}" fill="var(--green)" font-size="10" font-family="var(--mono)" text-anchor="end">target ${tgt}</text>`;}
+  const pts=log.map((p,i)=>`${x(i)},${y(p.mmr)}`).join(' ');
+  s+=`<polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="2.5" stroke-linejoin="round"/>`;
+  log.forEach((p,i)=>{s+=`<circle cx="${x(i)}" cy="${y(p.mmr)}" r="3.5" fill="var(--cyan)"><title>${p.date}: ${p.mmr}</title></circle>`;
+    if(i===log.length-1)s+=`<text x="${x(i)}" y="${y(p.mmr)-9}" fill="var(--cyan)" font-size="11" font-family="var(--mono)" text-anchor="middle">${p.mmr}</text>`;});
+  log.forEach((p,i)=>{if(i%Math.ceil(log.length/6||1)===0||i===log.length-1)s+=`<text x="${x(i)}" y="${H-8}" fill="var(--dim)" font-size="9" font-family="var(--mono)" text-anchor="middle">${p.date.slice(5)}</text>`;});
+  s+=`</svg>`;el.innerHTML=s;
+}
+
+/* ===== persistence ===== */
+let _saveTimer=null;
+function saveTracker(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(()=>{
+    fetch('/api/tracker',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(TRACK)})
+      .then(()=>{const c=$("#savechip");c.classList.add('show');setTimeout(()=>c.classList.remove('show'),1200);})
+      .catch(()=>{});
+  },400);
+}
+
+/* boot */
+renderDrills();
+fetch('/api/tracker').then(r=>r.json()).then(t=>{
+  TRACK=Object.assign({mmrLog:[],drillsDone:{},weeklyDone:{}},t||{});
+  renderDrills();renderMmrBar();
+  if($(".tab.active")?.dataset?.t==='tracker')renderTracker();
+}).catch(()=>{});
+</script>
+</html>

@@ -563,7 +563,7 @@ function showEpicConnect() {
 function updateEpicLabel() {
   const lbl=document.getElementById('epic-label');
   if (_me&&_me.epic_connected) {
-    lbl.textContent = 'Epic: ' + (_me.display_name||_me.eos_account_id||'connected');
+    lbl.textContent = '👤 ' + (_me.display_name||_me.eos_account_id||'connected');
   } else { lbl.textContent=''; }
 }
 

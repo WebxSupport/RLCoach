@@ -268,7 +268,7 @@ async def epic_start(session_id: Optional[str] = Cookie(default=None)):
 async def epic_poll(device_code: str, response: Response,
                     session_id: Optional[str] = Cookie(default=None)):
     session = await _require_session(session_id)
-    from rlapi.egs import EGS
+    from rlapi.egs import EGS, get_eos_display_name
 
     def _try_exchange():
         egs = EGS()
@@ -288,16 +288,21 @@ async def epic_poll(device_code: str, response: Response,
             return {"status": "expired"}
         return {"status": "error", "message": msg}
 
+    # Resolve the real Epic username (falls back to the account id)
+    display_name = await loop.run_in_executor(
+        None, get_eos_display_name, eos.access_token, eos.account_id
+    ) or eos.account_id
+
     tokens = {
         "eos_access_token": eos.access_token,
         "eos_refresh_token": eos.refresh_token,
         "eos_expires_at": eos.expires_at,
         "eos_refresh_expires_at": eos.refresh_expires_at,
         "account_id": eos.account_id,
-        "display_name": eos.account_id,
+        "display_name": display_name,
     }
-    await db.connect_epic(session["session_id"], eos.account_id, eos.account_id, tokens)
-    return {"status": "complete", "account_id": eos.account_id}
+    await db.connect_epic(session["session_id"], eos.account_id, display_name, tokens)
+    return {"status": "complete", "account_id": eos.account_id, "display_name": display_name}
 
 
 @app.post("/api/epic/disconnect")
@@ -565,6 +570,24 @@ async def view_coaching(session_id: Optional[str] = Cookie(default=None)):
     return HTMLResponse(_render_coaching_html(plan["content_md"]))
 
 
+# ── tracker ───────────────────────────────────────────────────────────────────
+
+@app.get("/api/tracker")
+async def get_tracker(session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    return await db.get_tracker(session["session_id"])
+
+
+@app.post("/api/tracker")
+async def save_tracker(request: Request, session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    body = await request.json()
+    if len(json.dumps(body)) > 200_000:
+        raise HTTPException(413, "Tracker state too large")
+    await db.save_tracker(session["session_id"], body)
+    return {"status": "ok"}
+
+
 # ── resources ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/resources")
@@ -646,7 +669,7 @@ async def _run_coaching_job(
 
     loop = asyncio.get_event_loop()
     try:
-        plan_md = await loop.run_in_executor(
+        plan = await loop.run_in_executor(
             None, generate_coaching_plan, profile, win, loss, stats, api_key
         )
     except Exception as e:
@@ -655,7 +678,15 @@ async def _run_coaching_job(
 
     plan_id = str(uuid.uuid4())
     guids = [r.guid for r in [win, loss] if r is not None]
-    await db.save_coaching_plan(plan_id, session_id, plan_md, guids)
+    await db.save_coaching_plan(plan_id, session_id, json.dumps(plan), guids)
+
+    # Seed the tracker — keep the player's MMR history, reset per-plan checkmarks
+    existing = await db.get_tracker(session_id)
+    await db.save_tracker(session_id, {
+        "mmrLog": existing.get("mmrLog", []),
+        "drillsDone": {},
+        "weeklyDone": {},
+    })
 
     for r in [win, loss]:
         if r is None:
@@ -672,45 +703,14 @@ async def _run_coaching_job(
     log.info("Coaching job %s complete for session %s", job_id, session_id)
 
 
-def _render_coaching_html(markdown_content: str) -> str:
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>RLCoach — Coaching Plan</title>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
-:root{{--bg:#070b11;--panel:#0d1521;--line:#1b2a3e;--txt:#e7eff8;--muted:#8093a8;
-  --cyan:#34d6f7;--amber:#ffb347;--mono:'IBM Plex Mono',monospace;--disp:'Oxanium',system-ui,sans-serif}}
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:var(--bg);color:var(--txt);font-family:var(--disp);padding:32px 20px;line-height:1.7;-webkit-font-smoothing:antialiased}}
-.wrap{{max-width:860px;margin:0 auto}}
-h1{{font-size:28px;font-weight:800;color:var(--cyan);margin-bottom:6px}}
-h2{{font-size:18px;font-weight:700;margin:32px 0 10px;border-bottom:1px solid var(--line);padding-bottom:8px}}
-h3{{font-size:15px;font-weight:600;color:var(--amber);margin:20px 0 8px}}
-p{{color:#c8d4e2;font-size:14px;margin-bottom:10px}}
-blockquote{{border-left:3px solid var(--cyan);padding:10px 16px;background:var(--panel);border-radius:0 8px 8px 0;color:var(--cyan);font-style:italic;margin:12px 0}}
-table{{width:100%;border-collapse:collapse;font-size:13px;margin:16px 0}}
-th,td{{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left}}
-th{{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}}
-tr:hover td{{background:#0e1a28}}
-ul,ol{{padding-left:20px;color:#c8d4e2;font-size:13.5px}}
-li{{margin-bottom:4px}}
-code{{font-family:var(--mono);background:#0c1623;border:1px solid var(--line);padding:2px 7px;border-radius:5px;font-size:12px;color:var(--cyan)}}
-pre{{background:#0c1623;border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;margin:12px 0}}
-pre code{{border:none;background:none;padding:0}}
-strong{{color:var(--txt)}}
-hr{{border:none;border-top:1px solid var(--line);margin:28px 0}}
-.back{{display:inline-block;margin-bottom:20px;font-family:var(--mono);font-size:12px;color:var(--muted);text-decoration:none}}
-.back:hover{{color:var(--cyan)}}
-</style>
-<div class="wrap">
-<a href="/" class="back">← Back to RLCoach</a>
-<div id="content"></div>
-</div>
-<script>
-const md = {json.dumps(markdown_content)};
-document.getElementById('content').innerHTML = marked.parse(md);
-</script>
-</html>"""
+def _render_coaching_html(plan_json_str: str) -> str:
+    """Inject the PLAN object into the interactive coaching dashboard template."""
+    template = Path("static/coaching_template.html").read_text(encoding="utf-8")
+    try:
+        plan = json.loads(plan_json_str)
+    except Exception:
+        plan = {}
+    injected = "const PLAN = " + json.dumps(plan, ensure_ascii=False) + ";"
+    if "const PLAN = {};" in template:
+        return template.replace("const PLAN = {};", injected, 1)
+    return template.replace("/*PLAN_INJECT*/", injected, 1)

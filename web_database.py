@@ -126,6 +126,12 @@ CREATE TABLE IF NOT EXISTS coaching_plans (
     replay_guids TEXT NOT NULL DEFAULT '[]',
     generated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS trackers (
+    session_id  TEXT PRIMARY KEY,
+    state       TEXT NOT NULL DEFAULT '{}',
+    updated_at  TEXT NOT NULL
+);
 """
 
 DAILY_LIMIT = 5
@@ -449,3 +455,24 @@ class Database:
         d = dict(row)
         d["replay_guids"] = json.loads(d["replay_guids"])
         return d
+
+    # ── tracker ────────────────────────────────────────────────────────────────
+
+    async def get_tracker(self, session_id: str) -> dict:
+        async with self._db.execute(
+            "SELECT state FROM trackers WHERE session_id=?", (session_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return {}
+        try:
+            return json.loads(row["state"])
+        except Exception:
+            return {}
+
+    async def save_tracker(self, session_id: str, state: dict) -> None:
+        await self._db.execute(
+            "INSERT OR REPLACE INTO trackers (session_id, state, updated_at) VALUES (?,?,?)",
+            (session_id, json.dumps(state), self._now()),
+        )
+        await self._db.commit()
