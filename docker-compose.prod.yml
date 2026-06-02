@@ -1,0 +1,28 @@
+# Production overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Secrets are pulled from AWS SSM at startup via the entrypoint script (see below).
+# Never put real keys in this file — use the .env file on the server (chmod 600).
+
+services:
+  rlcoach:
+    restart: always
+    environment:
+      SECURE_COOKIES: "true"
+      # ALLOWED_ORIGINS and other vars come from .env on the server
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.5"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/me"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 105.52 112">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #501894;
+      }
+
+      .cls-2 {
+        fill: #ffe8f8;
+      }
+    </style>
+  </defs>
+  <g id="Ranks">
+    <g id="Coloured">
+      <g id="Champion">
+        <g id="Champion_I" data-name="Champion I">
+          <path class="cls-1" d="M28.94,56l17.64,24.18-29.11,10.41L0,56,17.47,21.41l29.11,10.41-17.64,24.18ZM76.58,56l-17.64,24.18,29.11,10.41,17.47-34.59-17.47-34.59-29.11,10.41,17.64,24.18Z"/>
+          <path class="cls-2" d="M52.76,29.75l16.75,26.25-16.75,26.25-16.75-26.25,16.75-26.25M52.76,0L17.03,56l35.73,56,35.73-56L52.76,0h0Z"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

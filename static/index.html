@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RLCoach</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg:#070b11;--panel:#0d1521;--panel2:#101c2c;--line:#1b2a3e;--line2:#26384f;
+  --txt:#e7eff8;--muted:#8093a8;--dim:#56697f;
+  --cyan:#34d6f7;--blue:#3a8dff;--amber:#ffb347;--green:#34e0a0;--red:#ff5d73;--orange:#ff9e42;
+  --bronze:#cd7f32;--silver:#c0c0c0;--gold:#ffd700;--plat:#00cfcf;
+  --diamond:#5cb3ff;--champ:#a855f7;--gc:#ff6b6b;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Oxanium',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;background:var(--bg);color:var(--txt);font-family:var(--disp)}
+body{background:radial-gradient(900px 500px at 80% -10%,#0f2236 0%,transparent 60%),
+  radial-gradient(700px 400px at -10% 110%,#131b2e 0%,transparent 55%),var(--bg);
+  -webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
+  background-image:linear-gradient(#13202f 1px,transparent 1px),linear-gradient(90deg,#13202f 1px,transparent 1px);
+  background-size:42px 42px;mask:radial-gradient(circle at 50% 30%,#000 0%,transparent 80%)}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 20px;position:relative}
+
+/* ── nav ── */
+.nav{display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:28px;gap:12px;flex-wrap:wrap}
+.brand{font-size:22px;font-weight:800;letter-spacing:.04em;cursor:pointer}
+.brand span{color:var(--cyan)}
+.nav-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:11px;padding:5px 10px;border:1px solid var(--line2);border-radius:999px;color:var(--muted)}
+.chip.warn{color:var(--amber);border-color:var(--amber)}.chip.full{color:var(--red);border-color:var(--red)}
+.nav-tabs{display:flex;gap:4px}
+.nav-tab{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);background:none;border:0;padding:8px 12px;cursor:pointer;position:relative;transition:color .15s}
+.nav-tab:hover{color:var(--txt)}.nav-tab.active{color:var(--cyan)}
+.nav-tab.active::after{content:"";position:absolute;left:6px;right:6px;bottom:-17px;height:2px;background:var(--cyan)}
+
+/* ── buttons ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:9px;
+  font-size:13px;font-weight:600;letter-spacing:.03em;border:1px solid transparent;
+  cursor:pointer;font-family:var(--disp);transition:all .15s;outline:none}
+.btn-primary{background:var(--cyan);color:#04121a;border-color:var(--cyan)}.btn-primary:hover{filter:brightness(1.12)}
+.btn-ghost{background:transparent;color:var(--muted);border-color:var(--line2)}.btn-ghost:hover{color:var(--txt);border-color:var(--line)}
+.btn-danger{background:transparent;color:var(--red);border-color:var(--red)}.btn-danger:hover{background:#1a0d12}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-link{background:none;border:none;color:var(--cyan);cursor:pointer;font-family:var(--mono);font-size:12px;padding:0;text-decoration:underline}
+
+/* ── forms ── */
+.input{width:100%;padding:11px 14px;background:#0c1623;border:1px solid var(--line2);
+  border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:13px;outline:none;appearance:none}
+.input:focus{border-color:var(--cyan)}.input option{background:#0c1623}
+.input-group{margin-bottom:16px}
+.input-label{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px}
+.input-hint{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:5px;line-height:1.5}
+.field-error{font-family:var(--mono);font-size:11px;color:var(--red);margin-top:4px;display:none}
+
+/* ── card ── */
+.card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:20px 22px;margin-bottom:16px}
+.card h2{font-size:16px;font-weight:800;margin-bottom:4px}
+.card .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:16px}
+
+/* ── spinner ── */
+.spinner{width:18px;height:18px;border:2px solid var(--line2);border-top-color:var(--cyan);
+  border-radius:50%;animation:spin .75s linear infinite;display:inline-block;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── landing screen — full-viewport centred modal ── */
+#landing-screen{
+  position:fixed;inset:0;z-index:100;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(900px 500px at 80% -10%,#0f2236,transparent 60%),
+             radial-gradient(700px 400px at -10% 110%,#131b2e,transparent 55%),
+             var(--bg);
+}
+#landing-screen::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.35;
+  background-image:linear-gradient(#13202f 1px,transparent 1px),linear-gradient(90deg,#13202f 1px,transparent 1px);
+  background-size:42px 42px;mask:radial-gradient(circle at 50% 30%,#000,transparent 80%);
+}
+.landing-card{
+  position:relative;z-index:1;
+  width:min(480px,calc(100vw - 32px));
+  border:1px solid var(--line2);border-radius:18px;
+  background:linear-gradient(160deg,#0d1521e8,#070b11f0);
+  padding:36px 36px 28px;
+  box-shadow:0 0 0 1px #34d6f720,0 24px 60px #00000080,0 0 120px #34d6f710;
+  backdrop-filter:blur(12px);
+}
+.auth-logo{font-size:52px;font-weight:800;margin-bottom:4px;text-align:center;letter-spacing:.02em}
+.auth-logo span{color:var(--cyan);text-shadow:0 0 32px #34d6f755}
+.auth-tagline{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;margin-bottom:28px;letter-spacing:.04em}
+.auth-tabs{display:flex;border-bottom:1px solid var(--line2);margin-bottom:22px;gap:2px}
+.auth-tab{flex:1;padding:11px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);cursor:pointer;border:none;background:none;
+  transition:color .2s;border-radius:6px 6px 0 0}
+.auth-tab:hover{color:var(--txt);background:#ffffff08}
+.auth-tab.active{color:var(--cyan);border-bottom:2px solid var(--cyan)}
+.auth-form{display:none}.auth-form.active{display:block}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--dim);font-family:var(--mono);font-size:11px}
+.auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:var(--line2)}
+
+/* ── Epic connect screen ── */
+#epic-screen{display:flex;align-items:center;justify-content:center;min-height:72vh}
+.epic-card{max-width:440px;width:100%;text-align:center}
+.code-box{background:#0c1623;border:1px solid var(--cyan);border-radius:12px;padding:22px;margin:16px 0}
+.user-code{font-family:var(--mono);font-size:34px;font-weight:600;letter-spacing:.28em;color:var(--cyan);margin:10px 0}
+.code-hint{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.code-hint a{color:var(--cyan);text-decoration:none}.code-hint a:hover{text-decoration:underline}
+.waiting{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+/* ── player ID screen ── */
+#pid-screen{display:flex;align-items:center;justify-content:center;min-height:72vh;padding-top:30px}
+
+/* ── wizard ── */
+#wizard-screen{display:flex;justify-content:center;min-height:72vh;padding-top:20px}
+.wizard-wrap{max-width:580px;width:100%}
+.wiz-steps{display:flex;gap:6px;margin-bottom:28px}
+.wstep{flex:1;height:4px;border-radius:2px;background:var(--line);transition:background .3s;min-width:24px}
+.wstep.done{background:var(--green)}.wstep.active{background:var(--cyan)}
+.wiz-title{font-size:22px;font-weight:800;margin-bottom:6px}
+.wiz-sub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:22px}
+
+/* rank detected banner */
+.rank-banner{display:flex;align-items:center;gap:14px;padding:14px 16px;
+  background:#0c1623;border:1px solid var(--cyan);border-radius:10px;margin-bottom:20px}
+.rank-banner .icon{width:52px;height:52px;flex-shrink:0}
+.rank-banner .info{flex:1}
+.rank-banner .label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.rank-banner .name{font-size:18px;font-weight:800;color:var(--cyan);margin-top:2px}
+.rank-banner .meta{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:2px}
+
+/* choices */
+.choices{display:grid;gap:10px}
+.choices.cols-2{grid-template-columns:1fr 1fr}.choices.cols-3{grid-template-columns:1fr 1fr 1fr}
+.choice{border:1px solid var(--line2);border-radius:11px;padding:14px 16px;cursor:pointer;
+  background:var(--panel);text-align:center;transition:all .15s}
+.choice:hover{border-color:var(--cyan);background:#0d1f30}
+.choice.selected{border-color:var(--cyan);background:#0d1f30;box-shadow:0 0 0 1px var(--cyan)}
+.choice-icon{font-size:26px;margin-bottom:6px}
+.choice-label{font-size:13px;font-weight:700}
+.choice-sub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
+
+/* rank selector with icon */
+.rank-select-row{display:flex;align-items:center;gap:12px}
+.rank-select-row img{width:44px;height:44px;flex-shrink:0}
+.rank-select-row select{flex:1}
+
+/* time picks */
+.time-picks{display:flex;gap:8px;flex-wrap:wrap}
+.time-pick{border:1px solid var(--line2);border-radius:8px;padding:10px 16px;cursor:pointer;
+  font-family:var(--mono);font-size:12px;color:var(--muted);transition:all .15s}
+.time-pick:hover{border-color:var(--cyan);color:var(--txt)}
+.time-pick.selected{border-color:var(--cyan);color:var(--cyan);background:#0d1f30}
+
+/* toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;
+  background:#0c1623;border:1px solid var(--line2);border-radius:8px;margin-bottom:10px}
+.toggle-label{font-size:13px;font-weight:600}.toggle-desc{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.toggle{position:relative;width:40px;height:22px}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#1b2a3e;border-radius:999px;cursor:pointer;transition:.2s}
+.toggle-slider::before{content:"";position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#56697f;border-radius:50%;transition:.2s}
+.toggle input:checked + .toggle-slider{background:#34d6f733}
+.toggle input:checked + .toggle-slider::before{transform:translateX(18px);background:var(--cyan)}
+
+.wiz-footer{display:flex;gap:10px;margin-top:24px;align-items:center}
+
+/* ── progress card ── */
+.prog-card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:22px;margin-bottom:16px}
+.prog-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.prog-title{font-size:15px;font-weight:800}
+.prog-bar-wrap{background:#0c1623;border:1px solid var(--line);border-radius:6px;height:8px;overflow:hidden;margin-bottom:10px}
+.prog-bar{height:100%;background:var(--cyan);transition:width .4s ease;border-radius:6px}
+.prog-msgs{font-family:var(--mono);font-size:11px;color:var(--muted);max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:3px}
+
+/* ── main screen ── */
+.tab-panel{display:none}.tab-panel.active{display:block}
+.coaching-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.coaching-header h1{font-size:24px;font-weight:800}
+.coaching-empty{text-align:center;padding:60px 20px;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
+.coaching-empty .icon{font-size:48px;margin-bottom:12px}
+.coaching-empty p{font-family:var(--mono);font-size:13px;margin-top:6px;line-height:1.6}
+.coaching-card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:22px;margin-bottom:16px}
+.coaching-meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap}
+.fetch-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.fetch-bar h1{font-size:24px;font-weight:800;flex:1}
+.match-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.match-card{border:1px solid var(--line);border-radius:13px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:16px 18px}
+.match-card.win{box-shadow:inset 3px 0 0 var(--green)}.match-card.loss{box-shadow:inset 3px 0 0 var(--red)}.match-card.draw{box-shadow:inset 3px 0 0 var(--amber)}
+.mc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.mc-map{font-size:15px;font-weight:800}.mc-mode{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.mc-badge{font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px}
+.bwin{background:#0d2b1a;color:var(--green);border:1px solid var(--green)}
+.bloss{background:#1a0d12;color:var(--red);border:1px solid var(--red)}
+.bdraw{background:#1a1500;color:var(--amber);border:1px solid var(--amber)}
+.mc-score{font-family:var(--mono);font-size:22px;font-weight:700;margin-bottom:6px}.mc-score .mine{color:var(--cyan)}
+.mc-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.no-analysis{font-family:var(--mono);font-size:10px;color:var(--dim)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted);grid-column:1/-1}
+.empty-state p{font-family:var(--mono);font-size:13px;margin-top:8px}
+
+/* ── toast ── */
+.toast{position:fixed;bottom:24px;right:24px;background:#1a0d12;border:1px solid var(--red);
+  border-radius:10px;padding:12px 18px;font-family:var(--mono);font-size:12px;color:var(--red);
+  animation:fade .3s ease;z-index:999;max-width:300px}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+
+<div class="wrap">
+  <!-- NAV -->
+  <nav class="nav" id="nav" style="display:none">
+    <div class="brand" onclick="goHome()">RL<span>Coach</span></div>
+    <div class="nav-tabs" id="nav-tabs" style="display:none">
+      <button class="nav-tab active" data-tab="coaching" onclick="switchTab('coaching')">Coaching Plan</button>
+      <button class="nav-tab" data-tab="history" onclick="switchTab('history')">Match History</button>
+    </div>
+    <div class="nav-right">
+      <span class="chip" id="usage-chip" style="display:none"></span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="epic-label"></span>
+      <button class="btn btn-ghost btn-sm" id="logout-btn">Logout</button>
+    </div>
+  </nav>
+
+  <!-- LANDING: Login / Register (full-viewport fixed modal) -->
+  <div id="landing-screen">
+    <div class="landing-card">
+      <div class="auth-logo">RL<span>Coach</span></div>
+      <p class="auth-tagline">AI-powered Rocket League coaching for every rank</p>
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="authTab('login')">Log In</button>
+        <button class="auth-tab" onclick="authTab('register')">Create Account</button>
+      </div>
+      <!-- Login form -->
+      <div class="auth-form active" id="form-login">
+        <div class="input-group">
+          <label class="input-label">Email</label>
+          <input class="input" id="login-email" type="email" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Password</label>
+          <input class="input" id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password"/>
+        </div>
+        <div id="login-err" class="field-error"></div>
+        <button class="btn btn-primary" id="login-btn" style="width:100%;justify-content:center;margin-top:4px">Log In</button>
+      </div>
+      <!-- Register form -->
+      <div class="auth-form" id="form-register">
+        <div class="input-group">
+          <label class="input-label">Email</label>
+          <input class="input" id="reg-email" type="email" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Password</label>
+          <input class="input" id="reg-pass" type="password" placeholder="Min. 6 characters" autocomplete="new-password"/>
+        </div>
+        <div id="reg-err" class="field-error"></div>
+        <button class="btn btn-primary" id="reg-btn" style="width:100%;justify-content:center;margin-top:4px">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EPIC CONNECT SCREEN -->
+  <div id="epic-screen" style="display:none">
+    <div class="epic-card card">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">Connect Epic Games</h2>
+      <p class="sub">Link your Rocket League account so we can fetch your replays and rank data.</p>
+      <div id="epic-start">
+        <button class="btn btn-primary" id="connect-btn" style="width:100%;justify-content:center">
+          Connect Epic Games Account
+        </button>
+      </div>
+      <div id="epic-device" style="display:none">
+        <div class="code-box">
+          <div class="code-hint">1. Open this link:</div>
+          <div style="margin:6px 0"><a id="verify-link" href="#" target="_blank" class="code-hint" style="color:var(--cyan);font-size:13px;font-weight:600">epicgames.com/activate</a></div>
+          <div class="code-hint" style="margin-top:8px">2. Enter this code:</div>
+          <div class="user-code" id="user-code">——————</div>
+          <div class="waiting"><span class="spinner"></span><span id="epic-msg">Waiting for you to complete…</span></div>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="cancel-epic-btn" style="width:100%;justify-content:center;margin-top:8px">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLAYER ID SCREEN -->
+  <div id="pid-screen" style="display:none">
+    <div style="max-width:480px;width:100%">
+      <div class="card">
+        <h2>One last thing</h2>
+        <p class="sub">We need your Rocket League Player ID to identify you in replays.</p>
+        <div class="input-group">
+          <label class="input-label">Your Player ID</label>
+          <input class="input" id="pid-input" type="text" placeholder="steam:76561198335346016"/>
+          <div class="input-hint">
+            Find it on <strong>ballchasing.com</strong> — search your name and copy the ID from the URL.<br>
+            Format: <code>steam:&lt;17-digit-ID&gt;</code> · <code>epic:&lt;account-id&gt;</code> · <code>ps4:username</code>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="pid-save-btn" style="width:100%;justify-content:center">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIZARD SCREEN -->
+  <div id="wizard-screen" style="display:none">
+    <div class="wizard-wrap" id="wizard-body"></div>
+  </div>
+
+  <!-- MAIN SCREEN -->
+  <div id="main-screen" style="display:none">
+    <div class="tab-panel active" id="tab-coaching">
+      <div class="coaching-header">
+        <h1>Your Coaching Plan</h1>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" id="view-plan-btn" style="display:none" onclick="openCoachingPlan()">View Full Plan ↗</button>
+          <button class="btn btn-primary btn-sm" id="regen-btn" onclick="triggerCoaching()">↻ Regenerate Plan</button>
+        </div>
+      </div>
+      <div id="coaching-progress" style="display:none">
+        <div class="prog-card">
+          <div class="prog-head"><span class="spinner"></span><span class="prog-title" id="cp-step">Generating…</span></div>
+          <div class="prog-bar-wrap"><div class="prog-bar" id="cp-bar" style="width:0%"></div></div>
+          <div class="prog-msgs" id="cp-msgs"></div>
+        </div>
+      </div>
+      <div id="coaching-info" style="display:none">
+        <div class="coaching-card">
+          <h2 id="plan-title">Coaching Plan</h2>
+          <div class="coaching-meta" id="plan-meta"></div>
+          <button class="btn btn-primary" onclick="openCoachingPlan()" style="width:100%;justify-content:center;margin-top:4px">Open Full Plan ↗</button>
+        </div>
+      </div>
+      <div id="coaching-empty" style="display:none">
+        <div class="coaching-empty">
+          <div class="icon">📋</div>
+          <h2>No coaching plan yet</h2>
+          <p>Generate a plan to get a personalised training schedule<br>based on your actual replays.</p>
+          <button class="btn btn-primary" onclick="triggerCoaching()" style="margin-top:20px">Generate My Coaching Plan</button>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="tab-history">
+      <div class="fetch-bar">
+        <h1>Match History</h1>
+        <button class="btn btn-primary" id="fetch-btn" onclick="triggerFetch()">▶ Fetch Latest Replays</button>
+      </div>
+      <div id="fetch-progress" style="display:none" class="prog-card">
+        <div class="prog-head"><span class="spinner"></span>
+          <span class="prog-title" id="fp-step">Starting…</span>
+          <span id="fp-counter" style="font-family:var(--mono);font-size:12px;color:var(--dim);margin-left:auto"></span>
+        </div>
+        <div class="prog-bar-wrap"><div class="prog-bar" id="fp-bar" style="width:0%"></div></div>
+        <div class="prog-msgs" id="fp-msgs"></div>
+      </div>
+      <div class="match-grid" id="match-grid">
+        <div class="empty-state"><div style="font-size:36px">🏎</div><p>No replays yet — click Fetch Latest Replays.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── rank icons mapping ────────────────────────────────────────────────────
+const RANK_ICON = {
+  'Unranked':'Unranked.svg','Bronze I':'b1.svg','Bronze II':'b2.svg','Bronze III':'b3.svg',
+  'Silver I':'s1.svg','Silver II':'s2.svg','Silver III':'s3.svg',
+  'Gold I':'g1.svg','Gold II':'g2.svg','Gold III':'g3.svg',
+  'Platinum I':'p1.svg','Platinum II':'p2.svg','Platinum III':'p3.svg',
+  'Diamond I':'d1.svg','Diamond II':'d2.svg','Diamond III':'d3.svg',
+  'Champion I':'c1.svg','Champion II':'c2.svg','Champion III':'c3.svg',
+  'Grand Champion I':'gc.svg','Grand Champion II':'gc.svg','Grand Champion III':'gc.svg',
+  'Supersonic Legend':'gc.svg'
+};
+function rankIconUrl(rank) {
+  return '/static/rank-icons/' + (RANK_ICON[rank] || 'Unranked.svg');
+}
+function rankImgTag(rank, size=44) {
+  if (!rank || rank==='Unranked') return `<img src="${rankIconUrl('Unranked')}" width="${size}" height="${size}" alt="Unranked"/>`;
+  return `<img src="${rankIconUrl(rank)}" width="${size}" height="${size}" alt="${rank}" onerror="this.style.display='none'"/>`;
+}
+
+// ── state ────────────────────────────────────────────────────────────────
+let _me = null;
+let _resources = {};
+let _profile = {};
+let _detectedRanks = {};  // {playlist_label: {rank, icon_url, ...}}
+let _epicPollTimer = null;
+let _epicDeviceCode = null;
+let _epicInterval = 5;
+let _wizStep = 0;
+const WIZ_STEPS = ['platform','gamemode','ranks','time','extras'];
+let _wiz = {platform:null,gamemode:null,team_size:2,current_rank:null,target_rank:null,mins_per_day:60,days_per_week:5,duo_partner:null,freestyle:false};
+
+// ── helpers ──────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = {method, headers:{}};
+  if (body) {opts.body=JSON.stringify(body); opts.headers['Content-Type']='application/json';}
+  const r = await fetch(path, opts);
+  if (!r.ok) {const e = await r.json().catch(()=>({detail:r.statusText})); throw new Error(e.detail||r.statusText);}
+  return r.json();
+}
+const get = p => api('GET', p);
+const post = (p,b) => api('POST', p, b);
+
+function toast(msg, col='var(--red)') {
+  const el = document.createElement('div');
+  el.className='toast'; el.style.color=col; el.style.borderColor=col; el.textContent=msg;
+  document.body.appendChild(el); setTimeout(()=>el.remove(), 4000);
+}
+
+function showScreen(id) {
+  ['landing-screen','epic-screen','pid-screen','wizard-screen','main-screen'].forEach(s => {
+    document.getElementById(s).style.display = s===id ? 'block' : 'none';
+  });
+  document.getElementById('nav').style.display = (id==='landing-screen') ? 'none' : 'flex';
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
+  if (tab==='history') loadMatches();
+}
+function goHome() { switchTab('coaching'); showScreen('main-screen'); }
+
+// ── boot ─────────────────────────────────────────────────────────────────
+async function init() {
+  get('/api/resources').then(r=>{_resources=r;}).catch(()=>{});
+  try { _me = await get('/api/me'); } catch(e) { showScreen('landing-screen'); return; }
+  if (!_me.logged_in) { showScreen('landing-screen'); return; }
+
+  document.getElementById('nav').style.display='flex';
+  document.getElementById('logout-btn').onclick = doLogout;
+
+  if (!_me.epic_connected) { showEpicConnect(); return; }
+  if (!_me.player_id) { showPidScreen(); return; }
+
+  _profile = await get('/api/profile').catch(()=>({}));
+  if (!_profile || !_profile.gamemode) {
+    // Fetch ranks in background before wizard starts
+    fetchDetectedRanks();
+    showWizard();
+    return;
+  }
+
+  showMain();
+}
+
+// ── login / register ─────────────────────────────────────────────────────
+function authTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',i===(tab==='login'?0:1)));
+  document.getElementById('form-login').classList.toggle('active', tab==='login');
+  document.getElementById('form-register').classList.toggle('active', tab==='register');
+}
+
+function showErr(elId, msg) {
+  const el=document.getElementById(elId); el.textContent=msg; el.style.display=msg?'block':'none';
+}
+
+document.getElementById('login-btn').onclick = async () => {
+  const email=document.getElementById('login-email').value.trim();
+  const pass=document.getElementById('login-pass').value;
+  showErr('login-err','');
+  try {
+    await post('/api/login',{email,password:pass});
+    _me = await get('/api/me');
+    await afterLogin();
+  } catch(e) { showErr('login-err', e.message); }
+};
+document.getElementById('login-email').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-btn').click();});
+document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-btn').click();});
+
+document.getElementById('reg-btn').onclick = async () => {
+  const email=document.getElementById('reg-email').value.trim();
+  const pass=document.getElementById('reg-pass').value;
+  showErr('reg-err','');
+  try {
+    await post('/api/register',{email,password:pass});
+    _me = await get('/api/me');
+    await afterLogin();
+  } catch(e) { showErr('reg-err', e.message); }
+};
+
+async function afterLogin() {
+  document.getElementById('nav').style.display='flex';
+  document.getElementById('logout-btn').onclick = doLogout;
+  if (!_me.epic_connected) { showEpicConnect(); return; }
+  if (!_me.player_id) { showPidScreen(); return; }
+  _profile = await get('/api/profile').catch(()=>({}));
+  if (!_profile||!_profile.gamemode) { fetchDetectedRanks(); showWizard(); return; }
+  showMain();
+}
+
+async function doLogout() {
+  await post('/api/logout').catch(()=>{});
+  _me=null; _profile={}; _detectedRanks={};
+  showScreen('landing-screen');
+}
+
+// ── Epic connect ──────────────────────────────────────────────────────────
+function showEpicConnect() {
+  document.getElementById('epic-start').style.display='block';
+  document.getElementById('epic-device').style.display='none';
+  showScreen('epic-screen');
+  updateEpicLabel();
+}
+
+function updateEpicLabel() {
+  const lbl=document.getElementById('epic-label');
+  if (_me&&_me.epic_connected) {
+    lbl.textContent = 'Epic: ' + (_me.display_name||_me.eos_account_id||'connected');
+  } else { lbl.textContent=''; }
+}
+
+document.getElementById('connect-btn').onclick = async () => {
+  const btn=document.getElementById('connect-btn');
+  btn.disabled=true; btn.textContent='Starting…';
+  try {
+    const d = await post('/api/epic/start');
+    _epicDeviceCode=d.device_code; _epicInterval=d.interval||5;
+    document.getElementById('user-code').textContent=d.user_code;
+    const lnk=document.getElementById('verify-link');
+    lnk.href=d.verification_uri; lnk.textContent=d.verification_uri.replace('https://','');
+    document.getElementById('epic-start').style.display='none';
+    document.getElementById('epic-device').style.display='block';
+    _epicPollTimer=setInterval(pollEpic, _epicInterval*1000);
+  } catch(e) { toast('Failed to start: '+e.message); btn.disabled=false; btn.textContent='Connect Epic Games Account'; }
+};
+
+document.getElementById('cancel-epic-btn').onclick = () => {
+  clearInterval(_epicPollTimer);
+  document.getElementById('epic-start').style.display='block';
+  document.getElementById('epic-device').style.display='none';
+  document.getElementById('connect-btn').disabled=false;
+  document.getElementById('connect-btn').textContent='Connect Epic Games Account';
+};
+
+async function pollEpic() {
+  if (!_epicDeviceCode) return;
+  try {
+    const r = await get('/api/epic/poll/'+_epicDeviceCode);
+    if (r.status==='complete') {
+      clearInterval(_epicPollTimer);
+      _me = await get('/api/me');
+      updateEpicLabel();
+      if (!_me.player_id) { showPidScreen(); return; }
+      _profile = await get('/api/profile').catch(()=>({}));
+      if (!_profile||!_profile.gamemode) { fetchDetectedRanks(); showWizard(); return; }
+      showMain();
+    } else if (r.status==='expired') { clearInterval(_epicPollTimer); toast('Code expired — try again'); document.getElementById('cancel-epic-btn').click(); }
+    else if (r.status==='error') { clearInterval(_epicPollTimer); toast(r.message||'Auth error'); }
+  } catch(e) {}
+}
+
+// ── player ID ────────────────────────────────────────────────────────────
+function showPidScreen() {
+  showScreen('pid-screen');
+  document.getElementById('pid-screen').style.display='flex';
+  document.getElementById('pid-screen').style.alignItems='center';
+  document.getElementById('pid-screen').style.justifyContent='center';
+  document.getElementById('pid-screen').style.minHeight='72vh';
+}
+
+document.getElementById('pid-save-btn').onclick = async () => {
+  const pid=document.getElementById('pid-input').value.trim();
+  if (!pid) {toast('Please enter your player ID'); return;}
+  try {
+    await post('/api/auth/player_id',{player_id:pid});
+    _me = await get('/api/me');
+    _profile = await get('/api/profile').catch(()=>({}));
+    if (!_profile||!_profile.gamemode) { fetchDetectedRanks(); showWizard(); return; }
+    showMain();
+  } catch(e) { toast('Failed: '+e.message); }
+};
+document.getElementById('pid-input').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('pid-save-btn').click();});
+
+// ── rank detection ────────────────────────────────────────────────────────
+async function fetchDetectedRanks() {
+  try {
+    const r = await get('/api/rank');
+    if (r.available && r.ranks) { _detectedRanks = r.ranks; }
+  } catch(e) { _detectedRanks = {}; }
+}
+
+// ── wizard ────────────────────────────────────────────────────────────────
+function showWizard() {
+  _wizStep=0;
+  showScreen('wizard-screen');
+  document.getElementById('wizard-screen').style.display='flex';
+  renderWizStep(_wizStep);
+}
+
+function renderWizStep(step) {
+  const wb=document.getElementById('wizard-body');
+  const stepsHtml = WIZ_STEPS.map((_,i)=>
+    `<div class="wstep ${i<step?'done':i===step?'active':''}"></div>`
+  ).join('');
+
+  let body='';
+  if (step===0) {
+    // Platform
+    const platforms=_resources.platforms||[
+      {label:'PC — Steam',value:'steam',has_bakkesmod:true},{label:'PC — Epic Games',value:'epic',has_bakkesmod:true},
+      {label:'PlayStation',value:'psn',has_bakkesmod:false},{label:'Xbox',value:'xbl',has_bakkesmod:false},{label:'Nintendo Switch',value:'switch',has_bakkesmod:false}
+    ];
+    const icons={steam:'💻',epic:'💻',psn:'🎮',xbl:'🎮',switch:'🕹️'};
+    body=`<h2 class="wiz-title">Where do you play?</h2>
+    <p class="wiz-sub">This determines which training tools we can recommend</p>
+    <div class="choices cols-2">
+    ${platforms.map(p=>`<div class="choice ${_wiz.platform===p.value?'selected':''}" onclick="pickPlat('${p.value}',this)">
+      <div class="choice-icon">${icons[p.value]||'🎮'}</div>
+      <div class="choice-label">${p.label}</div>
+      <div class="choice-sub">${p.has_bakkesmod?'BakkesMod & workshop maps':'Training packs only'}</div>
+    </div>`).join('')}
+    </div>`;
+  } else if (step===1) {
+    // Gamemode — show detected rank per option if available
+    const gicons={'1v1':'⚡','2v2':'🤝','3v3':'👥'};
+    const gdesc={'1v1':'Solo — mechanics and reads','2v2':'Doubles — rotation and partnership','3v3':'Standard — lane discipline and coverage'};
+    const playlists=_resources.playlists||[
+      {label:'Ranked Doubles (2v2)',value:'2v2',team_size:2},{label:'Ranked Standard (3v3)',value:'3v3',team_size:3},{label:'Ranked Duel (1v1)',value:'1v1',team_size:1}
+    ];
+    body=`<h2 class="wiz-title">Which playlist to rank up in?</h2>
+    <p class="wiz-sub">We'll search for replays in this mode specifically</p>
+    <div class="choices">
+    ${playlists.map(p=>{
+      const det=_detectedRanks[p.value];
+      const rankBit=det?`<span style="display:flex;align-items:center;gap:6px;margin-top:4px">${rankImgTag(det.rank,20)}<span style="font-family:var(--mono);font-size:11px;color:var(--cyan)">${det.rank}</span></span>`:'';
+      return `<div class="choice ${_wiz.gamemode===p.value?'selected':''}" onclick="pickMode('${p.value}',${p.team_size},this)">
+        <div style="display:flex;align-items:center;gap:12px;text-align:left">
+          <span style="font-size:28px">${gicons[p.value]||'🎮'}</span>
+          <div><div class="choice-label">${p.label}</div><div class="choice-sub" style="text-align:left">${gdesc[p.value]||''}</div>${rankBit}</div>
+        </div>
+      </div>`;
+    }).join('')}
+    </div>`;
+  } else if (step===2) {
+    // Ranks — show detected rank as a prominent banner if available
+    const det = _detectedRanks[_wiz.gamemode||'2v2'];
+    const ranks=_resources.ranks||['Unranked','Bronze I','Bronze II','Bronze III','Silver I','Silver II','Silver III','Gold I','Gold II','Gold III','Platinum I','Platinum II','Platinum III','Diamond I','Diamond II','Diamond III','Champion I','Champion II','Champion III','Grand Champion I','Grand Champion II','Grand Champion III','Supersonic Legend'];
+    const mkOpts=(sel)=>ranks.map(r=>`<option value="${r}" ${sel===r?'selected':''}>${r}</option>`).join('');
+    const currentPrefill = (det&&det.rank) ? det.rank : (_wiz.current_rank||null);
+    const detBanner = det ? `<div class="rank-banner">
+      ${rankImgTag(det.rank,52)}
+      <div class="info">
+        <div class="label">Your current rank in ${_wiz.gamemode||'this playlist'}</div>
+        <div class="name">${det.rank}</div>
+        <div class="meta">${det.mmr_estimate?'~'+det.mmr_estimate+' MMR · ':''} auto-detected from your account</div>
+      </div>
+    </div>` : '';
+    body=`<h2 class="wiz-title">What are your ranks?</h2>
+    <p class="wiz-sub">We'll build a plan bridging the gap between where you are and where you want to be</p>
+    ${detBanner}
+    <div class="input-group">
+      <label class="input-label">Current Rank</label>
+      <div class="rank-select-row">
+        <img id="cur-rank-img" src="${rankIconUrl(currentPrefill||'Unranked')}" width="44" height="44" alt=""/>
+        <select class="input" id="cur-rank-sel" onchange="_wiz.current_rank=this.value;updateRankImg('cur-rank-img',this.value)">${mkOpts(currentPrefill)}</select>
+      </div>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Target Rank</label>
+      <div class="rank-select-row">
+        <img id="tgt-rank-img" src="${rankIconUrl(_wiz.target_rank||'Unranked')}" width="44" height="44" alt=""/>
+        <select class="input" id="tgt-rank-sel" onchange="_wiz.target_rank=this.value;updateRankImg('tgt-rank-img',this.value)">${mkOpts(_wiz.target_rank)}</select>
+      </div>
+      <div class="input-hint">Pick a realistic goal for this season</div>
+    </div>`;
+  } else if (step===3) {
+    body=`<h2 class="wiz-title">How much time can you practice?</h2>
+    <p class="wiz-sub">We'll build a plan that fits your schedule — no six-hour grind sessions</p>
+    <div class="input-group">
+      <label class="input-label">Minutes per day</label>
+      <div class="time-picks">${[30,60,90,120].map(m=>`<div class="time-pick ${_wiz.mins_per_day===m?'selected':''}" onclick="pickTime(this,'mins',${m})">${m} min</div>`).join('')}</div>
+    </div>
+    <div class="input-group" style="margin-top:16px">
+      <label class="input-label">Days per week</label>
+      <div class="time-picks">${[3,4,5,6,7].map(d=>`<div class="time-pick ${_wiz.days_per_week===d?'selected':''}" onclick="pickTime(this,'days',${d})">${d} day${d>1?'s':''}</div>`).join('')}</div>
+    </div>`;
+  } else if (step===4) {
+    body=`<h2 class="wiz-title">A couple more questions…</h2>
+    <p class="wiz-sub">Optional — skip any that don't apply</p>
+    <div class="input-group">
+      <label class="input-label">Regular Duo Partner (optional)</label>
+      <input class="input" id="duo-input" type="text" placeholder="Their in-game name" value="${_wiz.duo_partner||''}" oninput="_wiz.duo_partner=this.value||null"/>
+      <div class="input-hint">2v2/3v3 players with a regular partner get team-specific drills</div>
+    </div>
+    <div class="toggle-row">
+      <div><div class="toggle-label">Freestyle & trick shots</div>
+        <div class="toggle-desc">Include creative freeplay sessions</div></div>
+      <label class="toggle"><input type="checkbox" ${_wiz.freestyle?'checked':''} onchange="_wiz.freestyle=this.checked"/><span class="toggle-slider"></span></label>
+    </div>`;
+  }
+
+  // Footer nav
+  const footer=`<div class="wiz-footer">
+    ${step>0?`<button class="btn btn-ghost" onclick="wizBack()">← Back</button>`:''}
+    ${step<WIZ_STEPS.length-1
+      ? `<button class="btn btn-primary" onclick="wizNext()" style="margin-left:auto">Continue →</button>`
+      : `<button class="btn btn-primary" onclick="wizFinish()" style="margin-left:auto;flex:1;justify-content:center">Generate My Plan 🚀</button>`
+    }
+  </div>`;
+
+  wb.innerHTML=`<div class="wiz-steps">${stepsHtml}</div>${body}${footer}`;
+  // If ranks step, pre-fill from detected
+  if (step===2) {
+    const det=_detectedRanks[_wiz.gamemode||'2v2'];
+    if (det&&!_wiz.current_rank) { _wiz.current_rank=det.rank; document.getElementById('cur-rank-sel').value=det.rank; }
+  }
+}
+
+function updateRankImg(imgId, rank) {
+  const img=document.getElementById(imgId);
+  if (img) { img.src=rankIconUrl(rank); img.alt=rank; }
+}
+
+function pickPlat(val, el) {
+  el.closest('.choices').querySelectorAll('.choice').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected'); _wiz.platform=val;
+}
+function pickMode(val, ts, el) {
+  el.closest('.choices').querySelectorAll('.choice').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected'); _wiz.gamemode=val; _wiz.team_size=ts;
+}
+function pickTime(el,type,val) {
+  el.closest('.time-picks').querySelectorAll('.time-pick').forEach(t=>t.classList.remove('selected'));
+  el.classList.add('selected');
+  if (type==='mins') _wiz.mins_per_day=val; else _wiz.days_per_week=val;
+}
+
+function wizBack() { if(_wizStep>0){_wizStep--;renderWizStep(_wizStep);} }
+function wizNext() {
+  if (_wizStep===0&&!_wiz.platform) {toast('Please choose your platform'); return;}
+  if (_wizStep===1&&!_wiz.gamemode) {toast('Please choose a playlist'); return;}
+  if (_wizStep===2) {
+    const cs=document.getElementById('cur-rank-sel');
+    const ts=document.getElementById('tgt-rank-sel');
+    if (cs) _wiz.current_rank=cs.value;
+    if (ts) _wiz.target_rank=ts.value;
+    if (!_wiz.current_rank||!_wiz.target_rank) {toast('Please select both ranks'); return;}
+  }
+  _wizStep++; renderWizStep(_wizStep);
+}
+async function wizFinish() {
+  try {
+    await post('/api/profile',_wiz);
+    _profile=_wiz;
+    showMain();
+    await triggerCoaching();
+  } catch(e) { toast('Failed to save profile: '+e.message); }
+}
+
+// ── main + coaching ───────────────────────────────────────────────────────
+function showMain() {
+  showScreen('main-screen');
+  document.getElementById('nav-tabs').style.display='flex';
+  updateEpicLabel();
+  loadUsage();
+  loadCoachingStatus();
+}
+
+async function loadUsage() {
+  try {
+    const u=await get('/api/usage');
+    const c=document.getElementById('usage-chip');
+    c.style.display=''; c.textContent=`AI ${u.today}/${u.limit} today`;
+    c.className='chip'+(u.today>=u.limit?' full':u.today>=u.limit-1?' warn':'');
+  } catch(e) {}
+}
+
+async function loadCoachingStatus() {
+  try {
+    const plan=await get('/api/coaching');
+    const empty=document.getElementById('coaching-empty');
+    const info=document.getElementById('coaching-info');
+    const vbtn=document.getElementById('view-plan-btn');
+    if (!plan.exists) {
+      empty.style.display='block'; info.style.display='none'; vbtn.style.display='none';
+    } else {
+      empty.style.display='none'; info.style.display='block'; vbtn.style.display='';
+      const p=_profile;
+      document.getElementById('plan-title').textContent=`${p.display_name||'Your'} Plan → ${p.target_rank||'Target Rank'}`;
+      const d=new Date(plan.generated_at).toLocaleDateString();
+      document.getElementById('plan-meta').innerHTML=`<span>${p.gamemode||''}</span><span>${p.mins_per_day||60} min/day</span><span>Generated: ${d}</span>`;
+    }
+  } catch(e) {}
+}
+
+async function triggerCoaching() {
+  const prog=document.getElementById('coaching-progress');
+  document.getElementById('coaching-empty').style.display='none';
+  document.getElementById('coaching-info').style.display='none';
+  prog.style.display='block';
+  document.getElementById('regen-btn').disabled=true;
+  try {
+    const r=await post('/api/coaching/generate');
+    if (r.status==='already_running') {toast('Already generating…','var(--amber)'); prog.style.display='none'; document.getElementById('regen-btn').disabled=false; return;}
+    streamJob(r.job_id,'coaching');
+  } catch(e) {toast('Failed: '+e.message); prog.style.display='none'; document.getElementById('regen-btn').disabled=false;}
+}
+
+async function triggerFetch() {
+  const btn=document.getElementById('fetch-btn');
+  btn.disabled=true;
+  document.getElementById('fetch-progress').style.display='block';
+  try {
+    const r=await post('/api/fetch');
+    if (r.status==='already_running') {toast('Fetch already running','var(--amber)'); btn.disabled=false; return;}
+    streamJob(r.job_id,'fetch');
+  } catch(e) {toast('Fetch failed: '+e.message); btn.disabled=false; document.getElementById('fetch-progress').style.display='none';}
+}
+
+function streamJob(jobId, type) {
+  const es=new EventSource('/api/fetch/stream/'+jobId);
+  es.onmessage=ev=>{try{onProg(JSON.parse(ev.data),type);}catch(e){}};
+  es.onerror=()=>es.close();
+}
+
+function onProg(p, type) {
+  const isC=type==='coaching';
+  const step=document.getElementById(isC?'cp-step':'fp-step');
+  const bar=document.getElementById(isC?'cp-bar':'fp-bar');
+  const msgs=document.getElementById(isC?'cp-msgs':'fp-msgs');
+  const ctr=document.getElementById('fp-counter');
+  if (step) step.textContent=p.step||'…';
+  if (bar) {const pct=p.total>0?Math.round(100*p.current/p.total):(p.status==='complete'?100:0); bar.style.width=pct+'%';}
+  if (ctr&&p.total>0) ctr.textContent=`${p.current}/${p.total}`;
+  if (msgs&&p.messages) {msgs.innerHTML=p.messages.slice(-10).map(m=>`<div>${m}</div>`).join(''); msgs.scrollTop=msgs.scrollHeight;}
+  if (p.status==='complete'||p.status==='error') {
+    setTimeout(async()=>{
+      document.getElementById(isC?'coaching-progress':'fetch-progress').style.display='none';
+      document.getElementById(isC?'regen-btn':'fetch-btn').disabled=false;
+      if (isC&&p.status==='complete'){await loadCoachingStatus();loadUsage();}
+      if (!isC) loadMatches();
+    },1200);
+    if (p.status==='error') toast(p.step||'An error occurred');
+  }
+}
+
+function openCoachingPlan() { window.open('/api/coaching/view','_blank'); }
+
+async function loadMatches() {
+  const grid=document.getElementById('match-grid');
+  try {
+    const ms=await get('/api/matches');
+    if (!ms.length){grid.innerHTML=`<div class="empty-state"><div style="font-size:36px">🏎</div><p>No replays yet.</p></div>`;return;}
+    grid.innerHTML=ms.map(renderCard).join('');
+  } catch(e){grid.innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
+}
+
+function renderCard(m) {
+  const s=m.summary||{}; const result=s.result||'';
+  const win=result.startsWith('W'),loss=result.startsWith('L');
+  const cls=win?'win':loss?'loss':'draw';
+  const badgeCls=win?'bwin':loss?'bloss':'bdraw';
+  const myTeam=s.my_team||'blue';
+  const myScore=myTeam==='orange'?s.orange_score:s.blue_score;
+  const oppScore=myTeam==='orange'?s.blue_score:s.orange_score;
+  const date=(s.date||'').slice(0,10);
+  const map=s.map_display||s.map||'Unknown'; const mode=s.mode||'';
+  const dcs=s.double_commits!=null?s.double_commits:'—';
+  const mid=m.match_id;
+  const blue=(s.players_blue||[]).map(p=>`<span style="color:var(--cyan)">${p.name}${p.is_me?' ★':''}</span>`).join(' · ');
+  const orange=(s.players_orange||[]).map(p=>`<span style="color:var(--orange)">${p.name}${p.is_me?' ★':''}</span>`).join(' · ');
+  const analysisBtn=m.has_analysis
+    ?`<button class="btn btn-primary btn-sm" onclick="window.open('/api/matches/${mid}/dashboard','_blank')">View AI Report</button>`
+    :`<span class="no-analysis">No AI report</span>`;
+  return `<div class="match-card ${cls}">
+    <div class="mc-top"><div><div class="mc-map">${map}</div><div class="mc-mode">${mode}·${date}</div></div><span class="mc-badge ${badgeCls}">${win?'WIN':loss?'LOSS':'DRAW'}</span></div>
+    <div class="mc-score"><span class="mine">${myScore??'?'}</span> – ${oppScore??'?'}</div>
+    <div style="font-size:11px;color:var(--dim);margin-bottom:8px;font-family:var(--mono)">🔵${blue||'—'}<br>🟠${orange||'—'}</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:10px">DC: <b>${dcs}</b></div>
+    <div class="mc-footer">${analysisBtn}</div>
+  </div>`;
+}
+
+// ── boot ─────────────────────────────────────────────────────────────────
+init();
+</script>
+</html>

@@ -1,0 +1,575 @@
+<!--
+==================================================================================
+  ROCKET LEAGUE MATCH DASHBOARD — TEMPLATE  (v2: ratings, goal autopsy, new metrics)
+  ----------------------------------------------------------------------------------
+  HOW TO USE (for the model filling this in):
+    1. Run the analysis in rl_match_analysis_prompt.md against the match.
+    2. Replace ONLY the `MATCH` object below with the real values. Keep every key
+       and the object shape identical. Output the whole file. No external libraries,
+       no network — it renders offline in any modern browser.
+  Current data = REAL worked example (2v2, Park Rainy, won 5-3), recomputed on the
+  corrected match clock (match_seconds = 300 - seconds_remaining).
+==================================================================================
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RL Match Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg:#070b11; --panel:#0d1521; --panel2:#101c2c; --line:#1b2a3e; --line2:#26384f;
+  --txt:#e7eff8; --muted:#8093a8; --dim:#56697f;
+  --cyan:#34d6f7; --blue:#3a8dff; --amber:#ffb347; --orange:#ff8a3d;
+  --green:#34e0a0; --red:#ff5d73; --grid:#13202f;
+  --teamA:#34d6f7; --teamA-soft:#34d6f733; --teamB:#ff9e42; --teamB-soft:#ff9e4233;
+  --mono:'IBM Plex Mono',ui-monospace,monospace; --disp:'Oxanium',system-ui,sans-serif;
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{
+  background:radial-gradient(900px 500px at 80% -10%, #0f2236 0%, transparent 60%),
+    radial-gradient(700px 400px at -10% 110%, #131b2e 0%, transparent 55%), var(--bg);
+  background-attachment:fixed; color:var(--txt); font-family:var(--disp);
+  -webkit-font-smoothing:antialiased; padding:24px; min-height:100vh;
+}
+body::before{content:""; position:fixed; inset:0; pointer-events:none; opacity:.5;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:42px 42px; mask:radial-gradient(circle at 50% 30%,#000 0%,transparent 80%);}
+.wrap{max-width:1180px; margin:0 auto; position:relative}
+.top{display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end; justify-content:space-between; margin-bottom:22px}
+.brand{display:flex; flex-direction:column; gap:6px}
+.kicker{font-family:var(--mono); font-size:11px; letter-spacing:.32em; color:var(--cyan); text-transform:uppercase}
+.brand h1{font-size:30px; font-weight:800; margin:0; letter-spacing:.02em; line-height:1}
+.meta{font-family:var(--mono); font-size:12px; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; margin-top:4px}
+.meta b{color:var(--txt); font-weight:500}
+.result{display:flex; align-items:center; gap:16px; padding:14px 20px; border:1px solid var(--line2);
+  border-radius:14px; background:linear-gradient(180deg,var(--panel2),var(--panel))}
+.result .verdict{font-family:var(--mono); font-size:11px; letter-spacing:.28em; text-transform:uppercase}
+.win .verdict{color:var(--green)} .loss .verdict{color:var(--red)}
+.score{font-size:34px; font-weight:800; letter-spacing:.04em}
+.score .a{color:var(--teamA)} .score .b{color:var(--teamB)} .score .x{color:var(--dim); margin:0 6px}
+.kpis{display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:22px}
+.kpi{position:relative; padding:14px 16px; border:1px solid var(--line); border-radius:12px;
+  background:linear-gradient(180deg,var(--panel2),var(--panel)); overflow:hidden}
+.kpi::after{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--cyan); opacity:.8}
+.kpi.warn::after{background:var(--amber)} .kpi.bad::after{background:var(--red)} .kpi.good::after{background:var(--green)}
+.kpi .l{font-family:var(--mono); font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted)}
+.kpi .v{font-size:26px; font-weight:800; margin-top:6px; line-height:1}
+.kpi .s{font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:3px}
+.tabs{display:flex; gap:4px; border-bottom:1px solid var(--line2); margin-bottom:22px; flex-wrap:wrap}
+.tab{font-family:var(--mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+  background:none; border:0; padding:11px 15px; cursor:pointer; position:relative; transition:color .2s}
+.tab:hover{color:var(--txt)} .tab.active{color:var(--cyan)}
+.tab.active::after{content:""; position:absolute; left:8px; right:8px; bottom:-1px; height:2px; background:var(--cyan); box-shadow:0 0 12px var(--cyan)}
+.panel{display:none; animation:fade .35s ease} .panel.active{display:block}
+@keyframes fade{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+.card{border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,var(--panel2),var(--panel)); padding:18px 20px; margin-bottom:16px}
+.card h3{margin:0 0 4px; font-size:14px; letter-spacing:.04em}
+.card .sub{font-family:var(--mono); font-size:11px; color:var(--muted); margin-bottom:14px}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.findings{list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:9px}
+.findings li{display:flex; gap:11px; font-size:13.5px; color:#cdd9e6; line-height:1.5}
+.findings li::before{content:"▸"; color:var(--cyan); font-family:var(--mono)}
+.fix{border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:10px; padding:12px 14px; background:#0c1623}
+.fix .t{font-weight:800; font-size:14px} .fix .d{font-size:12.5px; color:var(--muted); margin:4px 0 8px; line-height:1.45}
+.fix .m{font-family:var(--mono); font-size:11px; color:var(--amber); letter-spacing:.04em}
+.legend{display:flex; gap:16px; font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:10px; flex-wrap:wrap}
+.legend i{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:middle}
+.chip{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:3px 9px; border-radius:999px; border:1px solid currentColor}
+.chip.won{color:var(--green)} .chip.lost{color:var(--red)} .chip.neutral{color:var(--amber)}
+table{width:100%; border-collapse:collapse; font-size:13px}
+th,td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--line)}
+th{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:500}
+td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:#0e1a28}
+
+/* ratings */
+.leader{display:flex; flex-direction:column; gap:10px}
+.lrow{display:grid; grid-template-columns:150px 1fr 52px; align-items:center; gap:12px}
+.lrow .nm{font-size:13px} .lrow .nm small{color:var(--muted); font-family:var(--mono); font-size:10px; display:block}
+.lbar{height:22px; background:#0c1623; border:1px solid var(--line); border-radius:6px; overflow:hidden}
+.lbar>div{height:100%; width:0; transition:width 1s ease; border-radius:6px}
+.lrow .rn{font-family:var(--mono); font-weight:600; text-align:right; font-size:15px}
+.rating-badge{display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:74px;
+  border:1px solid var(--line2); border-radius:12px; padding:8px 10px; background:#0b1420}
+.rating-badge .num{font-size:30px; font-weight:800; line-height:1; font-family:var(--mono)}
+.rating-badge .lab{font-family:var(--mono); font-size:8px; letter-spacing:.18em; color:var(--dim); margin-top:3px}
+.rcomp{display:grid; grid-template-columns:auto 1fr auto; gap:5px 8px; align-items:center; margin-top:4px}
+.rcomp .ck{font-family:var(--mono); font-size:10px; color:var(--muted)}
+.rcomp .cb{height:7px; background:#0c1623; border-radius:4px; overflow:hidden}
+.rcomp .cb>div{height:100%; width:0; transition:width .9s ease}
+.rcomp .cv{font-family:var(--mono); font-size:10px; color:var(--dim); text-align:right}
+
+/* player cards */
+.pgrid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.player{border:1px solid var(--line); border-radius:14px; padding:18px; background:linear-gradient(180deg,var(--panel2),var(--panel)); position:relative; overflow:hidden}
+.player.A{box-shadow:inset 3px 0 0 var(--teamA)} .player.B{box-shadow:inset 3px 0 0 var(--teamB)}
+.player .head{display:flex; align-items:center; gap:12px; margin-bottom:14px}
+.badge{width:42px; height:42px; border-radius:10px; display:grid; place-items:center; font-weight:800; font-size:15px; font-family:var(--mono)}
+.player.A .badge{background:var(--teamA-soft); color:var(--teamA); border:1px solid var(--teamA)}
+.player.B .badge{background:var(--teamB-soft); color:var(--teamB); border:1px solid var(--teamB)}
+.player .name{font-weight:800; font-size:16px; display:flex; align-items:center; gap:8px}
+.me-tag{font-family:var(--mono); font-size:9px; background:var(--cyan); color:#04121a; padding:2px 6px; border-radius:4px; letter-spacing:.1em}
+.role{font-family:var(--mono); font-size:11px; color:var(--muted)}
+.ptop{display:grid; grid-template-columns:74px 1fr 130px; gap:14px; align-items:center}
+.psum{font-size:12.5px; line-height:1.55; color:#c8d4e2; margin:13px 0 4px}
+.statgrid{display:grid; grid-template-columns:1fr 1fr; gap:5px 14px; margin-top:8px}
+.stat{display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; border-bottom:1px dotted var(--line); padding:3px 0}
+.stat .k{color:var(--muted)} .stat .v.hot{color:var(--red)} .stat .v.ok{color:var(--green)} .stat .v.mid{color:var(--amber)}
+.sw{margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:12px}
+.sw h5{margin:0 0 4px; font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase}
+.sw .s h5{color:var(--green)} .sw .w h5{color:var(--red)}
+.sw ul{margin:0; padding-left:15px; color:#c2cedb; line-height:1.5} .sw li{margin-bottom:3px}
+.habit{margin-top:11px; font-size:12px; padding:9px 11px; border-radius:8px; background:#0c1623; border:1px solid var(--line)}
+.habit b{color:var(--cyan); font-family:var(--mono); font-size:10px; letter-spacing:.1em}
+
+/* autopsy */
+.goal{border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:12px; background:linear-gradient(180deg,var(--panel2),var(--panel))}
+.goal.conceded{border-left:4px solid var(--red)} .goal.scored{border-left:4px solid var(--green)}
+.goal .gh{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px}
+.goal .gt{font-family:var(--mono); font-size:12px; color:var(--muted)}
+.goal .gscore{font-family:var(--mono); font-weight:600; font-size:15px}
+.goal .gscore .a{color:var(--teamA)} .goal .gscore .b{color:var(--teamB)}
+.goal .who{font-size:13px; font-weight:600} .goal .who small{color:var(--muted); font-weight:400; font-family:var(--mono)}
+.fchip{margin-left:auto; font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:4px 10px; border-radius:999px; border:1px solid currentColor}
+.fchip.dc{color:var(--red)} .fchip.turn{color:var(--green)} .fchip.shot{color:var(--amber)} .fchip.ind{color:var(--cyan)}
+.goal .reason{font-size:12.5px; color:#cdd9e6; line-height:1.55}
+.goal .fault{font-family:var(--mono); font-size:11px; color:var(--red); margin-top:6px}
+.goal .fault.none{color:var(--green)}
+
+.feed{list-style:none; margin:0; padding:0}
+.feed li{display:grid; grid-template-columns:62px 22px 1fr; gap:12px; align-items:start; padding:9px 0; border-bottom:1px solid var(--line)}
+.feed .ft{font-family:var(--mono); font-size:12px; color:var(--muted)}
+.feed .dot{width:11px; height:11px; border-radius:50%; margin-top:3px}
+.feed .ftxt{font-size:13px; color:#cdd9e6} .feed .ftxt b{color:var(--txt)}
+.foot{font-family:var(--mono); font-size:11px; color:var(--dim); text-align:center; margin-top:26px}
+@media(max-width:860px){ .kpis{grid-template-columns:repeat(2,1fr)} .grid2,.pgrid{grid-template-columns:1fr} .ptop{grid-template-columns:1fr} }
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><span class="kicker">Match Telemetry · Replay Breakdown</span>
+      <h1 id="title">Match Dashboard</h1><div class="meta" id="meta"></div></div>
+    <div class="result" id="result"></div>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="tabs" id="tabs"></div>
+
+  <!-- OVERVIEW -->
+  <div class="panel active" data-p="overview">
+    <div class="card"><h3>Executive read</h3><div class="sub" id="headline"></div>
+      <div class="grid2">
+        <div><h3 style="font-size:12px;color:var(--muted);font-family:var(--mono);letter-spacing:.1em">KEY FINDINGS</h3><ul class="findings" id="findings"></ul></div>
+        <div><h3 style="font-size:12px;color:var(--muted);font-family:var(--mono);letter-spacing:.1em">TOP FIXES</h3><div id="fixes" style="display:flex;flex-direction:column;gap:10px"></div></div>
+      </div>
+    </div>
+    <div class="card"><h3>Player ratings vs perfect play</h3><div class="sub">Weighted /100 across attack, defence, positioning, boost, rotation, ball security</div><div class="leader" id="leader"></div></div>
+    <div class="card"><h3>Match flow</h3><div class="sub">Goals, kickoffs and double-commits across the match clock</div><div id="flowchart"></div>
+      <div class="legend">
+        <span><i style="background:var(--teamA)"></i>Team A goal</span><span><i style="background:var(--teamB)"></i>Team B goal</span>
+        <span><i style="background:var(--green)"></i>Kickoff won</span><span><i style="background:var(--amber)"></i>Kickoff neutral</span>
+        <span><i style="background:var(--red)"></i>Kickoff lost</span><span><i style="background:var(--amber)"></i>Double-commit</span></div>
+    </div>
+  </div>
+
+  <!-- AUTOPSY -->
+  <div class="panel" data-p="autopsy">
+    <div class="card"><h3>Goal autopsy — who was at fault</h3><div class="sub" id="autoSub"></div><div id="autopsy"></div></div>
+  </div>
+
+  <!-- ROTATION -->
+  <div class="panel" data-p="rotation">
+    <div class="card"><h3>Ballchase Index</h3><div class="sub">Share of live play over-pursuing the ball as the cover man. &lt;5% disciplined · 5–10% loose · &gt;10% chronic.</div><div id="bcbars"></div></div>
+    <div class="card"><h3>Ballchase over time</h3><div class="sub">Per-30s rotation discipline — watch where it spikes against conceded goals</div><div id="bcline"></div><div class="legend" id="bcLegend"></div></div>
+    <div class="card"><h3>Double-commit log</h3><div class="sub" id="dcsub"></div><div id="dctable" style="max-height:320px;overflow:auto"></div></div>
+  </div>
+
+  <!-- BOOST & POSSESSION -->
+  <div class="panel" data-p="boost">
+    <div class="grid2">
+      <div class="card"><h3>Average boost held</h3><div class="sub">Higher = more options to challenge, recover, counter</div><div id="boostAvg"></div></div>
+      <div class="card"><h3>Starvation</h3><div class="sub">% of live play at ≤1 boost — lower is better</div><div id="boostStarve"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Possession & net coverage</h3><div class="sub">Who held the ball, and how often a defender was home</div><div id="possession"></div></div>
+      <div class="card"><h3>Field occupancy (thirds)</h3><div class="sub">Defensive · Neutral · Offensive split</div><div id="thirds"></div></div>
+    </div>
+  </div>
+
+  <!-- KICKOFFS -->
+  <div class="panel" data-p="kickoffs">
+    <div class="grid2">
+      <div class="card"><h3>Kickoff outcomes</h3><div class="sub" id="koSub"></div><div id="kodonut"></div></div>
+      <div class="card"><h3>Kickoff log</h3><div class="sub">Result and time-to-concede on losses</div><div id="kotable"></div></div>
+    </div>
+  </div>
+
+  <!-- PLAYERS -->
+  <div class="panel" data-p="players">
+    <div class="card" style="padding:0;overflow:auto"><div id="ptable"></div></div>
+    <div class="pgrid" id="players"></div>
+  </div>
+
+  <!-- MOMENTS -->
+  <div class="panel" data-p="moments">
+    <div class="card"><h3>Chronological feed</h3><div class="sub">Every goal, kickoff and double-commit in order</div><ul class="feed" id="feed"></ul></div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+/* =====================================================================================
+   ===============================  EDIT ONLY THIS OBJECT  =============================
+   Replace every value with the analysed match's real data. Keep the keys identical.
+   (Current values = real worked example: 2v2, Park Rainy, won 5-3, corrected clock.)
+   ===================================================================================== */
+const MATCH = {
+  meta:{ map:"Park Rainy", mode:"2v2", playlist:"2v2", date:"2026-06-01",
+         durationS:303, teamAName:"Blue", teamBName:"Orange" },
+  result:{ win:true, a:5, b:3 },
+
+  teamMetrics:{ possession:{A:52,B:48}, netCoverage:{A:90,B:87} },
+
+  summary:{
+    headline:"Won 5–3 on clinical finishing and by punishing Orange's loose giveaways — but the underlying shape was poor. 32 double-commits, and two of the three goals conceded were open nets caused by both blue players pushing up at once.",
+    keyFindings:[
+      "Possession was an even contest (52/48) — Blue's edge was finishing, not control.",
+      "A defender was home 90% of the time, yet all three concedes landed in that 10% gap.",
+      "2 of 3 conceded goals (54s, 76s) were double-commits into a wide-open net; the 3rd (131s) was a fast counter.",
+      "Blue scored 3 of 5 goals directly off Orange own-half giveaways (S_Taskin33 ×2, nickmiless ×1).",
+      "swiftly_o's rotation collapses mid-match — ballchase spikes to ~15% across 150–210s."
+    ],
+    topFixes:[
+      { title:"Kill the double-commits", detail:"When your teammate commits, hold back-post. Two of three concedes were open nets.", metric:"32 events · 2 open-net goals → target < 10" },
+      { title:"Fix boost economy", detail:"Route small pads on rotation instead of chasing corners.", metric:"Blue starved 12–17% vs S_Taskin33 4%" },
+      { title:"Hold shape mid-game", detail:"swiftly_o's chase peaks at 15% (150–210s) — rotate out after shots.", metric:"Peak chase 15% → target < 6%" }
+    ]
+  },
+
+  kpis:[
+    { label:"Result", value:"5–3", sub:"Win", tone:"good" },
+    { label:"My rating", value:"71.8", sub:"GG ER · / 100", tone:"good" },
+    { label:"Double-commits", value:"32", sub:"2 → open-net goals", tone:"bad" },
+    { label:"Possession", value:"52%", sub:"even contest", tone:"" },
+    { label:"Net covered", value:"90%", sub:"all 3 concedes in the gap", tone:"warn" }
+  ],
+
+  // rating: overall + six components (0-100). d: derived metrics. summary: 4-6 sentences.
+  players:[
+    { name:"GG ER", team:"A", isMe:true, role:"Finisher",
+      rating:{ overall:71.8, ATT:100, DEF:33, POS:83.9, BST:62.3, ROT:68.6, SEC:79.6 },
+      core:{goals:4,shots:4,assists:0,saves:1,score:689},
+      d:{conv:"100%", def:36.0, neut:34.1, off:29.9, avgBoost:45.3, starved:11.9, zero:45.4, goalside:79.9, ballchase:2.6, longest:2.1, touches:49, giveaways:5},
+      summary:"The lobby's best finisher and most reliable rotator — but also the nominal last man for two of the three open-net concedes. Perfect in front of goal (4/4) and clean with the ball (only 5 giveaways), yet the defence score (33) reflects being caught 2,700–3,100uu upfield with the net empty at 54s and 76s. Mediocre boost economy (starved ~12%) compounds it. The fix is positional discipline, not skill: when swiftly_o commits, hold back-post.",
+      strengths:["Clinical finishing — 4 goals from 4 shots (ATT 100)","Cleanest rotator on Blue (2.6% ballchase)","Strong ball security — 5 giveaways on 49 touches","Goal-side of the ball 80% of the time"],
+      weaknesses:["At fault for the open-net concedes at 54s & 76s","Boost-starved ~12% of the match (BST 62)","Only 1 save — low defensive output when tested","Joins swiftly_o's over-commits instead of covering"],
+      habit:"When your teammate commits to the ball, you stay home — holding back-post lifts your DEF (33) more than any mechanic." },
+
+    { name:"swiftly_o", team:"A", isMe:false, role:"Creator / ball-chaser",
+      rating:{ overall:53.6, ATT:52, DEF:26.5, POS:75.9, BST:45, ROT:50.6, SEC:84.3 },
+      core:{goals:1,shots:10,assists:2,saves:0,score:466},
+      d:{conv:"10%", def:34.1, neut:30.6, off:35.3, avgBoost:44.8, starved:17.1, zero:57.2, goalside:72.3, ballchase:4.6, longest:3.1, touches:51, giveaways:4},
+      summary:"The team's engine and its biggest liability at once. Generates the most pressure (10 shots, 2 assists) and is actually the safest passer on the team (4 giveaways), but converts just 10% — bleeding possession on low-value shots — and owns the worst boost economy in the lobby (starved 17%). Rotation holds early then collapses: ballchase spikes to ~15% across 150–210s, and a loose touch set up the 131s concede.",
+      strengths:["Creates the most pressure (10 shots, 2 assists)","Best ball security on the team (4 giveaways / 51 touches)","Aggressive, willing first-man presence"],
+      weaknesses:["10% conversion throws away possession (ATT 52)","Worst boost economy in the lobby (starved 17%, BST 45)","Rotation collapses mid-game — 15% ballchase at 150–210s","Loose touch led to the 131s counter-goal"],
+      habit:"Rotate out after your shot and grab small pads on the way — fixes the chasing (ROT) and starvation (BST) at once." },
+
+    { name:"nickmiless", team:"B", isMe:false, role:"Anchor / defender",
+      rating:{ overall:47.6, ATT:9, DEF:62, POS:61.7, BST:45.2, ROT:77.5, SEC:37.5 },
+      core:{goals:0,shots:0,assists:1,saves:2,score:284},
+      d:{conv:"—", def:58.7, neut:28.1, off:13.2, avgBoost:44.1, starved:16.8, zero:52.2, goalside:58.8, ballchase:2.5, longest:3.1, touches:64, giveaways:20},
+      summary:"A stay-at-home anchor who offers almost nothing going forward (0 shots, ATT 9) and is the single biggest turnover source in the match — 20 dangerous own-half giveaways (SEC 37), one of which set up Blue's opener. Disciplined in rotation (2.5% chase) and useful in net (2 saves), but the passivity plus sloppy distribution made him a net drain. 64 touches and 0 shots tells the story: lots of contact, little product.",
+      strengths:["Disciplined rotation (2.5% ballchase, ROT 78)","Stays home — 2 saves, 58.7% defensive third","Always available for the ball (64 touches)"],
+      weaknesses:["Zero offensive threat — 0 shots (ATT 9)","20 dangerous giveaways — gifted Blue chances (SEC 37)","Lowest goal-side % despite playing deep — ball-watches","Low overall impact (284 score)"],
+      habit:"Clear with purpose or make the simple pass — cutting the 20 giveaways lifts SEC and stops feeding counters." },
+
+    { name:"S_Taskin33", team:"B", isMe:false, role:"All-rounder (lobby MVP)",
+      rating:{ overall:81.8, ATT:76.5, DEF:95, POS:79.6, BST:96.9, ROT:83.8, SEC:52.9 },
+      core:{goals:3,shots:4,assists:0,saves:5,score:824},
+      d:{conv:"75%", def:66.3, neut:22.2, off:11.5, avgBoost:53.9, starved:4.3, zero:24.1, goalside:75.8, ballchase:1.8, longest:1.8, touches:51, giveaways:12},
+      summary:"The complete player and clear MVP. Carried both ends — 5 saves and all three of his team's goals (75% conversion) — on the best boost economy on the pitch (starved just 4%, BST 97) and the cleanest rotations (ROT 84). The one seam is ball security: 12 giveaways under Blue pressure, and Blue scored three goals off Orange turnovers. Defensively over-skewed (11.5% offensive), so his attack comes from counters — which is exactly why tightening his first touch matters.",
+      strengths:["Elite boost discipline — 4% starved vs Blue's 12–17% (BST 97)","Two-way dominance: 5 saves + 3 goals, 75% conversion (DEF 95)","Cleanest rotations in the lobby (1.8% ballchase)","Always goal-side first — anchors Orange's shape"],
+      weaknesses:["12 giveaways under pressure — Blue's main route to goal (SEC 53)","Defensively over-skewed (11.5% offensive) — reliant on counters","Carries too much — Orange collapses without him"],
+      habit:"Tighten first touches under pressure — the giveaways are the one thing Blue punished." }
+  ],
+
+  // t = match seconds. conceded = goal against team A. faultType: dc|turnover|shot|individual
+  goals:[
+    {t:17,  team:"A", score:[1,0], scorer:"swiftly_o", assist:null, conceded:false, faultType:"turnover", fault:null,
+      reason:"Punished a nickmiless giveaway in Orange's half — quick strike to open the scoring."},
+    {t:54,  team:"B", score:[1,1], scorer:"S_Taskin33", assist:"nickmiless", conceded:true, faultType:"dc", fault:"Team shape — both Blue forward",
+      reason:"For 82% of the 6s before the goal, BOTH blue cars sat on the attacking side of the ball — nobody home. nickmiless fed S_Taskin33 into a wide-open net (nearest blue ~2,700uu away). A free net, not a good shot."},
+    {t:76,  team:"B", score:[1,2], scorer:"S_Taskin33", assist:null, conceded:true, faultType:"dc", fault:"GG ER — last man too far up",
+      reason:"The same mistake two minutes later. GG ER, the nominal last man, was ~3,100uu upfield with the net open; S_Taskin33 finished unchallenged."},
+    {t:123, team:"A", score:[2,2], scorer:"GG ER", assist:null, conceded:false, faultType:"individual", fault:null,
+      reason:"GG ER beat S_Taskin33 to the ball (defender close but on the wrong side) and finished to equalise."},
+    {t:131, team:"B", score:[2,3], scorer:"S_Taskin33", assist:null, conceded:true, faultType:"shot", fault:"~70% good shot · 30% GG ER caught ball-side",
+      reason:"Shape was fine here (no double-commit). swiftly_o's loose touch was pounced on; S_Taskin33 hit one of the match's fastest shots while GG ER was close (~450uu) but ball-side, not goal-side."},
+    {t:166, team:"A", score:[3,3], scorer:"swiftly_o", assist:"GG ER", conceded:false, faultType:"turnover", fault:null,
+      reason:"Off a S_Taskin33 giveaway — GG ER assisted swiftly_o to make it 3–3."},
+    {t:287, team:"A", score:[4,3], scorer:"GG ER", assist:"swiftly_o", conceded:false, faultType:"turnover", fault:null,
+      reason:"Go-ahead goal off another S_Taskin33 giveaway; GG ER finished swiftly_o's pass past nickmiless."},
+    {t:300, team:"A", score:[5,3], scorer:"GG ER", assist:null, conceded:false, faultType:"individual", fault:null,
+      reason:"Late insurance goal to seal it 5–3."}
+  ],
+
+  kickoffs:[
+    {t:0,result:"neutral"},{t:17,result:"neutral"},{t:54,result:"neutral"},{t:77,result:"neutral"},
+    {t:123,result:"neutral"},{t:131,result:"neutral"},{t:166,result:"neutral"},{t:287,result:"won"}
+  ],
+
+  doubleCommits:[
+    {t:30,d:2},{t:43,d:10},{t:62,d:1},{t:63,d:3},{t:74,d:1},{t:81,d:2},{t:105,d:1},{t:115,d:4},
+    {t:121,d:1},{t:128,d:1},{t:146,d:3},{t:151,d:2},{t:153,d:4},{t:165,d:1},{t:173,d:3},{t:178,d:2},
+    {t:185,d:5},{t:197,d:1},{t:205,d:2},{t:207,d:2},{t:210,d:1},{t:213,d:1},{t:216,d:1},{t:217,d:1},
+    {t:253,d:1},{t:255,d:1},{t:259,d:3},{t:264,d:2},{t:267,d:2},{t:277,d:2},{t:288,d:1},{t:299,d:2.3}
+  ],
+
+  ballchaseTimeline:{
+    labels:[0,30,60,90,120,150,180,210,240,270],
+    series:[
+      {name:"GG ER",      team:"A", values:[1.0,2.5,6.0,0.0,1.0,1.4,4.9,0.0,8.1,2.1]},
+      {name:"swiftly_o",  team:"A", values:[0.0,2.0,5.4,1.5,4.3,15.5,15.0,0.9,2.9,0.0]},
+      {name:"nickmiless", team:"B", values:[0.0,1.2,0.0,0.0,2.3,0.0,4.3,10.8,0.0,7.4]},
+      {name:"S_Taskin33", team:"B", values:[0.1,0.0,0.0,0.0,6.0,0.0,0.0,5.8,6.1,0.0]}
+    ]
+  }
+};
+/* ============================  END OF EDITABLE DATA  ================================= */
+
+
+const $=s=>document.querySelector(s);
+const TA=getCss('--teamA'), TB=getCss('--teamB');
+function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function teamColor(t){return t==="A"?TA:TB;}
+function band(v){return v>=78?'var(--green)':v>=62?'var(--cyan)':v>=48?'var(--amber)':'var(--red)';}
+const DUR=MATCH.meta.durationS;
+
+$("#title").textContent=MATCH.meta.map+" — "+MATCH.meta.mode;
+$("#meta").innerHTML=`<span><b>${MATCH.meta.mode}</b> mode</span><span>${MATCH.meta.playlist}</span><span><b>${MATCH.meta.durationS}s</b></span><span>${MATCH.meta.date}</span>`;
+const r=MATCH.result;
+$("#result").className="result "+(r.win?"win":"loss");
+$("#result").innerHTML=`<span class="verdict">${r.win?"Victory":"Defeat"}</span><span class="score"><span class="a">${r.a}</span><span class="x">–</span><span class="b">${r.b}</span></span>`;
+$("#foot").textContent=`Generated from frame telemetry · ${MATCH.players.length} players · ${MATCH.meta.map}`;
+$("#kpis").innerHTML=MATCH.kpis.map(k=>`<div class="kpi ${k.tone||''}"><div class="l">${k.label}</div><div class="v">${k.value}</div><div class="s">${k.sub||''}</div></div>`).join('');
+
+const TABS=[["overview","Overview"],["autopsy","Goal Autopsy"],["rotation","Rotation & Shape"],["boost","Boost & Possession"],["kickoffs","Kickoffs"],["players","Players"],["moments","Moments"]];
+$("#tabs").innerHTML=TABS.map((t,i)=>`<button class="tab ${i==0?'active':''}" data-t="${t[0]}">${t[1]}</button>`).join('');
+$("#tabs").addEventListener('click',e=>{const b=e.target.closest('.tab'); if(!b)return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); document.querySelector(`.panel[data-p="${b.dataset.t}"]`).classList.add('active');});
+
+$("#headline").textContent=MATCH.summary.headline;
+$("#findings").innerHTML=MATCH.summary.keyFindings.map(f=>`<li>${f}</li>`).join('');
+$("#fixes").innerHTML=MATCH.summary.topFixes.map(f=>`<div class="fix"><div class="t">${f.title}</div><div class="d">${f.detail}</div><div class="m">${f.metric}</div></div>`).join('');
+
+/* ratings leaderboard */
+(function(){
+  const rows=MATCH.players.slice().sort((a,b)=>b.rating.overall-a.rating.overall);
+  $("#leader").innerHTML=rows.map(p=>`<div class="lrow">
+    <div class="nm">${p.name}${p.isMe?' <span class="me-tag">ME</span>':''}<small>${p.role}</small></div>
+    <div class="lbar"><div class="ratefill" data-w="${p.rating.overall}" style="background:${band(p.rating.overall)}"></div></div>
+    <div class="rn" style="color:${band(p.rating.overall)}">${p.rating.overall}</div></div>`).join('');
+})();
+
+/* flow timeline */
+(function(){
+  const W=1100,H=150,padL=20,padR=20,y0=95,x=t=>padL+(t/DUR)*(W-padL-padR);
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="overflow:visible">`;
+  s+=`<line x1="${padL}" y1="${y0}" x2="${W-padR}" y2="${y0}" stroke="var(--line2)"/>`;
+  for(let t=0;t<=DUR;t+=60){ s+=`<line x1="${x(t)}" y1="${y0-4}" x2="${x(t)}" y2="${y0+4}" stroke="var(--line2)"/><text x="${x(t)}" y="${y0+20}" fill="var(--dim)" font-size="10" font-family="var(--mono)" text-anchor="middle">${t}s</text>`; }
+  MATCH.doubleCommits.forEach(d=>{ s+=`<rect x="${x(d.t)}" y="${y0+5}" width="${Math.max(1.5,(d.d/DUR)*(W-40))}" height="9" fill="var(--amber)" opacity=".7" rx="1"><title>Double-commit ${d.t}s · ${d.d}s</title></rect>`; });
+  MATCH.kickoffs.forEach(k=>{ const c=k.result=="won"?"var(--green)":k.result=="lost"?"var(--red)":"var(--amber)"; s+=`<path d="M${x(k.t)} ${y0-9} l6 7 l-6 7 l-6 -7 z" fill="${c}" opacity="${k.result=='neutral'?.5:1}"><title>Kickoff ${k.t}s · ${k.result}</title></path>`; });
+  MATCH.goals.forEach(g=>{ const c=teamColor(g.team); const gy=y0-34;
+    s+=`<line x1="${x(g.t)}" y1="${y0-9}" x2="${x(g.t)}" y2="${gy+11}" stroke="${c}" opacity=".4"/>
+    <circle cx="${x(g.t)}" cy="${gy}" r="12" fill="${g.conceded?'#1a0d12':'#0c1623'}" stroke="${c}" stroke-width="2"/>
+    <text x="${x(g.t)}" y="${gy+4}" fill="${c}" font-size="10" font-family="var(--mono)" text-anchor="middle" font-weight="600">${g.score[0]}-${g.score[1]}</text>
+    ${g.conceded?`<text x="${x(g.t)}" y="${gy-16}" fill="var(--red)" font-size="8" font-family="var(--mono)" text-anchor="middle">CONCEDED</text>`:''}`; });
+  s+=`</svg>`; $("#flowchart").innerHTML=s;
+})();
+
+/* goal autopsy */
+(function(){
+  const conc=MATCH.goals.filter(g=>g.conceded).length, fc={dc:'Double-commit',turnover:'Forced turnover',shot:'Good shot / counter',individual:'Individual'};
+  const cls={dc:'dc',turnover:'turn',shot:'shot',individual:'ind'};
+  $("#autoSub").textContent=`${MATCH.goals.length} goals · ${conc} conceded — fault reconstructed from the 6s before each goal`;
+  $("#autopsy").innerHTML=MATCH.goals.map(g=>{
+    const who=`${g.scorer}${g.assist?` <small>← assist ${g.assist}</small>`:''}`;
+    return `<div class="goal ${g.conceded?'conceded':'scored'}">
+      <div class="gh"><span class="gt">${g.t}s</span>
+        <span class="gscore"><span class="a">${g.score[0]}</span>-<span class="b">${g.score[1]}</span></span>
+        <span class="who">${who}</span>
+        <span class="fchip ${cls[g.faultType]}">${fc[g.faultType]}</span></div>
+      <div class="reason">${g.reason}</div>
+      ${g.conceded?`<div class="fault ${g.faultType=='shot'?'none':''}">${g.faultType=='shot'?'⚑ ':'✖ Fault: '}${g.fault}</div>`:''}</div>`;
+  }).join('');
+})();
+
+/* ballchase bars */
+(function(){
+  const max=16, rows=MATCH.players.slice().sort((a,b)=>b.d.ballchase-a.d.ballchase);
+  $("#bcbars").innerHTML=`<div style="display:flex;flex-direction:column;gap:11px">`+rows.map(p=>{const v=p.d.ballchase,w=Math.min(100,v/max*100),col=v>10?'var(--red)':v>5?'var(--amber)':'var(--green)';
+    return `<div style="display:grid;grid-template-columns:120px 1fr 86px;align-items:center;gap:12px">
+      <div style="font-size:12.5px;color:${p.team=='A'?'var(--teamA)':'var(--teamB)'}">${p.name}</div>
+      <div style="position:relative;height:18px;background:#0c1623;border-radius:5px;border:1px solid var(--line);overflow:hidden">
+        <div style="position:absolute;left:${5/max*100}%;top:0;bottom:0;width:1px;background:var(--line2)"></div>
+        <div style="position:absolute;left:${10/max*100}%;top:0;bottom:0;width:1px;background:var(--line2)"></div>
+        <div class="fillbar" style="height:100%;width:0;background:${col};transition:width 1s ease" data-w="${w}"></div></div>
+      <div style="font-family:var(--mono);font-size:12px;color:${col};text-align:right">${v}% · ${p.d.longest}s</div></div>`;}).join('')+`</div>`;
+})();
+
+/* ballchase line */
+(function(){
+  const W=1100,H=260,padL=40,padR=20,padT=16,padB=30,labels=MATCH.ballchaseTimeline.labels;
+  const maxV=Math.max(15,...MATCH.ballchaseTimeline.series.flatMap(s=>s.values))*1.05;
+  const x=i=>padL+i/(labels.length-1)*(W-padL-padR), y=v=>padT+(1-v/maxV)*(H-padT-padB);
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+  for(let g=0;g<=15;g+=5){ s+=`<line x1="${padL}" y1="${y(g)}" x2="${W-padR}" y2="${y(g)}" stroke="var(--line)"/><text x="${padL-8}" y="${y(g)+3}" fill="var(--dim)" font-size="10" font-family="var(--mono)" text-anchor="end">${g}%</text>`; }
+  labels.forEach((l,i)=>{ s+=`<text x="${x(i)}" y="${H-10}" fill="var(--dim)" font-size="10" font-family="var(--mono)" text-anchor="middle">${l}</text>`; });
+  s+=`<rect x="${padL}" y="${padT}" width="${W-padL-padR}" height="${y(10)-padT}" fill="var(--red)" opacity=".05"/>`;
+  const col=(ser,si)=>ser.team=="A"?(si==0?'var(--cyan)':'var(--blue)'):(ser.name=="S_Taskin33"?'var(--orange)':'var(--amber)');
+  MATCH.ballchaseTimeline.series.forEach((ser,si)=>{ const c=col(ser,si); const pts=ser.values.map((v,i)=>`${x(i)},${y(v)}`).join(' '); const len=ser.values.length*200;
+    s+=`<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="${len}" stroke-dashoffset="${len}" class="lineDraw"/>`;
+    ser.values.forEach((v,i)=>{ s+=`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${c}"><title>${ser.name} @ ${labels[i]}s: ${v}%</title></circle>`; }); });
+  s+=`</svg>`; $("#bcline").innerHTML=s;
+  $("#bcLegend").innerHTML=MATCH.ballchaseTimeline.series.map((ser,si)=>`<span><i style="background:${col(ser,si)}"></i>${ser.name}</span>`).join('');
+})();
+
+/* double-commit table */
+(function(){
+  const tot=MATCH.doubleCommits.reduce((a,b)=>a+b.d,0), avg=(tot/MATCH.doubleCommits.length).toFixed(1);
+  $("#dcsub").textContent=`${MATCH.doubleCommits.length} events · ${tot.toFixed(1)}s total · avg ${avg}s`;
+  let s=`<table><tr><th>#</th><th class="num">Time</th><th class="num">Duration</th><th>Phase</th></tr>`;
+  MATCH.doubleCommits.forEach((d,i)=>{ const late=d.t>210; s+=`<tr><td>${i+1}</td><td class="num">${d.t}s</td><td class="num">${d.d}s</td><td style="color:${late?'var(--red)':'var(--muted)'}">${late?'endgame':d.t<120?'early':'mid'}</td></tr>`; });
+  $("#dctable").innerHTML=s+`</table>`;
+})();
+
+/* boost bars */
+function simpleBars(items,fmt,colorFn,max){
+  return `<div style="display:flex;flex-direction:column;gap:10px">`+items.map(it=>{const w=Math.min(100,it.v/max*100);
+    return `<div style="display:grid;grid-template-columns:110px 1fr 60px;align-items:center;gap:10px">
+      <div style="font-size:12px;color:${it.team=='A'?'var(--teamA)':'var(--teamB)'}">${it.name}</div>
+      <div style="height:16px;background:#0c1623;border-radius:5px;border:1px solid var(--line);overflow:hidden"><div class="fillbar" style="height:100%;width:0;background:${colorFn(it.v)};transition:width 1s ease" data-w="${w}"></div></div>
+      <div style="font-family:var(--mono);font-size:12px;text-align:right;color:${colorFn(it.v)}">${fmt(it.v)}</div></div>`;}).join('')+`</div>`;
+}
+$("#boostAvg").innerHTML=simpleBars(MATCH.players.map(p=>({name:p.name,team:p.team,v:p.d.avgBoost})),v=>v.toFixed(1),v=>v>=50?'var(--green)':v>=42?'var(--amber)':'var(--red)',100);
+$("#boostStarve").innerHTML=simpleBars(MATCH.players.map(p=>({name:p.name,team:p.team,v:p.d.starved})).sort((a,b)=>b.v-a.v),v=>v.toFixed(1)+'%',v=>v<8?'var(--green)':v<14?'var(--amber)':'var(--red)',20);
+
+/* possession + net coverage */
+(function(){
+  const pm=MATCH.teamMetrics, A=MATCH.meta.teamAName, B=MATCH.meta.teamBName;
+  $("#possession").innerHTML=`
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:5px">POSSESSION</div>
+    <div style="display:flex;height:26px;border-radius:6px;overflow:hidden;border:1px solid var(--line);font-family:var(--mono);font-size:12px;font-weight:600">
+      <div style="width:${pm.possession.A}%;background:var(--teamA-soft);color:var(--teamA);display:grid;place-items:center">${A} ${pm.possession.A}%</div>
+      <div style="width:${pm.possession.B}%;background:var(--teamB-soft);color:var(--teamB);display:grid;place-items:center">${pm.possession.B}% ${B}</div></div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin:16px 0 5px">NET COVERAGE — a defender home</div>
+    <div style="display:flex;gap:14px">
+      <div style="flex:1;text-align:center;border:1px solid var(--line);border-radius:8px;padding:10px;background:#0c1623"><div style="font-size:24px;font-weight:800;color:var(--teamA)">${pm.netCoverage.A}%</div><div style="font-family:var(--mono);font-size:10px;color:var(--dim)">${A}</div></div>
+      <div style="flex:1;text-align:center;border:1px solid var(--line);border-radius:8px;padding:10px;background:#0c1623"><div style="font-size:24px;font-weight:800;color:var(--teamB)">${pm.netCoverage.B}%</div><div style="font-family:var(--mono);font-size:10px;color:var(--dim)">${B}</div></div></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.4">${A} kept a defender home ${pm.netCoverage.A}% of the time — but all three concedes landed in that ${100-pm.netCoverage.A}% gap.</div>`;
+})();
+
+/* thirds */
+(function(){
+  let s=`<div style="display:flex;flex-direction:column;gap:10px">`;
+  MATCH.players.forEach(p=>{const {def,neut,off}=p.d;
+    s+=`<div style="display:grid;grid-template-columns:110px 1fr;align-items:center;gap:10px">
+      <div style="font-size:12px;color:${p.team=='A'?'var(--teamA)':'var(--teamB)'}">${p.name}</div>
+      <div style="display:flex;height:20px;border-radius:5px;overflow:hidden;border:1px solid var(--line);font-family:var(--mono);font-size:10px">
+        <div style="width:${def}%;background:#1f6feb33;color:#7fb4ff;display:grid;place-items:center">${def}</div>
+        <div style="width:${neut}%;background:#8093a833;color:var(--muted);display:grid;place-items:center">${neut}</div>
+        <div style="width:${off}%;background:#ff8a3d33;color:var(--orange);display:grid;place-items:center">${off}</div></div></div>`;});
+  $("#thirds").innerHTML=s+`</div><div class="legend"><span><i style="background:#1f6feb"></i>Def</span><span><i style="background:#8093a8"></i>Neut</span><span><i style="background:#ff8a3d"></i>Off</span></div>`;
+})();
+
+/* kickoffs */
+(function(){
+  const c={won:0,lost:0,neutral:0}; MATCH.kickoffs.forEach(k=>c[k.result]++);
+  const tot=MATCH.kickoffs.length,R=52,C=2*Math.PI*R; let off=0,circles="";
+  [["won","var(--green)"],["lost","var(--red)"],["neutral","var(--amber)"]].forEach(([k,col])=>{const len=c[k]/tot*C;
+    circles+=`<circle cx="70" cy="70" r="${R}" fill="none" stroke="${col}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`; off+=len;});
+  $("#koSub").textContent=`${c.won} won · ${c.lost} lost · ${c.neutral} neutral`;
+  $("#kodonut").innerHTML=`<div style="display:flex;align-items:center;gap:22px">
+    <svg viewBox="0 0 140 140" width="140" height="140">${circles}
+      <text x="70" y="66" fill="var(--txt)" font-size="22" font-weight="800" text-anchor="middle">${c.won}/${tot}</text>
+      <text x="70" y="84" fill="var(--muted)" font-size="9" font-family="var(--mono)" text-anchor="middle">WON</text></svg>
+    <div class="legend" style="flex-direction:column;gap:7px;margin:0">
+      <span><i style="background:var(--green)"></i>Won ${c.won}</span><span><i style="background:var(--red)"></i>Lost ${c.lost}</span><span><i style="background:var(--amber)"></i>Neutral ${c.neutral}</span></div></div>`;
+  let s=`<table><tr><th class="num">Time</th><th>Result</th><th class="num">Conceded within</th></tr>`;
+  MATCH.kickoffs.forEach(k=>{ s+=`<tr><td class="num">${k.t}s</td><td><span class="chip ${k.result}">${k.result}</span></td><td class="num" style="color:${k.concededWithinS?'var(--red)':'var(--dim)'}">${k.concededWithinS?k.concededWithinS+'s':'—'}</td></tr>`; });
+  $("#kotable").innerHTML=s+`</table>`;
+})();
+
+/* player table */
+(function(){
+  let s=`<table style="min-width:820px"><tr><th>Player</th><th class="num">Rating</th><th class="num">G/Sh</th><th class="num">Conv</th><th class="num">A</th><th class="num">Sv</th><th class="num">Score</th><th class="num">Avg bst</th><th class="num">Starved</th><th class="num">Touch</th><th class="num">Giveaway</th><th class="num">Chase</th></tr>`;
+  MATCH.players.slice().sort((a,b)=>b.rating.overall-a.rating.overall).forEach(p=>{const col=p.team=='A'?'var(--teamA)':'var(--teamB)';
+    s+=`<tr><td style="color:${col}">${p.name}${p.isMe?' <span class="me-tag">ME</span>':''}</td>
+      <td class="num" style="color:${band(p.rating.overall)};font-weight:600">${p.rating.overall}</td>
+      <td class="num">${p.core.goals}/${p.core.shots}</td><td class="num">${p.d.conv}</td><td class="num">${p.core.assists}</td><td class="num">${p.core.saves}</td><td class="num">${p.core.score}</td>
+      <td class="num">${p.d.avgBoost}</td><td class="num" style="color:${p.d.starved<8?'var(--green)':p.d.starved<14?'var(--amber)':'var(--red)'}">${p.d.starved}%</td>
+      <td class="num">${p.d.touches}</td><td class="num" style="color:${p.d.giveaways<6?'var(--green)':p.d.giveaways<13?'var(--amber)':'var(--red)'}">${p.d.giveaways}</td>
+      <td class="num" style="color:${p.d.ballchase>10?'var(--red)':p.d.ballchase>5?'var(--amber)':'var(--green)'}">${p.d.ballchase}%</td></tr>`; });
+  $("#ptable").innerHTML=s+`</table>`;
+})();
+
+/* radar from rating components */
+function radar(stats){
+  const keys=Object.keys(stats),N=keys.length,cx=65,cy=64,R=44,ang=i=>(-Math.PI/2)+i*2*Math.PI/N;
+  let grid=""; [.33,.66,1].forEach(f=>{grid+=`<polygon points="${keys.map((k,i)=>`${cx+Math.cos(ang(i))*R*f},${cy+Math.sin(ang(i))*R*f}`).join(' ')}" fill="none" stroke="var(--line2)"/>`;});
+  let axes=keys.map((k,i)=>`<line x1="${cx}" y1="${cy}" x2="${cx+Math.cos(ang(i))*R}" y2="${cy+Math.sin(ang(i))*R}" stroke="var(--line)"/>`).join('');
+  const dpts=keys.map((k,i)=>{const f=stats[k]/100;return `${cx+Math.cos(ang(i))*R*f},${cy+Math.sin(ang(i))*R*f}`;}).join(' ');
+  return `<svg viewBox="0 0 130 128" width="130" height="128">${grid}${axes}
+    <polygon points="${dpts}" fill="var(--cyan)" fill-opacity=".22" stroke="var(--cyan)" stroke-width="1.6"/>
+    ${keys.map((k,i)=>`<text x="${cx+Math.cos(ang(i))*(R+9)}" y="${cy+Math.sin(ang(i))*(R+9)+3}" fill="var(--dim)" font-size="7.5" font-family="var(--mono)" text-anchor="middle">${k}</text>`).join('')}</svg>`;
+}
+/* player cards */
+(function(){
+  const COMP=['ATT','DEF','POS','BST','ROT','SEC'];
+  $("#players").innerHTML=MATCH.players.map(p=>{const d=p.d,R=p.rating,star=v=>v<8?'ok':v<14?'mid':'hot',chc=v=>v>10?'hot':v>5?'mid':'ok',giv=v=>v<6?'ok':v<13?'mid':'hot';
+    const comps=COMP.map(k=>`<span class="ck">${k}</span><div class="cb"><div class="compfill" data-w="${R[k]}" style="background:${band(R[k])}"></div></div><span class="cv">${R[k]}</span>`).join('');
+    return `<div class="player ${p.team}">
+      <div class="head"><div class="badge">${p.name.replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()}</div>
+        <div><div class="name">${p.name}${p.isMe?'<span class="me-tag">ME</span>':''}</div><div class="role">${p.role}</div></div></div>
+      <div class="ptop">
+        <div class="rating-badge"><div class="num" style="color:${band(R.overall)}">${R.overall}</div><div class="lab">/ 100</div></div>
+        <div class="rcomp">${comps}</div>
+        <div style="display:grid;place-items:center">${radar({ATT:R.ATT,DEF:R.DEF,POS:R.POS,BST:R.BST,ROT:R.ROT,SEC:R.SEC})}</div>
+      </div>
+      <div class="psum">${p.summary}</div>
+      <div class="statgrid">
+        <div class="stat"><span class="k">Goals/Shots</span><span class="v">${p.core.goals}/${p.core.shots}</span></div>
+        <div class="stat"><span class="k">Conversion</span><span class="v">${d.conv}</span></div>
+        <div class="stat"><span class="k">Assists/Saves</span><span class="v">${p.core.assists}/${p.core.saves}</span></div>
+        <div class="stat"><span class="k">Score</span><span class="v">${p.core.score}</span></div>
+        <div class="stat"><span class="k">Def/Off third</span><span class="v">${d.def}/${d.off}%</span></div>
+        <div class="stat"><span class="k">Avg boost</span><span class="v">${d.avgBoost}</span></div>
+        <div class="stat"><span class="k">Starved</span><span class="v ${star(d.starved)}">${d.starved}%</span></div>
+        <div class="stat"><span class="k">Touches</span><span class="v">${d.touches}</span></div>
+        <div class="stat"><span class="k">Giveaways</span><span class="v ${giv(d.giveaways)}">${d.giveaways}</span></div>
+        <div class="stat"><span class="k">Ballchase</span><span class="v ${chc(d.ballchase)}">${d.ballchase}%</span></div>
+      </div>
+      <div class="sw">
+        <div class="s"><h5>Strengths</h5><ul>${p.strengths.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+        <div class="w"><h5>Weaknesses</h5><ul>${p.weaknesses.map(x=>`<li>${x}</li>`).join('')}</ul></div></div>
+      <div class="habit"><b>ONE HABIT TO FIX</b><br>${p.habit}</div></div>`;}).join('');
+})();
+
+/* moments feed */
+(function(){
+  const ev=[];
+  MATCH.goals.forEach(g=>ev.push({t:g.t,dot:teamColor(g.team),txt:`<b>Goal ${g.team=='A'?MATCH.meta.teamAName:MATCH.meta.teamBName}</b> → ${g.score[0]}–${g.score[1]} · ${g.scorer}${g.conceded?' · <span style="color:var(--red)">conceded</span>':''}`}));
+  MATCH.kickoffs.forEach(k=>ev.push({t:k.t,dot:k.result=='won'?'var(--green)':k.result=='lost'?'var(--red)':'var(--amber)',txt:`Kickoff — <b>${k.result}</b>`}));
+  MATCH.doubleCommits.forEach(d=>ev.push({t:d.t,dot:'var(--amber)',txt:`Double-commit · ${d.d}s`}));
+  ev.sort((a,b)=>a.t-b.t);
+  $("#feed").innerHTML=ev.map(e=>`<li><span class="ft">${(+e.t).toFixed(1)}s</span><span class="dot" style="background:${e.dot}"></span><span class="ftxt">${e.txt}</span></li>`).join('');
+})();
+
+/* animate */
+requestAnimationFrame(()=>setTimeout(()=>{
+  document.querySelectorAll('.fillbar,.ratefill,.compfill').forEach(b=>b.style.width=b.dataset.w+'%');
+  document.querySelectorAll('.ratefill,.compfill').forEach(b=>b.style.transition='width 1s ease');
+  document.querySelectorAll('.lineDraw').forEach((l,i)=>{ l.style.transition=`stroke-dashoffset 1.1s ease ${i*.12}s`; l.style.strokeDashoffset=0; });
+},60));
+</script>

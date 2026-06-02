@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 106.24 106">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #f89420;
+      }
+    </style>
+  </defs>
+  <g id="Ranks">
+    <g id="Coloured">
+      <g id="Gold">
+        <path id="Gold_I" data-name="Gold I" class="cls-1" d="M61.2,0h-16.16L0,78l21.65,28h62.94l21.65-28L61.2,0ZM49.66,8h6.92l17.29,29.93-20.75,24.73-20.75-24.73,17.29-29.93ZM80.66,98H25.58l-15.97-20.65,18.5-32.04,25.01,29.79,25-29.8,18.51,32.05-15.97,20.65Z"/>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+# Normalise line endings — keep LF in the repo so scripts/Dockerfile work on Linux
+* text=auto eol=lf
+*.svg text eol=lf
+*.png binary
+*.ico binary
+*.zip binary

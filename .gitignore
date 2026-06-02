@@ -1,0 +1,44 @@
+# ── Secrets — NEVER commit ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+auth_tokens.json
+*.pem
+*.key
+config.yaml
+
+# ── Runtime data ──────────────────────────────────────────────────────────────
+data/
+output/
+*.db
+*.db-wal
+*.db-shm
+*.db.bak
+backup.db
+*.log
+failed_replays/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ── Build / binaries ──────────────────────────────────────────────────────────
+dist/
+build/
+rrrocket_bin/
+
+# ── Replay / parquet artefacts ────────────────────────────────────────────────
+*.replay
+*.parquet
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
