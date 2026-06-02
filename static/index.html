@@ -222,6 +222,19 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 .stats-note{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:16px;line-height:1.5}
 .stats-empty{text-align:center;padding:60px 20px;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
 
+/* ── settings menu ── */
+.settings-wrap{position:relative}
+.settings-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:200px;z-index:80;
+  background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:6px;
+  box-shadow:0 16px 40px #00000088;display:none;flex-direction:column;gap:2px}
+.settings-menu.open{display:flex}
+.settings-menu button{background:none;border:0;text-align:left;color:var(--txt);font-family:var(--disp);
+  font-size:13px;padding:9px 11px;border-radius:7px;cursor:pointer;transition:background .12s}
+.settings-menu button:hover{background:#13202f}
+.settings-menu button.danger{color:var(--red)}
+.settings-menu button.danger:hover{background:#1a0d12}
+.settings-menu .sep{height:1px;background:var(--line);margin:4px 2px}
+
 /* ── toast ── */
 .toast{position:fixed;bottom:24px;right:24px;background:#1a0d12;border:1px solid var(--red);
   border-radius:10px;padding:12px 18px;font-family:var(--mono);font-size:12px;color:var(--red);
@@ -241,6 +254,15 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
     <div class="nav-right">
       <span class="chip" id="usage-chip" style="display:none"></span>
       <span style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="epic-label"></span>
+      <div class="settings-wrap">
+        <button class="btn btn-ghost btn-sm" id="settings-btn" onclick="toggleSettings()" title="Account &amp; settings">⚙</button>
+        <div class="settings-menu" id="settings-menu">
+          <button onclick="startSetup()">✏️ Edit plan settings</button>
+          <button onclick="refreshName()">🔄 Refresh Epic username</button>
+          <div class="sep"></div>
+          <button class="danger" onclick="deleteAccount()">🗑️ Delete account</button>
+        </div>
+      </div>
       <button class="btn btn-ghost btn-sm" id="logout-btn">Logout</button>
     </div>
   </nav>
@@ -553,6 +575,44 @@ async function doLogout() {
   await post('/api/logout').catch(()=>{});
   _me=null; _profile={}; _detectedRanks={};
   showScreen('landing-screen');
+}
+
+// ── settings menu ──────────────────────────────────────────────────────────
+function toggleSettings(){ document.getElementById('settings-menu').classList.toggle('open'); }
+function closeSettings(){ const m=document.getElementById('settings-menu'); if(m) m.classList.remove('open'); }
+document.addEventListener('click',e=>{ if(!e.target.closest('.settings-wrap')) closeSettings(); });
+
+function startSetup(){
+  closeSettings();
+  const p=_profile||{};
+  _wiz={platform:p.platform||null,gamemode:p.gamemode||null,team_size:p.team_size||2,
+    current_rank:p.current_rank||null,target_rank:p.target_rank||null,
+    mins_per_day:p.mins_per_day||60,days_per_week:p.days_per_week||5,
+    duo_partner:p.duo_partner||null,freestyle:!!p.freestyle};
+  _detectedRanks={}; fetchDetectedRanks();
+  showWizard();
+}
+
+async function refreshName(){
+  closeSettings();
+  try{
+    const r=await post('/api/epic/refresh-name');
+    _me=await get('/api/me'); updateEpicLabel();
+    if(r.status==='ok' && r.display_name){
+      _profile=await get('/api/profile').catch(()=>_profile);
+      toast('Username updated to '+r.display_name,'var(--green)');
+    } else {
+      toast('Epic returned no public display name for this account.','var(--amber)');
+    }
+  }catch(e){ toast('Failed: '+e.message); }
+}
+
+async function deleteAccount(){
+  closeSettings();
+  if(!confirm('Delete your RLCoach account and ALL data — plans, tracker, matches? This cannot be undone.'))return;
+  if(!confirm('This is permanent. Delete everything?'))return;
+  try{ await post('/api/account/delete'); _me=null; location.reload(); }
+  catch(e){ toast('Delete failed: '+e.message); }
 }
 
 // ── Epic connect ──────────────────────────────────────────────────────────

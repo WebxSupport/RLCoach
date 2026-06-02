@@ -232,6 +232,22 @@ class Database:
             row = await cur.fetchone()
         return dict(row) if row else None
 
+    async def delete_account(self, session_id: str) -> None:
+        """Permanently delete the user and ALL their data across every table."""
+        async with self._db.execute(
+            "SELECT user_id, eos_account_id FROM sessions WHERE session_id=?", (session_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        user_id = row["user_id"] if row else None
+        eos = row["eos_account_id"] if row else None
+        for tbl in ("matches", "jobs", "profiles", "coaching_plans", "trackers", "sessions"):
+            await self._db.execute(f"DELETE FROM {tbl} WHERE session_id=?", (session_id,))
+        if eos:
+            await self._db.execute("DELETE FROM analysis_usage WHERE eos_account_id=?", (eos,))
+        if user_id:
+            await self._db.execute("DELETE FROM users WHERE user_id=?", (user_id,))
+        await self._db.commit()
+
     async def activate_session(self, session_id: str) -> None:
         await self._db.execute(
             "UPDATE sessions SET is_active=1, last_seen=? WHERE session_id=?",
@@ -282,6 +298,16 @@ class Database:
         await self._db.execute(
             "UPDATE sessions SET player_id=? WHERE session_id=?",
             (player_id, session_id),
+        )
+        await self._db.commit()
+
+    async def update_display_name(self, session_id: str, name: str) -> None:
+        """Update the session + profile display name (used by Refresh username)."""
+        await self._db.execute(
+            "UPDATE sessions SET display_name=? WHERE session_id=?", (name, session_id)
+        )
+        await self._db.execute(
+            "UPDATE profiles SET display_name=? WHERE session_id=?", (name, session_id)
         )
         await self._db.commit()
 

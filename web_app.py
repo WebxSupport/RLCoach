@@ -226,6 +226,20 @@ async def logout(response: Response, session_id: Optional[str] = Cookie(default=
     return {"status": "logged_out"}
 
 
+@app.post("/api/account/delete")
+async def delete_account(response: Response, session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    sid = session["session_id"]
+    await db.delete_account(sid)
+    # Remove this user's replay output / DB-adjacent files
+    import shutil
+    out = Path("data") / "output" / sid
+    if out.exists():
+        shutil.rmtree(out, ignore_errors=True)
+    _clear_session_cookie(response)
+    return {"status": "deleted"}
+
+
 @app.get("/api/me")
 async def me(session_id: Optional[str] = Cookie(default=None)):
     if not session_id:
@@ -318,6 +332,29 @@ async def epic_disconnect(session_id: Optional[str] = Cookie(default=None)):
     session = await _require_session(session_id)
     await db.disconnect_epic(session["session_id"])
     return {"status": "disconnected"}
+
+
+@app.post("/api/epic/refresh-name")
+async def epic_refresh_name(session_id: Optional[str] = Cookie(default=None)):
+    """Re-fetch the Epic display name in place (no disconnect) and update session + profile."""
+    session = await _require_session(session_id)
+    if not session.get("eos_account_id"):
+        raise HTTPException(400, "Connect your Epic account first")
+
+    from rlcoach.web_pipeline import get_web_credentials
+    from rlapi.egs import get_eos_display_name
+
+    creds = await get_web_credentials(session, db)
+    if not creds:
+        raise HTTPException(400, "Epic auth expired — reconnect your account")
+    access_token, account_id, _ = creds
+
+    loop = asyncio.get_event_loop()
+    name = await loop.run_in_executor(None, get_eos_display_name, access_token, account_id)
+    if not name:
+        return {"status": "unchanged", "display_name": session.get("display_name")}
+    await db.update_display_name(session["session_id"], name)
+    return {"status": "ok", "display_name": name}
 
 
 @app.post("/api/auth/player_id")
