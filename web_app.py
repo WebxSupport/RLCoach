@@ -67,7 +67,16 @@ SECURE_COOKIES    = os.environ.get("SECURE_COOKIES", "false").lower() == "true"
 ALLOWED_ORIGINS   = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 # ── Rate limiter ──────────────────────────────────────────────────────────────
-_limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+# Behind nginx, request.client.host is the proxy (127.0.0.1) for EVERY user, so
+# get_remote_address would make all limits GLOBAL. Key on the real client IP from
+# X-Forwarded-For (set by our nginx) so limits are genuinely per-user.
+def _client_key(request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return get_remote_address(request)
+
+_limiter = Limiter(key_func=_client_key, default_limits=["600/minute"])
 
 # ── App setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(title="RLCoach", docs_url=None, redoc_url=None)
@@ -169,7 +178,7 @@ async def favicon():
 # ── RLCoach account auth ───────────────────────────────────────────────────────
 
 @app.post("/api/register")
-@_limiter.limit("5/minute;20/hour")
+@_limiter.limit("10/minute")
 async def register(request: Request, response: Response):
     body = await request.json()
     email    = (body.get("email") or "").strip()[:254]
@@ -194,7 +203,7 @@ async def register(request: Request, response: Response):
 
 
 @app.post("/api/login")
-@_limiter.limit("10/minute;30/hour")
+@_limiter.limit("20/minute")
 async def login(request: Request, response: Response):
     body = await request.json()
     email    = (body.get("email") or "").strip()[:254]
