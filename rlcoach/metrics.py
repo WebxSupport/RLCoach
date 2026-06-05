@@ -21,6 +21,13 @@ log = logging.getLogger(__name__)
 FIELD_Y_HALF = 5120.0
 THIRD_BOUNDARY = FIELD_Y_HALF / 3.0  # ≈ 1706.7
 
+# Speed thresholds in UU/s (Unreal Units/second).
+# Max car speed is ~2300 UU/s; supersonic boost trail activates at ~2200.
+SUPERSONIC_THRESH = 2200.0
+BOOST_SPEED_THRESH = 1600.0
+CRUISE_THRESH = 1000.0
+BALL_TOUCH_RADIUS = 180.0  # UU — proximity used for hit detection fallback
+
 
 # ── Output structures ──────────────────────────────────────────────────────────
 
@@ -59,6 +66,16 @@ class DoubleCommitEvent:
 
 
 @dataclass
+class SpeedMetrics:
+    avg_speed: float = 0.0
+    max_speed: float = 0.0
+    supersonic_pct: float = 0.0   # % time ≥ 2200 UU/s
+    boost_speed_pct: float = 0.0  # % time 1600-2200 UU/s
+    cruise_pct: float = 0.0       # % time 1000-1600 UU/s
+    slow_pct: float = 0.0         # % time < 1000 UU/s
+
+
+@dataclass
 class PlayerMetrics:
     name: str
     platform_id: str
@@ -68,7 +85,8 @@ class PlayerMetrics:
     positioning: Optional[PositioningMetrics] = None
     boost: Optional[BoostMetrics] = None
     recovery: Optional[RecoveryMetrics] = None
-    air: Optional[dict] = None   # {air_time_pct, high_air_pct, avg_height}
+    air: Optional[dict] = None    # {air_time_pct, high_air_pct, avg_height}
+    speed: Optional[SpeedMetrics] = None
 
 
 @dataclass
@@ -253,8 +271,62 @@ def _air(df: pd.DataFrame, name: str, duration_s: float) -> Optional[dict]:
     }
 
 
+def _speed(df: pd.DataFrame, name: str, duration_s: float) -> Optional[SpeedMetrics]:
+    """Compute speed-tier breakdown from per-frame velocity columns."""
+    vx = _col(df, name, "vel_x")
+    vy = _col(df, name, "vel_y")
+    if vx is None or vy is None:
+        return None
+    vz = _col(df, name, "vel_z")
+    gm = _gameplay_mask(df, duration_s)
+    vx_g = vx[gm]; vy_g = vy[gm]
+    vz_g = vz[gm] if vz is not None else np.zeros_like(vx_g)
+    spd = np.sqrt(vx_g**2 + vy_g**2 + vz_g**2)
+    valid = ~np.isnan(spd)
+    if valid.sum() == 0:
+        return None
+    s = spd[valid]
+    return SpeedMetrics(
+        avg_speed=round(float(s.mean()), 0),
+        max_speed=round(float(s.max()), 0),
+        supersonic_pct=round(float(100 * (s >= SUPERSONIC_THRESH).mean()), 1),
+        boost_speed_pct=round(float(100 * ((s >= BOOST_SPEED_THRESH) & (s < SUPERSONIC_THRESH)).mean()), 1),
+        cruise_pct=round(float(100 * ((s >= CRUISE_THRESH) & (s < BOOST_SPEED_THRESH)).mean()), 1),
+        slow_pct=round(float(100 * (s < CRUISE_THRESH).mean()), 1),
+    )
+
+
+def _derive_hits_from_proximity(df: pd.DataFrame, name: str,
+                                 duration_s: float) -> list:
+    """
+    Fallback hit-event detection using ball proximity (for the rrrocket path
+    where parsed.hits is empty). Detects the first frame of each window where
+    the player enters within BALL_TOUCH_RADIUS of the ball.
+    """
+    px = _col(df, name, "pos_x")
+    py = _col(df, name, "pos_y")
+    bx = _col(df, "ball", "pos_x")
+    by = _col(df, "ball", "pos_y")
+    if px is None or py is None or bx is None or by is None:
+        return []
+    dist = np.sqrt((px - bx) ** 2 + (py - by) ** 2)
+    close = (dist < BALL_TOUCH_RADIUS) & ~np.isnan(dist)
+    gm = _gameplay_mask(df, duration_s)
+    times = _game_times(df)
+    transitions = np.where(np.diff(close.astype(int)) == 1)[0] + 1
+
+    class _FakeHit:
+        __slots__ = ("player_name", "time_s")
+        def __init__(self, t):
+            self.player_name = name
+            self.time_s = t
+
+    return [_FakeHit(float(times[i])) for i in transitions if gm[i]]
+
+
 def _recovery(df: pd.DataFrame, name: str, is_orange: bool,
-              hits: list, slow_thresh_s: float) -> RecoveryMetrics:
+              hits: list, slow_thresh_s: float,
+              duration_s: float = 0.0) -> RecoveryMetrics:
     """
     After each ball contact by this player, measure time until they return
     to their defensive half (Y < 0 for blue, Y > 0 for orange).
@@ -265,6 +337,9 @@ def _recovery(df: pd.DataFrame, name: str, is_orange: bool,
 
     times = _game_times(df)
     my_hits = [h for h in hits if h.player_name == name]
+    if not my_hits:
+        # rrrocket path: parsed.hits is empty — fall back to proximity events
+        my_hits = _derive_hits_from_proximity(df, name, duration_s)
     if not my_hits:
         return RecoveryMetrics()
 
@@ -473,8 +548,10 @@ def compute_metrics(parsed: ParsedReplay, my_player_id: str,
         try:
             pm.positioning = _positioning(df, p.name, p.is_orange)
             pm.boost = _boost(df, p.name, parsed.duration_s)
-            pm.recovery = _recovery(df, p.name, p.is_orange, parsed.hits, slow_recovery_s)
+            pm.recovery = _recovery(df, p.name, p.is_orange, parsed.hits,
+                                    slow_recovery_s, parsed.duration_s)
             pm.air = _air(df, p.name, parsed.duration_s)
+            pm.speed = _speed(df, p.name, parsed.duration_s)
         except Exception as e:
             warnings.append(f"Metrics error for {p.name}: {e}")
         player_metrics.append(pm)

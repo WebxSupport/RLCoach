@@ -336,8 +336,10 @@ function renderTracker(){
       <div class="addmmr">
         <input class="inp" id="mmr-in" type="number" placeholder="e.g. ${cur||M.currentMmr||950}" style="width:130px"/>
         <button class="btn" onclick="logMmr()">Log today's MMR</button>
+        <button class="btn ghost" id="refresh-mmr-btn" onclick="refreshMmr(this)">Refresh from account</button>
         ${(TRACK.mmrLog||[]).length?'<button class="btn ghost" onclick="undoMmr()">Undo last</button>':''}
       </div>
+      <div id="refresh-mmr-msg" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
     </div>
     <div class="card"><h2>Weekly targets</h2><div class="sub">Move these numbers — log where you're at</div>
       ${wt.length?wt.map(renderWeeklyTarget).join(''):'<div class="empty">No measurable targets in this plan.</div>'}
@@ -367,6 +369,25 @@ function logMmr(){
   saveTracker();renderTracker();renderMmrBar();
 }
 function undoMmr(){TRACK.mmrLog=TRACK.mmrLog||[];TRACK.mmrLog.pop();saveTracker();renderTracker();renderMmrBar();}
+function refreshMmr(btn){
+  const msg=$("#refresh-mmr-msg");
+  btn.disabled=true;btn.textContent="Refreshing…";if(msg)msg.textContent="";
+  fetch('/api/tracker/sync-mmr?force=true',{method:'POST'}).then(r=>r.json()).then(d=>{
+    btn.disabled=false;btn.textContent="Refresh from account";
+    if(!msg)return;
+    if(d.status==='logged'){
+      TRACK=Object.assign({mmrLog:[],drillsDone:{},weeklyDone:{}},d.tracker);
+      _rerenderTracker();
+      msg.style.color='var(--green)';msg.textContent="Updated: "+d.mmr+" MMR";
+    } else if(d.status==='current'){
+      msg.style.color='var(--muted)';msg.textContent="Already up to date for today.";
+    } else if(d.status==='no_epic'){
+      msg.style.color='var(--amber)';msg.textContent="No Epic account connected — reconnect via the gear menu.";
+    } else {
+      msg.style.color='var(--amber)';msg.textContent="Could not fetch MMR right now ("+d.status+").";
+    }
+  }).catch(()=>{btn.disabled=false;btn.textContent="Refresh from account";if(msg){msg.style.color='var(--red)';msg.textContent="Network error — try again.";}});
+}
 function logWeekly(id,v){TRACK.weeklyDone=TRACK.weeklyDone||{};TRACK.weeklyDone[id]=v;saveTracker();renderTracker();}
 
 function drawMmrChart(){

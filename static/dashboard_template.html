@@ -510,14 +510,18 @@ $("#boostStarve").innerHTML=simpleBars(MATCH.players.map(p=>({name:p.name,team:p
 
 /* player table */
 (function(){
-  let s=`<table style="min-width:820px"><tr><th>Player</th><th class="num">Rating</th><th class="num">G/Sh</th><th class="num">Conv</th><th class="num">A</th><th class="num">Sv</th><th class="num">Score</th><th class="num">Avg bst</th><th class="num">Starved</th><th class="num">Touch</th><th class="num">Giveaway</th><th class="num">Chase</th></tr>`;
+  let s=`<table style="min-width:960px"><tr><th>Player</th><th class="num">Rating</th><th class="num">G/Sh</th><th class="num">Conv</th><th class="num">A</th><th class="num">Sv</th><th class="num">Score</th><th class="num">Avg bst</th><th class="num">Starved</th><th class="num">Touch</th><th class="num">Chase</th><th class="num">Sonic%</th><th class="num">Air%</th><th class="num">Rec(s)</th></tr>`;
   MATCH.players.slice().sort((a,b)=>b.rating.overall-a.rating.overall).forEach(p=>{const col=p.team=='A'?'var(--teamA)':'var(--teamB)';
+    const sonic=p.d.supersonic||0,airp=p.d.airPct||0,rec=p.d.avgRecovery||0;
     s+=`<tr><td style="color:${col}">${p.name}${p.isMe?' <span class="me-tag">ME</span>':''}</td>
       <td class="num" style="color:${band(p.rating.overall)};font-weight:600">${p.rating.overall}</td>
       <td class="num">${p.core.goals}/${p.core.shots}</td><td class="num">${p.d.conv}</td><td class="num">${p.core.assists}</td><td class="num">${p.core.saves}</td><td class="num">${p.core.score}</td>
       <td class="num">${p.d.avgBoost}</td><td class="num" style="color:${p.d.starved<8?'var(--green)':p.d.starved<14?'var(--amber)':'var(--red)'}">${p.d.starved}%</td>
-      <td class="num">${p.d.touches}</td><td class="num" style="color:${p.d.giveaways<6?'var(--green)':p.d.giveaways<13?'var(--amber)':'var(--red)'}">${p.d.giveaways}</td>
-      <td class="num" style="color:${p.d.ballchase>10?'var(--red)':p.d.ballchase>5?'var(--amber)':'var(--green)'}">${p.d.ballchase}%</td></tr>`; });
+      <td class="num">${p.d.touches}</td>
+      <td class="num" style="color:${p.d.ballchase>10?'var(--red)':p.d.ballchase>5?'var(--amber)':'var(--green)'}">${p.d.ballchase}%</td>
+      <td class="num" style="color:${sonic>=20?'var(--green)':sonic>=10?'var(--amber)':'var(--red)'}">${sonic}%</td>
+      <td class="num" style="color:${airp>=15?'var(--green)':airp>=8?'var(--amber)':'var(--dim)'}">${airp}%</td>
+      <td class="num" style="color:${rec>0&&rec<2.0?'var(--green)':rec<3.0?'var(--amber)':'var(--red)'}">${rec>0?rec+'s':'—'}</td></tr>`; });
   $("#ptable").innerHTML=s+`</table>`;
 })();
 
@@ -536,6 +540,9 @@ function radar(stats){
   const COMP=['ATT','DEF','POS','BST','ROT','SEC'];
   $("#players").innerHTML=MATCH.players.map(p=>{const d=p.d,R=p.rating,star=v=>v<8?'ok':v<14?'mid':'hot',chc=v=>v>10?'hot':v>5?'mid':'ok',giv=v=>v<6?'ok':v<13?'mid':'hot';
     const comps=COMP.map(k=>`<span class="ck">${k}</span><div class="cb"><div class="compfill" data-w="${R[k]}" style="background:${band(R[k])}"></div></div><span class="cv">${R[k]}</span>`).join('');
+    const sonic=d.supersonic||0,airp=d.airPct||0,rec=d.avgRecovery||0;
+    const sonicCls=sonic>=20?'ok':sonic>=10?'mid':'hot',airCls=airp>=15?'ok':airp>=8?'mid':'';
+    const recCls=rec>0&&rec<2.0?'ok':rec<3.0?'mid':rec>0?'hot':'';
     return `<div class="player ${p.team}">
       <div class="head"><div class="badge">${p.name.replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()}</div>
         <div><div class="name">${p.name}${p.isMe?'<span class="me-tag">ME</span>':''}</div><div class="role">${p.role}</div></div></div>
@@ -556,6 +563,9 @@ function radar(stats){
         <div class="stat"><span class="k">Touches</span><span class="v">${d.touches}</span></div>
         <div class="stat"><span class="k">Giveaways</span><span class="v ${giv(d.giveaways)}">${d.giveaways}</span></div>
         <div class="stat"><span class="k">Ballchase</span><span class="v ${chc(d.ballchase)}">${d.ballchase}%</span></div>
+        <div class="stat"><span class="k">Supersonic</span><span class="v ${sonicCls}">${sonic}%</span></div>
+        <div class="stat"><span class="k">Air time</span><span class="v ${airCls}">${airp}%</span></div>
+        ${rec>0?`<div class="stat"><span class="k">Avg recovery</span><span class="v ${recCls}">${rec}s</span></div>`:''}
       </div>
       <div class="sw">
         <div class="s"><h5>Strengths</h5><ul>${p.strengths.map(x=>`<li>${x}</li>`).join('')}</ul></div>

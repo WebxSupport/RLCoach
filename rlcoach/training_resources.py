@@ -96,22 +96,6 @@ WORKSHOP_MAPS = {
     "ball_control": [
         {"name": "Dribbling Challenge 2", "author": "Lethamyr", "steam_workshop_id": "1489736853",
          "use": "Dribble through obstacle courses — the go-to for close ball control"},
-        {"name": "Speed Dribbling", "author": "Various",
-         "use": "Carry and flick at pace; builds dribble speed and control"},
-    ],
-    "movement_speed": [
-        {"name": "Ground Zero", "author": "Gelo",
-         "use": "All-round ground mechanics — speed, recoveries, fast aerials, boost routing"},
-        {"name": "Speed Jump Rings", "author": "Various",
-         "use": "Speed-flip and fast-aerial timing under pace"},
-        {"name": "Wave Dash Map", "author": "Various",
-         "use": "Wave-dash and landing-recovery reps"},
-    ],
-    "mechanics": [
-        {"name": "Kuxir Pinch", "author": "Various",
-         "use": "Pinch / power-shot timing and ground-to-air mechanics"},
-        {"name": "Obstacle Course", "author": "Various",
-         "use": "Ceiling shots, wall pops and precise car control"},
     ],
 }
 

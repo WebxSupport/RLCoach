@@ -60,6 +60,12 @@ Every claim must trace back to the numbers — cite metrics, timestamps, players
 - **Air vs ground**: each player has `air` (air_time_pct / high_air_pct / avg_height). Flag a player
   who is too ground-dominant (rarely contests in the air, low air %) OR over-committing to the air
   and whiffing. Compare the user to the lobby — being out-aerialled is a common rank ceiling.
+- **Speed**: each player has `speed` (supersonic_pct / boost_speed_pct / cruise_pct / slow_pct / avg_speed).
+  Elite players spend >20% of live play at supersonic. A player spending >40% slow is likely over-dribbling
+  or not maintaining speed on rotations. Compare supersonic_pct across the lobby.
+- **Recovery**: each player has `recovery` (avg_recovery_s / slow_recoveries). After a hit, taking
+  >2.5s to return to the defensive half suggests chasing the ball rather than rotating. Slow recoveries
+  (>3s threshold) cluster around double-commit events — check if the timing correlates.
 
 ### Extra analysis lenses (CARL2-style — apply where the data supports it)
 - **Turnovers & follow-ups**: dangerous giveaways feeding the opponent (use the giveaway/touch data);
@@ -146,7 +152,10 @@ Return a JSON code block with EXACTLY this structure (all fields required):
         "avgBoost": number, "starved": number, "zero": number,
         "goalside": number,
         "ballchase": number, "longest": number,
-        "touches": number, "giveaways": number
+        "touches": number, "giveaways": number,
+        "supersonic": number,
+        "airPct": number,
+        "avgRecovery": number
       }},
       "summary": "string — 4-6 sentences: identity, 3-5 strengths+weaknesses with numbers, single habit",
       "strengths": ["string", "string", "string"],
@@ -190,6 +199,9 @@ Return a JSON code block with EXACTLY this structure (all fields required):
 - Map team A = the tracked player's team (isMe=true player), team B = opponents.
 - For `d.zero`: set to same value as `d.starved` (time_at_zero in seconds as pct equivalent).
 - For `d.giveaways`: use 0 (raw touch detection unavailable; SEC formula handles this).
+- For `d.supersonic`: take from match.json players[i].speed.supersonic_pct; use 0 if absent.
+- For `d.airPct`: take from match.json players[i].air.air_time_pct; use 0 if absent.
+- For `d.avgRecovery`: take from match.json players[i].recovery.avg_recovery_s; use 0 if absent.
 - For goals: `t` is match_seconds = 300 - seconds_remaining at the goal frame (from match.json moments or goal events).
 - `score` array is [team_A_cumulative, team_B_cumulative] at that point.
 - Double-commits: use the double_commit_events list from match.json; each entry needs t (start time) and d (duration_s).

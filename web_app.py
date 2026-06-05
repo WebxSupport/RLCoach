@@ -774,16 +774,17 @@ async def save_tracker(request: Request, session_id: Optional[str] = Cookie(defa
 
 
 @app.post("/api/tracker/sync-mmr")
-async def sync_mmr(session_id: Optional[str] = Cookie(default=None)):
+async def sync_mmr(force: bool = False, session_id: Optional[str] = Cookie(default=None)):
     """
-    Auto-pull current MMR from PsyNet and log one snapshot per day.
-    Cheap on repeat calls — only hits PsyNet if today isn't already logged.
+    Pull current MMR from PsyNet and log a snapshot.
+    Without force: skips if today is already logged (cheap auto-call on page load).
+    With force=true: overwrites today's entry — for the manual Refresh button.
     """
     session = await _require_session(session_id)
     tracker = await db.get_tracker(session["session_id"])
     tracker.setdefault("mmrLog", [])
     today = date.today().isoformat()
-    if any(e.get("date") == today for e in tracker["mmrLog"]):
+    if not force and any(e.get("date") == today for e in tracker["mmrLog"]):
         return {"status": "current", "tracker": tracker}
     if not session.get("eos_account_id"):
         return {"status": "no_epic", "tracker": tracker}
@@ -802,6 +803,8 @@ async def sync_mmr(session_id: Optional[str] = Cookie(default=None)):
     if not entry or not entry.get("mmr_estimate"):
         return {"status": "no_data", "tracker": tracker}
 
+    # Overwrite today's existing entry (if any) rather than duplicating
+    tracker["mmrLog"] = [e for e in tracker["mmrLog"] if e.get("date") != today]
     tracker["mmrLog"].append({"date": today, "mmr": entry["mmr_estimate"], "rank": entry.get("rank")})
     await db.save_tracker(session["session_id"], tracker)
     return {"status": "logged", "tracker": tracker, "mmr": entry["mmr_estimate"]}
