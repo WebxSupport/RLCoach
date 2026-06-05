@@ -37,65 +37,81 @@ PLATFORM_OPTIONS = [
 ]
 
 # ── Training packs (all platforms) ────────────────────────────────────────────
-
-# Real community training packs with verified codes
+#
+# We deliberately reference packs by NAME + CREATOR (found in-game via
+# Free Play → Custom Training → Find in Browser → search the creator), plus the
+# built-in Psyonix default packs. We don't store unverified 16-char codes — a
+# wrong code is worse than a searchable name. Add a "code" only if it's verified.
+#   default=True  → a built-in Psyonix pack (Free Play → Training → <name>)
+#   creator="…"   → a community pack found via the in-game browser
 TRAINING_PACKS = {
-    "fundamentals": [
-        {"name": "Beginner - Ground Shots",        "code": "A0F1-E30E-EF91-5A96"},
-        {"name": "Intermediate - Dribbling",       "code": "D4E3-A0E1-5E82-8D22"},
-        {"name": "Wall Reads",                     "code": "4EB4-23B9-C2CD-6A0E"},
-        {"name": "Shooting — Finishing",           "code": "6A40-8A4E-9949-B59E"},
+    "shooting": [
+        {"name": "Striking Shots", "creator": "KingRanny"},
+        {"name": "Ground Shots", "creator": "Fresco"},
+        {"name": "Striker — All-Star", "default": True},
     ],
-    "mechanics": [
-        {"name": "Aerial - Beginner",              "code": "B8EC-3D09-ED1A-0F7D"},
-        {"name": "Aerial - Intermediate",          "code": "A-B2D6-A8E6-3FB4"},
-        {"name": "Musty Flick Practice",           "code": "B9BE-5EA1-A89E-A282"},
+    "saves_defense": [
+        {"name": "Difficult Saves", "creator": "Llamasaur"},
+        {"name": "Awkward Saves", "creator": "MooseTDI"},
+        {"name": "Backboard Clears", "creator": "HelvetiaGaming"},
+        {"name": "Corner Ball Clears", "creator": "Psema"},
+        {"name": "Goalie — All-Star", "default": True},
     ],
-    "defense": [
-        {"name": "Save Scenarios",                 "code": "9836-BEFE-95C1-CAB6"},
-        {"name": "Goalkeeping",                    "code": "18A5-F044-EEF5-D0A0"},
+    "aerials": [
+        {"name": "Air Roll Shots", "creator": "Bismo"},
+        {"name": "Aerial — All-Star", "default": True},
     ],
-    "passing": [
-        {"name": "Passing & Bumps — Duos",         "code": "4A4A-EAB0-8CA2-C3A2"},
+    "wall_play": [
+        {"name": "Wall Shots", "creator": "PainxThriller"},
+    ],
+    "speed_recovery": [
+        {"name": "Speed & Proficiency", "creator": "Zeke"},
+        {"name": "Preflip Efficiency Test", "creator": "Musty"},
     ],
 }
 
+
+def _pack_resource(p: dict) -> str:
+    """How the user finds a training pack — verified code, default pack, or creator search."""
+    if p.get("code"):
+        return p["code"]
+    if p.get("default"):
+        return f"Free Play → Training → {p['name']}"
+    c = p.get("creator")
+    return f"Training browser: search \"{p['name']}\"" + (f" by {c}" if c else "")
+
+
 # ── Workshop maps (PC/BakkesMod only) ─────────────────────────────────────────
+# Loaded in BakkesMod → Workshop Maps (by name) or via the Steam Workshop ID.
 
 WORKSHOP_MAPS = {
     "aerial": [
-        {"name": "Rings Map",               "author": "Lethamyr",    "steam_workshop_id": "1565535901",
-         "use": "Fly through rings — foundational aerial control and car positioning in the air"},
-        {"name": "AIR — Aerial Training",   "author": "Various",
-         "use": "Structured aerial challenge progression from basic to advanced"},
-        {"name": "Rings Reverse",           "author": "Lethamyr",    "steam_workshop_id": "1572824364",
-         "use": "Back-to-basics aerial direction control; fly backwards through rings"},
+        {"name": "Lethamyr's Rings", "author": "Lethamyr", "steam_workshop_id": "1565535901",
+         "use": "Fly through rings — foundational aerial control and air positioning"},
+        {"name": "Rings Reverse", "author": "Lethamyr", "steam_workshop_id": "1572824364",
+         "use": "Backwards rings — pure air-direction control"},
+        {"name": "Rings Mega", "author": "Lethamyr", "steam_workshop_id": "1600575985",
+         "use": "Comprehensive rings (width + height) — best daily aerial warm-up"},
     ],
     "ball_control": [
-        {"name": "Dribble Challenge 2",     "author": "Lethamyr",    "steam_workshop_id": "1489736853",
-         "use": "Dribble the ball through obstacle courses — best map for close ball control"},
-        {"name": "Dribble Course",          "author": "Various",
-         "use": "Gates and ramps for intermediate dribbling"},
-        {"name": "KBM Obstacle Course",     "author": "KBM",
-         "use": "Precise mechanical movement with tight ball control"},
+        {"name": "Dribbling Challenge 2", "author": "Lethamyr", "steam_workshop_id": "1489736853",
+         "use": "Dribble through obstacle courses — the go-to for close ball control"},
+        {"name": "Speed Dribbling", "author": "Various",
+         "use": "Carry and flick at pace; builds dribble speed and control"},
     ],
-    "fundamentals": [
-        {"name": "Ground Zero",             "author": "Gelo",
-         "use": "Ground mechanics fundamentals — boost usage, positioning, speed"},
-        {"name": "Rings Mega",              "author": "Lethamyr",    "steam_workshop_id": "1600575985",
-         "use": "Comprehensive aerial rings — width + height variation; great for daily warm-up"},
-    ],
-    "speed": [
-        {"name": "Musty's Ring Map",        "author": "Musty",
-         "use": "High-speed aerial rings; develops boost efficiency at pace"},
-        {"name": "Speed Jump Course",       "author": "Various",
-         "use": "Speed-flip practice in a controlled environment"},
+    "movement_speed": [
+        {"name": "Ground Zero", "author": "Gelo",
+         "use": "All-round ground mechanics — speed, recoveries, fast aerials, boost routing"},
+        {"name": "Speed Jump Rings", "author": "Various",
+         "use": "Speed-flip and fast-aerial timing under pace"},
+        {"name": "Wave Dash Map", "author": "Various",
+         "use": "Wave-dash and landing-recovery reps"},
     ],
     "mechanics": [
-        {"name": "Obstacle Challenge",      "author": "Various",
-         "use": "Precise car control — ceiling shots, wall pops, advanced mechanics"},
-        {"name": "Kuxir Dribble",          "author": "Various",
-         "use": "Flick scenarios on the ground and low aerials"},
+        {"name": "Kuxir Pinch", "author": "Various",
+         "use": "Pinch / power-shot timing and ground-to-air mechanics"},
+        {"name": "Obstacle Course", "author": "Various",
+         "use": "Ceiling shots, wall pops and precise car control"},
     ],
 }
 
@@ -190,7 +206,7 @@ def allowed_drills(platform: str) -> list:
     for _, packs in TRAINING_PACKS.items():
         for p in packs:
             out.append({"id": _slug(p["name"]), "name": p["name"],
-                        "kind": "pack", "resource": p["code"]})
+                        "kind": "pack", "resource": _pack_resource(p)})
     if has_bm:
         for _, maps in WORKSHOP_MAPS.items():
             for m in maps:
@@ -267,7 +283,7 @@ def format_resources_for_prompt(platform: str, current_rank: str) -> str:
     lines.append("\n**Training Packs (all platforms):**")
     for cat, packs in TRAINING_PACKS.items():
         for p in packs:
-            lines.append(f"- {p['name']} — code: `{p['code']}`")
+            lines.append(f"- {p['name']} — {_pack_resource(p)}")
     if has_bakkesmod:
         lines.append("\n**Workshop Maps (PC only — load via BakkesMod → Workshop Maps):**")
         for cat, maps in WORKSHOP_MAPS.items():

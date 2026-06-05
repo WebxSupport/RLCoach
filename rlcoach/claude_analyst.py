@@ -57,6 +57,19 @@ Every claim must trace back to the numbers — cite metrics, timestamps, players
 - **Ball security**: Dangerous giveaways (own-half touch straight to opponent) feed counters.
 - **Net coverage**: Concedes cluster in the coverage gaps, not evenly.
 - **Kickoffs**: Second man should hold back unless confident; over-cheating opens counter.
+- **Air vs ground**: each player has `air` (air_time_pct / high_air_pct / avg_height). Flag a player
+  who is too ground-dominant (rarely contests in the air, low air %) OR over-committing to the air
+  and whiffing. Compare the user to the lobby — being out-aerialled is a common rank ceiling.
+
+### Extra analysis lenses (CARL2-style — apply where the data supports it)
+- **Turnovers & follow-ups**: dangerous giveaways feeding the opponent (use the giveaway/touch data);
+  note whether the user follows up their own shots or abandons them.
+- **Pre-goal sequence**: for each conceded goal use the goal-window data (double_commit_pct,
+  nearest_defender_dist, net_open, ball_speed) to reconstruct the 6s before it — was it shape,
+  a turnover, a lost challenge, or a genuinely good shot?
+- **Outlier detection**: explicitly call out the single biggest statistical outlier (good or bad)
+  in the user's game vs the rest of the lobby — that's usually the highest-leverage takeaway.
+- **Possession & pressure**: tie possession % and net-coverage gaps to where goals actually happened.
 
 ### Fault taxonomy for conceded goals (assign exactly ONE primary cause)
 - `dc` — Double-commit / open net (both defenders forward, net undefended)
