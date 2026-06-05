@@ -38,43 +38,85 @@ PLATFORM_OPTIONS = [
 
 # ── Training packs (all platforms) ────────────────────────────────────────────
 #
-# We deliberately reference packs by NAME + CREATOR (found in-game via
-# Free Play → Custom Training → Find in Browser → search the creator), plus the
-# built-in Psyonix default packs. We don't store unverified 16-char codes — a
-# wrong code is worse than a searchable name. Add a "code" only if it's verified.
-#   default=True  → a built-in Psyonix pack (Free Play → Training → <name>)
-#   creator="…"   → a community pack found via the in-game browser
+# All codes verified against the r/RocketLeagueSchool master list, the kirfyK
+# Ultimate Training Program, and the published routines of SunlessKhan, Thanovic,
+# Wayton Pilkin, Musty, Poquito, and Kevpert.
+#
+#   code="…"      → verified 16-char in-game code (Main Menu → Training → Custom → Browse → Enter Code)
+#   default=True  → built-in Psyonix pack (Free Play → Training → <name>)
 TRAINING_PACKS = {
     "shooting": [
-        {"name": "Striking Shots", "creator": "KingRanny"},
-        {"name": "Ground Shots", "creator": "Fresco"},
-        {"name": "Striker — All-Star", "default": True},
-    ],
-    "saves_defense": [
-        {"name": "Difficult Saves", "creator": "Llamasaur"},
-        {"name": "Awkward Saves", "creator": "MooseTDI"},
-        {"name": "Backboard Clears", "creator": "HelvetiaGaming"},
-        {"name": "Corner Ball Clears", "creator": "Psema"},
-        {"name": "Goalie — All-Star", "default": True},
+        {"name": "Ground Shots",               "creator": "Poquito",            "code": "6EB1-79B2-33B8-681C"},
+        {"name": "Wall Shots",                  "creator": "Poquito",            "code": "9F6D-4387-4C57-2E4B"},
+        {"name": "Shooting Consistency",        "creator": "Wayprotein | A&M",  "code": "4912-A5C9-9A56-555D"},
+        {"name": "Shots You Shouldn't Miss",    "creator": "RLC | Fickle Platypus", "code": "42BF-686D-E047-574B"},
+        {"name": "Powershot Practice",          "creator": "Skogur",             "code": "C9E4-0F05-B71A-C322"},
+        {"name": "Half-Volley Shots",           "creator": "Rob Da Car",         "code": "B0F8-0116-C10B-45F0"},
+        {"name": "Power Shots Pack",            "creator": "Grifflicious",       "code": "5972-C9A0-7045-379E"},
+        {"name": "Striker — All-Star",          "default": True},
     ],
     "aerials": [
-        {"name": "Air Roll Shots", "creator": "Bismo"},
-        {"name": "Aerial — All-Star", "default": True},
+        {"name": "Aerial Shots — Pass",         "creator": "Poquito",            "code": "C7E0-9E0B-B739-A899"},
+        {"name": "Aerial Shots — Redirects",    "creator": "Poquito",            "code": "8D93-C997-0ACD-8416"},
+        {"name": "Kevpert Aerial Car Control",  "creator": "Kevpert",            "code": "A3E1-92C2-8757-4195"},
+        {"name": "Backboard Therapy",           "creator": "Wayprotein | A&M",  "code": "D7F8-FD53-98D1-DAFE"},
+        {"name": "Double Tap Playground",       "creator": "Wayprotein | A&M",  "code": "CAFC-FB3E-3C0F-B8F1"},
+        {"name": "Double Jump Aerials",         "creator": "Doomsee",            "code": "F269-B159-0BAC-AC2E"},
+        {"name": "Aerial off Wall",             "creator": "Wheelchair {LFflegs}","code": "5BFE-60D6-0D59-79F2"},
+        {"name": "Fast Aerials",                "creator": "IcyyMike",           "code": "2BF7-DC0C-3D77-3B5E"},
+        {"name": "Aerial — All-Star",           "default": True},
+        # Wayton Pilkin 5-stage aerial progression
+        {"name": "Wayton Aerials Level 1 — How to Aerial",   "creator": "Waytoney", "code": "AE34-6C1E-8CCD-D8A5"},
+        {"name": "Wayton Aerials Level 2 — Reading the Ball","creator": "Waytoney", "code": "876E-1C19-0086-8232"},
+        {"name": "Wayton Aerials Level 3 — High Aerials",    "creator": "Waytoney", "code": "76CD-1B72-20D9-53DC"},
+        {"name": "Wayton Aerials Level 4 — Angles",          "creator": "Waytoney", "code": "04A6-F117-971F-3625"},
+        {"name": "Wayton Aerials Level 5 — Sudden Aerials",  "creator": "Waytoney", "code": "F001-A333-AAEB-2786"},
     ],
-    "wall_play": [
-        {"name": "Wall Shots", "creator": "PainxThriller"},
+    "saves_defense": [
+        {"name": "Uncomfortable Saves",         "creator": "unknown",            "code": "5CB2-6D82-1B54-47B7"},
+        {"name": "Shadow Defense",              "creator": "Orangepie",          "code": "5CCE-FB29-7B05-A0B1"},
+        {"name": "Diamond Defense",             "creator": "LLexis",             "code": "CEBB-085B-D05D-920B"},
+        {"name": "Defense Needed for Diamond",  "creator": "CBELL",              "code": "2195-C0DC-6CAB-B547"},
+        {"name": "Protein Wall Clears",         "creator": "Wayprotein",         "code": "0A7E-C7C8-DE7C-28CA"},
+        {"name": "Saves",                       "creator": "Poquito",            "code": "2E23-ABD5-20C6-DBD4"},
+        {"name": "Defensive Backboard Reads",   "creator": "Nathan",             "code": "DABC-E5BB-F347-A7BC"},
+        {"name": "Overhead Goalie 2",           "creator": "Thanovic",           "code": "17F2-309A-8FA5-13BE"},
+        {"name": "Goalie — All-Star",           "default": True},
+    ],
+    "dribbling": [
+        {"name": "First Touch Boot Camp",       "creator": "Poquito",            "code": "F43A-8231-0B8F-B9FA"},
+        {"name": "First Touch Prac",            "creator": "Ostyn",              "code": "4B9D-F3A8-DF18-5EC1"},
+        {"name": "Catch and Dribble",           "creator": "T.TV/Barnayyyyy",   "code": "86B0-EC72-7185-844C"},
+        {"name": "Catch and Dribble — Hard",    "creator": "Lazord",             "code": "772F-E563-3F9F-0EC8"},
+        {"name": "Biddle's Catches",            "creator": "DN | Biddles",       "code": "3EA9-533B-4329-67B3"},
+        {"name": "Drift Catch Training",        "creator": "King Ranny",         "code": "2258-FBD1-2CAE-0246"},
+        {"name": "Mawzy Flick",                 "creator": "Grifflicious",       "code": "733F-17F2-025E-DCBE"},
     ],
     "speed_recovery": [
-        {"name": "Speed & Proficiency", "creator": "Zeke"},
-        {"name": "Preflip Efficiency Test", "creator": "Musty"},
+        {"name": "Musty Speedflip Kickoff Test","creator": "Musty",              "code": "A503-264C-A7EB-D282"},
+        {"name": "Recovery Training",           "creator": "Slykau",             "code": "DA42-75B1-0469-8A0F"},
+        {"name": "Speedflip Catches",           "creator": "Lazord",             "code": "20E9-AEAF-E135-0CA7"},
+        {"name": "Air & Wall Dribbles",         "creator": "Jakerl / TheJRobinson", "code": "9D87-258C-3C05-6FA9"},
+        {"name": "Ceiling Shots",               "creator": "Wayprotein | A&M",  "code": "AFC9-2CCC-95EC-D9D4"},
+        {"name": "Flip Reset Training",         "creator": "Grifflicious",       "code": "1E87-21E8-D5A4-2179"},
+        {"name": "Basic Air Dribbles",          "creator": "Wayton",             "code": "1F27-4030-7FDE-B4D5"},
+        {"name": "Kickoff",                     "creator": "kirfyK",             "code": "2F25-C7AD-8E03-19BC"},
+    ],
+    "warmup": [
+        {"name": "The Ultimate Warmup",         "creator": "Hinata",             "code": "FA24-B2B7-2E8E-193B"},
+        {"name": "Gold",                        "creator": "Thanovic",           "code": "CA9B-FF51-1348-C574"},
+        {"name": "Biddle's Consistency",        "creator": "Biddles",            "code": "55C9-36FE-613D-7F12"},
+        {"name": "Plat to Diamond",             "creator": "Inexorable",         "code": "88AD-945E-212F-EF18"},
+        {"name": "Complete Warm-Up x SpookLuke","creator": "Poquito",            "code": "A2D5-7908-A70B-EDA9"},
+        {"name": "Diamond Pack",                "creator": "Psyonix",            "code": "853D-A180-A66D-8137"},
     ],
 }
 
 
 def _pack_resource(p: dict) -> str:
-    """How the user finds a training pack — verified code, default pack, or creator search."""
+    """How the user loads a training pack — code, built-in, or browser search."""
     if p.get("code"):
-        return p["code"]
+        return f"Code: {p['code']}"
     if p.get("default"):
         return f"Free Play → Training → {p['name']}"
     c = p.get("creator")
@@ -82,20 +124,50 @@ def _pack_resource(p: dict) -> str:
 
 
 # ── Workshop maps (PC/BakkesMod only) ─────────────────────────────────────────
-# Loaded in BakkesMod → Workshop Maps (by name) or via the Steam Workshop ID.
+# Sourced from r/RocketLeagueSchool master list and the SunlessKhan / kirfyK routines.
+# All maps have real, named authors. steam_workshop_id provided where verified.
+# Without an ID, load via BakkesMod → Workshop → search by map name.
 
 WORKSHOP_MAPS = {
-    "aerial": [
-        {"name": "Lethamyr's Rings", "author": "Lethamyr", "steam_workshop_id": "1565535901",
-         "use": "Fly through rings — foundational aerial control and air positioning"},
-        {"name": "Rings Reverse", "author": "Lethamyr", "steam_workshop_id": "1572824364",
-         "use": "Backwards rings — pure air-direction control"},
-        {"name": "Rings Mega", "author": "Lethamyr", "steam_workshop_id": "1600575985",
+    "aerial_rings": [
+        {"name": "Lethamyr's Giant Rings Map", "author": "Leth",
+         "steam_workshop_id": "1565535901",
+         "use": "The original Rings map — every aerial control axis. Widely called the best workshop map ever made"},
+        {"name": "Rings Reverse", "author": "Lethamyr",
+         "steam_workshop_id": "1572824364",
+         "use": "Backwards rings — pure air-direction and car-rotation control"},
+        {"name": "Rings Mega", "author": "Lethamyr",
+         "steam_workshop_id": "1600575985",
          "use": "Comprehensive rings (width + height) — best daily aerial warm-up"},
+        {"name": "Speed Jump: Rings 1", "author": "dmc",
+         "use": "Timed Rings course — adds a pace challenge to aerial control"},
+        {"name": "Speed Jump: Rings 2", "author": "dmc",
+         "use": "Continuation of Speed Jump Rings — harder routes"},
     ],
     "ball_control": [
-        {"name": "Dribbling Challenge 2", "author": "Lethamyr", "steam_workshop_id": "1489736853",
-         "use": "Dribble through obstacle courses — the go-to for close ball control"},
+        {"name": "Dribbling Challenge 2", "author": "Lethamyr",
+         "steam_workshop_id": "1489736853",
+         "use": "Lethamyr's dribble obstacle course — foundational close ball control"},
+        {"name": "Dribbling Challenge #2", "author": "French Fries",
+         "use": "The community staple ground-dribble challenge — used by everyone from Gold to GC"},
+        {"name": "Dribbling Challenge 1.2", "author": "French Fries",
+         "use": "The original tiered dribbling challenge — entry point for ground control"},
+        {"name": "Noob Dribble", "author": "dmc",
+         "use": "Beginner-friendly intro to keeping the ball on the car"},
+    ],
+    "air_dribble": [
+        {"name": "Air Dribble Challenge", "author": "Gidek",
+         "use": "The canonical tiered air-dribble map — works through progressively harder scenarios"},
+        {"name": "Air Dribble Hoops", "author": "tjbrother",
+         "use": "Air-dribbling through hoops — adds spatial precision to the mechanic"},
+    ],
+    "movement_speed": [
+        {"name": "Speed Jump 2", "author": "dmc",
+         "use": "The second-generation Speed Jump precision-flight course"},
+        {"name": "Speed Jump: Trials 1", "author": "dmc",
+         "use": "Timed precision flight trials — car control at speed"},
+        {"name": "Hornet's Nest", "author": "dmc",
+         "use": "Advanced recovery training in a chaotic environment — recommended by SSL-mechanic guides"},
     ],
 }
 
@@ -115,27 +187,27 @@ TIER_SKILLS = {
     "Bronze–Silver": {
         "priorities": ["Consistent shooting on target", "Boost management basics (avoid zero)", "Not following the ball blindly", "Basic kickoffs"],
         "avoid": ["Aerials — not needed yet; ground play first", "Over-committing"],
-        "weekly_drill": "5 minutes freeplay dribbling before every session",
+        "weekly_drill": "Freeplay dribbling (5 min) → Powershot Practice (Skogur, Code: C9E4-0F05-B71A-C322) → Goalie All-Star",
     },
     "Gold–Platinum": {
         "priorities": ["Boost pad routing on rotation", "Aerial introduction (low aerials)", "One-goes-one-covers rotation basics", "Reading deflections"],
         "avoid": ["Double-committing with teammate", "Clearing straight up the middle"],
-        "weekly_drill": "10 min rings map + 5 min freeplay aerials",
+        "weekly_drill": "Lethamyr's Giant Rings Map (workshop) + Wayton Aerials Level 1 (Code: AE34-6C1E-8CCD-D8A5) + Uncomfortable Saves (Code: 5CB2-6D82-1B54-47B7)",
     },
     "Diamond": {
         "priorities": ["Double-commit elimination", "Boost economy discipline (average ≥ 45)", "50/50 reads and fakes", "Wide rotation paths"],
         "avoid": ["Jumping into challenges without a backup plan", "Ball-watching from the back"],
-        "weekly_drill": "Rings + dribble challenge 2 + 1 concept training pack daily",
+        "weekly_drill": "Rings Mega (workshop) + Dribbling Challenge #2 (French Fries, workshop) + Aerial Shots — Redirects (Poquito, Code: 8D93-C997-0ACD-8416)",
     },
     "Champion": {
         "priorities": ["Advanced rotation (third-man cover)", "Recovery after hitting the ball", "Mid-air redirect decisions", "Fake challenges"],
         "avoid": ["Passive 'waiting' — GC-level opponents punish passive play", "Predictable shot directions"],
-        "weekly_drill": "Speed-flip training + workshop aerial map + replay review",
+        "weekly_drill": "Musty Speedflip Kickoff Test (Code: A503-264C-A7EB-D282) + Double Tap Playground (Code: CAFC-FB3E-3C0F-B8F1) + Biddle's Consistency (Code: 55C9-36FE-613D-7F12)",
     },
     "Grand Champion+": {
         "priorities": ["Fast aerials off any surface", "Pressure and stall timing", "Advanced rotation reads", "Demo and bump strategy"],
         "avoid": ["Unnecessary 50/50s with shape already good", "Over-rotating"],
-        "weekly_drill": "Custom training → mechanics → full matches with replay review",
+        "weekly_drill": "The Ultimate Warmup (Code: FA24-B2B7-2E8E-193B) + Air Dribble Challenge (workshop) + full matches with replay review",
     },
 }
 
