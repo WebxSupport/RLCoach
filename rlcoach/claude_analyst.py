@@ -279,5 +279,9 @@ def analyse_match(
     if match_obj is None:
         raise ValueError("Could not extract valid JSON from Claude response")
 
+    # Merge computed (non-AI) visuals: positioning heatmaps
+    if isinstance(extended_metrics, dict) and extended_metrics.get("field_maps"):
+        match_obj["fieldMaps"] = extended_metrics["field_maps"]
+
     html = _inject_into_template(template_html, match_obj)
     return html

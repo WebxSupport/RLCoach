@@ -209,6 +209,12 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
     <div class="pgrid" id="players"></div>
   </div>
 
+  <!-- POSITIONING -->
+  <div class="panel" data-p="positioning">
+    <div class="card"><h3>Positioning heatmaps</h3><div class="sub">Where each player spent their time — attacking end at the top, own net at the bottom</div>
+      <div id="fieldmaps"></div></div>
+  </div>
+
   <!-- MOMENTS -->
   <div class="panel" data-p="moments">
     <div class="card"><h3>Chronological feed</h3><div class="sub">Every goal, kickoff and double-commit in order</div><ul class="feed" id="feed"></ul></div>
@@ -353,7 +359,7 @@ $("#result").innerHTML=`<span class="verdict">${r.win?"Victory":"Defeat"}</span>
 $("#foot").textContent=`Generated from frame telemetry · ${MATCH.players.length} players · ${MATCH.meta.map}`;
 $("#kpis").innerHTML=MATCH.kpis.map(k=>`<div class="kpi ${k.tone||''}"><div class="l">${k.label}</div><div class="v">${k.value}</div><div class="s">${k.sub||''}</div></div>`).join('');
 
-const TABS=[["overview","Overview"],["autopsy","Goal Autopsy"],["rotation","Rotation & Shape"],["boost","Boost & Possession"],["kickoffs","Kickoffs"],["players","Players"],["moments","Moments"]];
+const TABS=[["overview","Overview"],["autopsy","Goal Autopsy"],["rotation","Rotation & Shape"],["boost","Boost & Possession"],["kickoffs","Kickoffs"],["positioning","Positioning"],["players","Players"],["moments","Moments"]];
 $("#tabs").innerHTML=TABS.map((t,i)=>`<button class="tab ${i==0?'active':''}" data-t="${t[0]}">${t[1]}</button>`).join('');
 $("#tabs").addEventListener('click',e=>{const b=e.target.closest('.tab'); if(!b)return;
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -555,6 +561,38 @@ function radar(stats){
         <div class="s"><h5>Strengths</h5><ul>${p.strengths.map(x=>`<li>${x}</li>`).join('')}</ul></div>
         <div class="w"><h5>Weaknesses</h5><ul>${p.weaknesses.map(x=>`<li>${x}</li>`).join('')}</ul></div></div>
       <div class="habit"><b>ONE HABIT TO FIX</b><br>${p.habit}</div></div>`;}).join('');
+})();
+
+/* positioning heatmaps */
+(function(){
+  const fm=MATCH.fieldMaps||{};
+  const names=Object.keys(fm);
+  const host=document.getElementById('fieldmaps');
+  if(!host) return;
+  if(!names.length){ host.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">No positioning data for this match.</div>'; return; }
+  // one mini field per player
+  function fieldSvg(grid, accent){
+    const ROWS=grid.length, COLS=grid[0].length, W=140, H=180, cw=W/COLS, ch=H/ROWS;
+    let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="border:1px solid var(--line2);border-radius:8px;background:#0a131e">`;
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      // row 0 = own net (−Y) at bottom → draw inverted so attack is at top
+      const v=grid[ROWS-1-r][c]||0;
+      if(v>0.02) s+=`<rect x="${c*cw}" y="${r*ch}" width="${cw}" height="${ch}" fill="${accent}" opacity="${(0.12+v*0.78).toFixed(2)}"/>`;
+    }
+    // halfway line + center
+    s+=`<line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="var(--line2)" stroke-width="1"/>`;
+    s+=`<circle cx="${W/2}" cy="${H/2}" r="14" fill="none" stroke="var(--line2)"/>`;
+    // goals (top = attack, bottom = own)
+    s+=`<rect x="${W/2-16}" y="0" width="32" height="4" fill="var(--teamB)"/>`;
+    s+=`<rect x="${W/2-16}" y="${H-4}" width="32" height="4" fill="var(--teamA)"/>`;
+    return s+`</svg>`;
+  }
+  host.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">`+
+    names.map(n=>{const d=fm[n];const accent=d.team=='blue'?'var(--teamA)':'var(--teamB)';
+      return `<div style="text-align:center">${fieldSvg(d.grid,accent)}
+        <div style="font-size:12.5px;font-weight:700;margin-top:6px;color:${accent}">${n}${d.is_me?' <span class="me-tag">ME</span>':''}</div></div>`;
+    }).join('')+`</div>
+    <div class="legend" style="margin-top:12px"><span><i style="background:var(--teamA)"></i>Your team</span><span><i style="background:var(--teamB)"></i>Opponents</span><span style="color:var(--dim)">brighter = more time spent there</span></div>`;
 })();
 
 /* moments feed */

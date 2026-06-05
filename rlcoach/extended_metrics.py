@@ -360,4 +360,42 @@ def compute_extended_metrics(
     except Exception as e:
         log.debug("goal_windows failed: %s", e)
 
+    try:
+        fmaps = {}
+        for p in parsed.players:
+            grid = _compute_field_map(frame_df, gm, p.name)
+            if grid is not None:
+                fmaps[p.name] = {"grid": grid, "team": p.team,
+                                 "is_me": teams[p.name]["is_me"]}
+        if fmaps:
+            result["field_maps"] = fmaps
+    except Exception as e:
+        log.debug("field_maps failed: %s", e)
+
     return result
+
+
+# Field-position heatmap ------------------------------------------------------
+
+_FM_COLS = 7   # across the field (X: ±4096)
+_FM_ROWS = 9   # length of the field (Y: ±5120) — row 0 = blue's end (−Y)
+
+
+def _compute_field_map(df: pd.DataFrame, gm: np.ndarray, name: str):
+    """Coarse occupancy heatmap of a player's position over live play.
+    Returns a _FM_ROWS×_FM_COLS grid of 0–1 (share of that cell vs the busiest cell)."""
+    px = _col(df, name, "pos_x")
+    py = _col(df, name, "pos_y")
+    if px is None or py is None:
+        return None
+    x = px[gm]; y = py[gm]
+    valid = ~(np.isnan(x) | np.isnan(y))
+    x = x[valid]; y = y[valid]
+    if len(x) == 0:
+        return None
+    cx = np.clip(((x + 4096.0) / 8192.0 * _FM_COLS).astype(int), 0, _FM_COLS - 1)
+    ry = np.clip(((y + 5120.0) / 10240.0 * _FM_ROWS).astype(int), 0, _FM_ROWS - 1)
+    grid = np.zeros((_FM_ROWS, _FM_COLS), dtype=float)
+    np.add.at(grid, (ry, cx), 1.0)
+    m = grid.max() or 1.0
+    return (grid / m).round(3).tolist()

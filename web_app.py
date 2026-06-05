@@ -881,13 +881,35 @@ async def _run_coaching_job(
     if loss is None:
         await p.msg("No recent loss found — plan based on win only")
 
+    # Build long-term trends from all stored ranked games of this gamemode
+    series_agg = None
+    try:
+        from rlcoach.series_analyst import aggregate_matches
+        stored = await db.get_matches(session_id)
+        pool = [m for m in stored
+                if m.get("summary", {}).get("mode") == gamemode and m.get("folder_path")]
+        pool.sort(key=lambda m: m.get("summary", {}).get("played_at", 0) or 0, reverse=True)
+        mjs = []
+        for m in pool[:12]:
+            mjp = Path(m["folder_path"]) / "match.json"
+            if mjp.exists():
+                try:
+                    mjs.append(json.loads(mjp.read_text(encoding="utf-8")))
+                except Exception:
+                    pass
+        if len(mjs) >= 3:
+            series_agg = aggregate_matches(mjs)
+            await p.msg(f"Using long-term trends from {series_agg.get('games', 0)} games")
+    except Exception as e:
+        log.info("series aggregate for plan skipped: %s", e)
+
     await p.update(step="Generating your personalised coaching plan with AI…")
     await p.msg("Calling Claude Sonnet 4.6…")
 
     loop = asyncio.get_event_loop()
     try:
         plan = await loop.run_in_executor(
-            None, generate_coaching_plan, profile, win, loss, stats, api_key
+            None, generate_coaching_plan, profile, win, loss, stats, api_key, series_agg
         )
     except Exception as e:
         await p.error(f"Coaching plan generation failed: {e}")

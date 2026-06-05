@@ -34,7 +34,9 @@ _PROMPT = """
 - Duo partner: {duo}
 - Freestyle interest: {freestyle}
 
-## WIN replay (match.json)
+{series_block}
+
+## WIN replay (match.json) — illustrative single game
 ```json
 {win_json}
 ```
@@ -131,6 +133,7 @@ def generate_coaching_plan(
     loss_replay,
     stats: Optional[dict],
     api_key: str,
+    series: Optional[dict] = None,
 ) -> dict:
     """Call Claude and return a validated PLAN dict (meta is filled deterministically)."""
     import anthropic
@@ -165,10 +168,28 @@ def generate_coaching_plan(
             return '{"error":"no replay available"}'
         return json.dumps(r.match_json, ensure_ascii=False)[:7000]
 
+    # Long-term trends across many games (preferred signal over single matches)
+    if series and series.get("games", 0) >= 3:
+        series_block = (
+            f"## LONG-TERM TRENDS — last {series['games']} ranked {gamemode} games "
+            f"({series.get('wins',0)}W-{series.get('losses',0)}L)\n"
+            "Base the plan PRIMARILY on these multi-game patterns — especially where the player's\n"
+            "WIN averages differ from their LOSS averages (that gap is what actually decides games).\n"
+            "Use the single win/loss replays below only as concrete illustrations.\n"
+            "```json\n"
+            + json.dumps({k: series[k] for k in ("averages", "winAverages", "lossAverages", "perGame")
+                          if k in series}, ensure_ascii=False)[:5000]
+            + "\n```\n"
+        )
+    else:
+        series_block = ("## LONG-TERM TRENDS\n(Not enough games yet — base the plan on the win/loss "
+                        "replays below.)\n")
+
     prompt = _PROMPT.format(
         player=player, platform_label=plat["label"], gamemode=gamemode,
         current_rank=current_rank, target_rank=target_rank, gap=gap, mmr_str=mmr_str,
         mins=mins, days=days, duo=duo, freestyle=freestyle,
+        series_block=series_block,
         win_json=_rj(win_replay), loss_json=_rj(loss_replay),
         resources=format_resources_for_prompt(platform, current_rank),
         catalog=format_drill_catalog(platform),
