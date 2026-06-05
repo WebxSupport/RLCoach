@@ -7,6 +7,9 @@ auth_tokens.json
 *.key
 config.yaml
 
+# ── Internal working docs (local only) ───────────────────────────────────────
+handover.md
+
 # ── Runtime data ──────────────────────────────────────────────────────────────
 data/
 output/
