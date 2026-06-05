@@ -376,7 +376,8 @@ async def run_pipeline_job(
     # 1. Credentials
     creds = await get_web_credentials(session, db)
     if creds is None:
-        await progress.error("Epic auth expired — please reconnect your account")
+        await progress.error("Epic sign-in expired — open the ⚙ menu (top right) → "
+                             "Reconnect Epic, then try again.")
         return
     access_token, account_id, display_name = creds
 

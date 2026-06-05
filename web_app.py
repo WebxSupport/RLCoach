@@ -671,7 +671,8 @@ async def _run_coaching_job(
 
     creds = await get_web_credentials(session, db)
     if not creds:
-        await p.error("Epic auth expired — please reconnect your Epic account")
+        await p.error("Epic sign-in expired — open the ⚙ menu (top right) → "
+                      "Reconnect Epic, then try again.")
         return
     access_token, account_id, display_name = creds
 

@@ -265,7 +265,8 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
         <button class="btn btn-ghost btn-sm" id="settings-btn" onclick="toggleSettings()" title="Account &amp; settings" aria-label="Account and settings"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         <div class="settings-menu" id="settings-menu">
           <button onclick="startSetup()">✏️ Edit plan settings</button>
-          <button onclick="refreshName()">🔄 Refresh Epic username</button>
+          <button onclick="reconnectEpic()">🔄 Reconnect Epic (re-authorise)</button>
+          <button onclick="refreshName()">👤 Refresh Epic username</button>
           <div class="sep"></div>
           <button class="danger" onclick="deleteAccount()">🗑️ Delete account</button>
         </div>
@@ -600,6 +601,13 @@ function startSetup(){
     duo_partner:p.duo_partner||null,freestyle:!!p.freestyle};
   _detectedRanks={}; fetchDetectedRanks();
   showWizard();
+}
+
+function reconnectEpic(){
+  closeSettings();
+  // Re-run the Epic device-auth flow. connect_epic only overwrites the Epic
+  // tokens/name — player ID and profile are preserved. Used when auth expires.
+  showEpicConnect();
 }
 
 async function refreshName(){
