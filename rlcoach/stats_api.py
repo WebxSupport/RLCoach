@@ -66,49 +66,35 @@ def rank_icon_url(rank: str) -> str:
     return "/static/rank-icons/" + RANK_ICON.get(rank, "Unranked.svg")
 
 
+def _to_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_entry(entry: dict) -> Optional[dict]:
     tier = entry.get("Tier", 0)
     division = entry.get("Division", 0)
 
-    log.debug("PsyNet skill entry fields: %s", {k: entry.get(k) for k in
-              ("MMR", "Rating", "Mu", "Sigma", "SkillRating", "Skill", "Tier", "Division")})
+    # Log the FULL entry once so the exact MMR field can be confirmed from
+    # `docker compose logs | grep "skill entry"`.
+    log.info("PsyNet skill entry: %s", entry)
 
-    # Direct MMR fields are already in display range (100-2000+).
+    # 1) If any field is already a display-range rating (~100–3500), use it AS-IS.
+    #    PsyNet's per-playlist `Skill`/`MMR`/`Rating` is the real number — do NOT scale it.
     mmr = 0
-    for field in ("MMR", "Rating"):
-        raw = entry.get(field)
-        if raw is not None:
-            try:
-                v = float(raw)
-                if v > 100:
-                    mmr = max(0, int(v))
-            except (TypeError, ValueError):
-                pass
-            if mmr:
-                break
+    for field in ("MMR", "Rating", "Skill", "SkillRating"):
+        v = _to_float(entry.get(field))
+        if v is not None and 100 <= v <= 4000:
+            mmr = int(round(v))
+            break
 
+    # 2) Otherwise convert the TrueSkill mean: displayed rating ≈ mu × 20.
     if not mmr:
-        # PsyNet returns Mu as the *conservative* estimate (true_mu − 3σ), not the
-        # raw TrueSkill mean.  The in-game displayed MMR is true_mu × 20, so we
-        # recover it by adding back 3σ before scaling.
-        sigma = 0.0
-        try:
-            sigma = float(entry.get("Sigma") or 0)
-        except (TypeError, ValueError):
-            pass
-
-        for field in ("Mu", "SkillRating", "Skill"):
-            raw = entry.get(field)
-            if raw is not None:
-                try:
-                    mu_conservative = float(raw)
-                    if mu_conservative > 0:
-                        true_mu = mu_conservative + 3 * sigma
-                        mmr = max(0, round(true_mu * 20))
-                except (TypeError, ValueError):
-                    pass
-                if mmr:
-                    break
+        mu = _to_float(entry.get("Mu"))
+        if mu and mu > 0:
+            mmr = max(0, round(mu * 20))
 
     mmr = max(0, int(mmr))
     rank = tier_to_rank(tier)
