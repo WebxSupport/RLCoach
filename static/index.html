@@ -1245,7 +1245,7 @@ async function drawStatsMmr() {
   let log=[];
   try { const t=await get('/api/tracker'); log=(t&&t.mmrLog)||[]; } catch(e){}
   if (log.length<2) {
-    el.innerHTML=`<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">${log.length?('Current: '+log[log.length-1].mmr+' MMR — ':'')}we'll chart your trend as you open the app over the coming days.</div>`;
+    el.innerHTML=`<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">${log.length?('Current: '+log[log.length-1].mmr+' MMR — '):''}we'll chart your trend as you open the app over the coming days.</div>`;
     return;
   }
   const W=1000,H=200,pl=44,pr=16,pt=14,pb=26;
