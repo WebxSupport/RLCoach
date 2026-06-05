@@ -132,6 +132,14 @@ CREATE TABLE IF NOT EXISTS trackers (
     state       TEXT NOT NULL DEFAULT '{}',
     updated_at  TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS series_reports (
+    report_id    TEXT PRIMARY KEY,
+    session_id   TEXT NOT NULL,
+    content      TEXT NOT NULL,
+    games        INTEGER NOT NULL DEFAULT 0,
+    generated_at TEXT NOT NULL
+);
 """
 
 DAILY_LIMIT = 5
@@ -240,7 +248,8 @@ class Database:
             row = await cur.fetchone()
         user_id = row["user_id"] if row else None
         eos = row["eos_account_id"] if row else None
-        for tbl in ("matches", "jobs", "profiles", "coaching_plans", "trackers", "sessions"):
+        for tbl in ("matches", "jobs", "profiles", "coaching_plans", "trackers",
+                    "series_reports", "sessions"):
             await self._db.execute(f"DELETE FROM {tbl} WHERE session_id=?", (session_id,))
         if eos:
             await self._db.execute("DELETE FROM analysis_usage WHERE eos_account_id=?", (eos,))
@@ -502,3 +511,21 @@ class Database:
             (session_id, json.dumps(state), self._now()),
         )
         await self._db.commit()
+
+    # ── series reports ──────────────────────────────────────────────────────────
+
+    async def save_series_report(self, report_id: str, session_id: str,
+                                 content: str, games: int) -> None:
+        await self._db.execute(
+            "INSERT OR REPLACE INTO series_reports VALUES (?,?,?,?,?)",
+            (report_id, session_id, content, games, self._now()),
+        )
+        await self._db.commit()
+
+    async def get_latest_series(self, session_id: str) -> Optional[dict]:
+        async with self._db.execute(
+            "SELECT * FROM series_reports WHERE session_id=? ORDER BY generated_at DESC LIMIT 1",
+            (session_id,),
+        ) as cur:
+            row = await cur.fetchone()
+        return dict(row) if row else None

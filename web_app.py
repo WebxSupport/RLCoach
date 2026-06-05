@@ -620,6 +620,132 @@ async def view_coaching(session_id: Optional[str] = Cookie(default=None)):
     return HTMLResponse(_render_coaching_html(plan["content_md"]))
 
 
+# ── series (multi-match) analysis ──────────────────────────────────────────────
+
+SERIES_MAX_GAMES = 12
+
+@app.post("/api/series/generate")
+async def series_generate(session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    if not session.get("eos_account_id"):
+        raise HTTPException(400, "Connect your Epic account first")
+    profile = await db.get_profile(session["session_id"])
+    if not profile:
+        raise HTTPException(400, "Complete your profile setup first")
+
+    today = date.today().isoformat()
+    if session.get("eos_account_id"):
+        used = await db.get_usage(session["eos_account_id"], today)
+        if used >= DAILY_LIMIT:
+            raise HTTPException(429, f"Daily AI limit reached ({used}/{DAILY_LIMIT}). Try again tomorrow.")
+
+    active = await db.get_active_job(session["session_id"])
+    if active:
+        prog = json.loads(active["progress"])
+        return {"job_id": active["job_id"], "status": "already_running",
+                "active_type": prog.get("type", "fetch")}
+
+    job_id = str(uuid.uuid4())
+    await db.create_job(job_id, session["session_id"])
+    asyncio.create_task(
+        _run_series_job(job_id, dict(session), dict(profile), db, ANTHROPIC_API_KEY)
+    )
+    return {"job_id": job_id, "status": "started"}
+
+
+@app.get("/api/series")
+async def get_series(session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    rep = await db.get_latest_series(session["session_id"])
+    if not rep:
+        return {"exists": False}
+    return {"exists": True, "report_id": rep["report_id"],
+            "games": rep["games"], "generated_at": rep["generated_at"]}
+
+
+@app.get("/api/series/view")
+async def view_series(session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    rep = await db.get_latest_series(session["session_id"])
+    if not rep:
+        raise HTTPException(404, "No series report yet")
+    return HTMLResponse(_render_series_html(rep["content"]))
+
+
+async def _run_series_job(job_id: str, session: dict, profile: dict, db, api_key: str) -> None:
+    from rlcoach.web_pipeline import _Progress
+    from rlcoach.series_analyst import aggregate_matches, generate_series_report
+
+    p = _Progress(job_id, db)
+    await p.update(status="running", step="Gathering your recent games…", type="series")
+    session_id = session["session_id"]
+    eos = session.get("eos_account_id", "")
+    gamemode = profile.get("gamemode", "2v2")
+
+    # Pull already-processed matches for this gamemode, newest played first
+    matches = await db.get_matches(session_id)
+    def _key(m):
+        s = m.get("summary", {})
+        return s.get("played_at", 0) or 0
+    pool = [m for m in matches
+            if (m.get("summary", {}).get("mode") == gamemode) and m.get("folder_path")]
+    pool.sort(key=_key, reverse=True)
+    pool = pool[:SERIES_MAX_GAMES]
+
+    if len(pool) < 3:
+        await p.error(
+            f"Need at least 3 recent {gamemode} games to analyse a series — you have "
+            f"{len(pool)}. Use Match History → Fetch Latest Replays, then try again."
+        )
+        return
+
+    await p.update(step=f"Aggregating {len(pool)} games…")
+    match_jsons = []
+    for m in pool:
+        mjp = Path(m["folder_path"]) / "match.json"
+        if mjp.exists():
+            try:
+                match_jsons.append(json.loads(mjp.read_text(encoding="utf-8")))
+            except Exception:
+                pass
+
+    loop = asyncio.get_event_loop()
+    aggregate = aggregate_matches(match_jsons)
+    if aggregate.get("games", 0) < 3:
+        await p.error("Couldn't read enough match data — re-fetch your replays and try again.")
+        return
+
+    await p.update(step="Writing your series report with AI…")
+    try:
+        report = await loop.run_in_executor(
+            None, generate_series_report, aggregate, profile, api_key
+        )
+    except Exception as e:
+        await p.error(f"Series analysis failed: {e}")
+        return
+
+    report_id = str(uuid.uuid4())
+    await db.save_series_report(report_id, session_id, json.dumps(report), aggregate.get("games", 0))
+    if eos:
+        await db.increment_usage(eos, date.today().isoformat())
+
+    state = {"status": "complete", "step": "Series report ready!", "type": "series",
+             "series_ready": True, "total": 0, "current": 0, "messages": []}
+    await db.update_job(job_id, state)
+
+
+def _render_series_html(report_json_str: str) -> str:
+    template = Path("static/series_template.html").read_text(encoding="utf-8")
+    try:
+        report = json.loads(report_json_str)
+    except Exception:
+        report = {}
+    injected = "const SERIES = " + json.dumps(report, ensure_ascii=False) + ";"
+    if "const SERIES = {};" in template:
+        return template.replace("const SERIES = {};", injected, 1)
+    return template.replace("/*SERIES_INJECT*/", injected, 1)
+
+
 # ── tracker ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/tracker")

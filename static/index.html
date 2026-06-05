@@ -255,6 +255,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     <div class="brand" onclick="goHome()" style="cursor:pointer"><img src="/static/logo.png" alt="RLCoach" style="height:58px;width:auto;display:block"/></div>
     <div class="nav-tabs" id="nav-tabs" style="display:none">
       <button class="nav-tab active" data-tab="coaching" onclick="switchTab('coaching')">Coaching Plan</button>
+      <button class="nav-tab" data-tab="series" onclick="switchTab('series')">Series Report</button>
       <button class="nav-tab" data-tab="history" onclick="switchTab('history')">Match History</button>
       <button class="nav-tab" data-tab="stats" onclick="switchTab('stats')">My Stats</button>
     </div>
@@ -399,6 +400,39 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
         </div>
       </div>
     </div>
+    <div class="tab-panel" id="tab-series">
+      <div class="coaching-header">
+        <h1>Series Report</h1>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" id="view-series-btn" style="display:none" onclick="openSeries()">View Report ↗</button>
+          <button class="btn btn-primary btn-sm" id="gen-series-btn" onclick="triggerSeries()">↻ Analyse Recent Games</button>
+        </div>
+      </div>
+      <div id="series-progress" style="display:none">
+        <div class="prog-card">
+          <div class="prog-head"><span class="spinner"></span><span class="prog-title" id="sp-step">Analysing…</span></div>
+          <div class="prog-bar-wrap"><div class="prog-bar" id="sp-bar" style="width:0%"></div></div>
+          <div class="prog-msgs" id="sp-msgs"></div>
+        </div>
+      </div>
+      <div id="series-info" style="display:none">
+        <div class="coaching-card">
+          <h2 id="series-title">Series Report</h2>
+          <div class="coaching-meta" id="series-meta"></div>
+          <button class="btn btn-primary" onclick="openSeries()" style="width:100%;justify-content:center;margin-top:4px">Open Series Report ↗</button>
+        </div>
+      </div>
+      <div id="series-empty" style="display:none">
+        <div class="coaching-empty">
+          <div class="icon">📊</div>
+          <h2>No series report yet</h2>
+          <p>Analyse your recent ranked games as one session to see<br>win-vs-loss trends, consistency, and your recurring habit.<br>
+            <span style="color:var(--dim)">Fetch your replays in Match History first (needs 3+ games in your gamemode).</span></p>
+          <button class="btn btn-primary" onclick="triggerSeries()" style="margin-top:20px">Analyse Recent Games</button>
+        </div>
+      </div>
+    </div>
+
     <div class="tab-panel" id="tab-history">
       <div class="fetch-bar">
         <h1>Match History</h1>
@@ -510,6 +544,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
   if (tab==='history') loadMatches();
   if (tab==='stats') loadStats();
+  if (tab==='series') loadSeriesStatus();
 }
 function goHome() { switchTab('coaching'); showScreen('main-screen'); }
 
@@ -960,6 +995,7 @@ async function loadCoachingStatus() {
 function busyMsg(t){
   if(t==='coaching') return 'Your coaching plan is still generating — please wait for it to finish.';
   if(t==='analysis') return 'A match analysis is running — please wait for it to finish.';
+  if(t==='series')   return 'Your series report is still generating — please wait for it to finish.';
   if(t==='fetch')    return 'A replay fetch is already running — please wait for it to finish.';
   return 'Something is already running — please wait.';
 }
@@ -1003,28 +1039,65 @@ function streamJob(jobId, type) {
   es.onerror=()=>es.close();
 }
 
+const _PROG_MAP={
+  coaching:{step:'cp-step',bar:'cp-bar',msgs:'cp-msgs',prog:'coaching-progress',btn:'regen-btn'},
+  fetch:{step:'fp-step',bar:'fp-bar',msgs:'fp-msgs',prog:'fetch-progress',btn:'fetch-btn',counter:'fp-counter'},
+  series:{step:'sp-step',bar:'sp-bar',msgs:'sp-msgs',prog:'series-progress',btn:'gen-series-btn'}
+};
 function onProg(p, type) {
-  const isC=type==='coaching';
-  const step=document.getElementById(isC?'cp-step':'fp-step');
-  const bar=document.getElementById(isC?'cp-bar':'fp-bar');
-  const msgs=document.getElementById(isC?'cp-msgs':'fp-msgs');
-  const ctr=document.getElementById('fp-counter');
+  const e=_PROG_MAP[type]||_PROG_MAP.fetch;
+  const step=document.getElementById(e.step), bar=document.getElementById(e.bar), msgs=document.getElementById(e.msgs);
+  const ctr=e.counter?document.getElementById(e.counter):null;
   if (step) step.textContent=p.step||'…';
   if (bar) {const pct=p.total>0?Math.round(100*p.current/p.total):(p.status==='complete'?100:0); bar.style.width=pct+'%';}
   if (ctr&&p.total>0) ctr.textContent=`${p.current}/${p.total}`;
   if (msgs&&p.messages) {msgs.innerHTML=p.messages.slice(-10).map(m=>`<div>${m}</div>`).join(''); msgs.scrollTop=msgs.scrollHeight;}
   if (p.status==='complete'||p.status==='error') {
     setTimeout(async()=>{
-      document.getElementById(isC?'coaching-progress':'fetch-progress').style.display='none';
-      document.getElementById(isC?'regen-btn':'fetch-btn').disabled=false;
-      if (isC&&p.status==='complete'){await loadCoachingStatus();loadUsage();}
-      if (!isC) loadMatches();
+      const pr=document.getElementById(e.prog); if(pr) pr.style.display='none';
+      const b=document.getElementById(e.btn); if(b) b.disabled=false;
+      if (type==='coaching'&&p.status==='complete'){await loadCoachingStatus();loadUsage();}
+      if (type==='series'&&p.status==='complete'){await loadSeriesStatus();loadUsage();}
+      if (type==='fetch') loadMatches();
     },1200);
     if (p.status==='error') toast(p.step||'An error occurred');
   }
 }
 
 function openCoachingPlan() { window.open('/api/coaching/view','_blank'); }
+
+// ── series report ──────────────────────────────────────────────────────────
+function showSeriesProgress(){
+  document.getElementById('series-empty').style.display='none';
+  document.getElementById('series-info').style.display='none';
+  document.getElementById('series-progress').style.display='block';
+  document.getElementById('gen-series-btn').disabled=true;
+}
+async function triggerSeries(){
+  try{
+    const r=await post('/api/series/generate');
+    if(r.status==='already_running'){
+      if(r.active_type==='series'){ showSeriesProgress(); streamJob(r.job_id,'series'); }
+      else toast(busyMsg(r.active_type),'var(--amber)');
+      return;
+    }
+    showSeriesProgress(); streamJob(r.job_id,'series');
+  }catch(e){ toast('Failed: '+e.message); }
+}
+async function loadSeriesStatus(){
+  try{
+    const s=await get('/api/series');
+    const empty=document.getElementById('series-empty'),info=document.getElementById('series-info'),vb=document.getElementById('view-series-btn');
+    if(!s.exists){ empty.style.display='block'; info.style.display='none'; vb.style.display='none'; }
+    else{
+      empty.style.display='none'; info.style.display='block'; vb.style.display='';
+      document.getElementById('series-title').textContent=`${(_profile.display_name||'Your')} session — ${s.games} games`;
+      const d=new Date(s.generated_at).toLocaleDateString();
+      document.getElementById('series-meta').innerHTML=`<span>${_profile.gamemode||''}</span><span>${s.games} games</span><span>Generated: ${d}</span>`;
+    }
+  }catch(e){}
+}
+function openSeries(){ window.open('/api/series/view','_blank'); }
 
 let _allMatches = [];
 async function loadMatches() {
