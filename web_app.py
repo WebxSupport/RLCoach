@@ -638,6 +638,40 @@ async def save_tracker(request: Request, session_id: Optional[str] = Cookie(defa
     return {"status": "ok"}
 
 
+@app.post("/api/tracker/sync-mmr")
+async def sync_mmr(session_id: Optional[str] = Cookie(default=None)):
+    """
+    Auto-pull current MMR from PsyNet and log one snapshot per day.
+    Cheap on repeat calls — only hits PsyNet if today isn't already logged.
+    """
+    session = await _require_session(session_id)
+    tracker = await db.get_tracker(session["session_id"])
+    tracker.setdefault("mmrLog", [])
+    today = date.today().isoformat()
+    if any(e.get("date") == today for e in tracker["mmrLog"]):
+        return {"status": "current", "tracker": tracker}
+    if not session.get("eos_account_id"):
+        return {"status": "no_epic", "tracker": tracker}
+
+    profile = await db.get_profile(session["session_id"]) or {}
+    gamemode = profile.get("gamemode", "2v2")
+
+    from rlcoach.web_pipeline import get_web_credentials
+    from rlcoach.stats_api import fetch_all_ranks
+    creds = await get_web_credentials(session, db)
+    if not creds:
+        return {"status": "no_creds", "tracker": tracker}
+    access_token, account_id, display_name = creds
+    ranks = await fetch_all_ranks(access_token, account_id, display_name)
+    entry = ranks.get(gamemode)
+    if not entry or not entry.get("mmr_estimate"):
+        return {"status": "no_data", "tracker": tracker}
+
+    tracker["mmrLog"].append({"date": today, "mmr": entry["mmr_estimate"], "rank": entry.get("rank")})
+    await db.save_tracker(session["session_id"], tracker)
+    return {"status": "logged", "tracker": tracker, "mmr": entry["mmr_estimate"]}
+
+
 # ── resources ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/resources")
@@ -737,12 +771,18 @@ async def _run_coaching_job(
     guids = [r.guid for r in [win, loss] if r is not None]
     await db.save_coaching_plan(plan_id, session_id, json.dumps(plan), guids)
 
-    # Seed the tracker — keep the player's MMR history, reset per-plan checkmarks
+    # Seed the tracker — keep the player's MMR history, reset per-plan checkmarks.
+    # Drop a starting MMR point so the progress graph begins at plan generation.
     existing = await db.get_tracker(session_id)
+    mmr_log = list(existing.get("mmrLog", []))
+    today = date.today().isoformat()
+    if stats and stats.get("mmr_estimate") and not any(e.get("date") == today for e in mmr_log):
+        mmr_log.append({"date": today, "mmr": stats["mmr_estimate"], "rank": stats.get("rank")})
     await db.save_tracker(session_id, {
-        "mmrLog": existing.get("mmrLog", []),
+        "mmrLog": mmr_log,
         "drillsDone": {},
         "weeklyDone": {},
+        "planStart": today,
     })
 
     for r in [win, loss]:

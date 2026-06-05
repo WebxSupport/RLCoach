@@ -1154,10 +1154,38 @@ async function loadStats(force) {
         </div></div>`;
     }).join('');
     body.innerHTML=`<div class="stats-note">Live ranks from your connected Epic / Rocket League account.</div>
-      <div class="stats-grid">${cards}</div>`;
+      <div class="stats-grid">${cards}</div>
+      <div class="card" style="margin-top:6px"><h2 style="font-size:15px;font-weight:800;margin-bottom:4px">MMR progression</h2>
+        <div class="sub" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px">
+          ${_profile.gamemode||'2v2'} · logged automatically each day you open RLCoach</div>
+        <div id="stats-mmr-chart"></div></div>`;
+    // Auto-log today's MMR then draw the progression chart
+    try { await post('/api/tracker/sync-mmr'); } catch(e) {}
+    drawStatsMmr();
   } catch(e) {
     body.innerHTML=`<div class="stats-empty"><p>Error loading stats: ${e.message}</p></div>`;
   }
+}
+
+async function drawStatsMmr() {
+  const el=document.getElementById('stats-mmr-chart'); if(!el) return;
+  let log=[];
+  try { const t=await get('/api/tracker'); log=(t&&t.mmrLog)||[]; } catch(e){}
+  if (log.length<2) {
+    el.innerHTML=`<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">${log.length?('Current: '+log[log.length-1].mmr+' MMR — ':'')}we'll chart your trend as you open the app over the coming days.</div>`;
+    return;
+  }
+  const W=1000,H=200,pl=44,pr=16,pt=14,pb=26;
+  const vals=log.map(p=>p.mmr); let mn=Math.min(...vals),mx=Math.max(...vals);
+  if(mn===mx){mn-=20;mx+=20;} const pad=(mx-mn)*0.12; mn-=pad; mx+=pad;
+  const x=i=>pl+(log.length<=1?0.5:i/(log.length-1))*(W-pl-pr), y=v=>pt+(1-(v-mn)/(mx-mn))*(H-pt-pb);
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+  for(let g=0;g<=3;g++){const v=mn+(mx-mn)*g/3;s+=`<line x1="${pl}" y1="${y(v)}" x2="${W-pr}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl-8}" y="${y(v)+3}" fill="var(--dim)" font-size="10" font-family="var(--mono)" text-anchor="end">${Math.round(v)}</text>`;}
+  s+=`<polyline points="${log.map((p,i)=>x(i)+','+y(p.mmr)).join(' ')}" fill="none" stroke="var(--cyan)" stroke-width="2.5" stroke-linejoin="round"/>`;
+  log.forEach((p,i)=>{s+=`<circle cx="${x(i)}" cy="${y(p.mmr)}" r="3.5" fill="var(--cyan)"><title>${p.date}: ${p.mmr}</title></circle>`;
+    if(i===log.length-1)s+=`<text x="${x(i)}" y="${y(p.mmr)-9}" fill="var(--cyan)" font-size="11" font-family="var(--mono)" text-anchor="middle">${p.mmr}</text>`;});
+  log.forEach((p,i)=>{if(i%Math.ceil(log.length/6||1)===0||i===log.length-1)s+=`<text x="${x(i)}" y="${H-8}" fill="var(--dim)" font-size="9" font-family="var(--mono)" text-anchor="middle">${(p.date||'').slice(5)}</text>`;});
+  el.innerHTML=s+`</svg>`;
 }
 
 // ── boot ─────────────────────────────────────────────────────────────────

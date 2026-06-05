@@ -68,6 +68,7 @@ class PlayerMetrics:
     positioning: Optional[PositioningMetrics] = None
     boost: Optional[BoostMetrics] = None
     recovery: Optional[RecoveryMetrics] = None
+    air: Optional[dict] = None   # {air_time_pct, high_air_pct, avg_height}
 
 
 @dataclass
@@ -228,6 +229,28 @@ def _boost(df: pd.DataFrame, name: str, duration_s: float) -> BoostMetrics:
         avg_boost=round(float(b_v.mean()), 1),
         time_zero_s=round(float((b_v < 5).sum()) / fps, 1),
     )
+
+
+def _air(df: pd.DataFrame, name: str, duration_s: float) -> Optional[dict]:
+    """
+    Ground vs air usage. A car rests at z≈17 on the floor.
+      air_time_pct  — share of live play off the floor (z>120: jumps/low aerials & up)
+      high_air_pct  — share genuinely high in the air (z>600: committed aerials)
+      avg_height    — mean z over live play
+    """
+    z = _col(df, name, "pos_z")
+    if z is None:
+        return None
+    gm = _gameplay_mask(df, duration_s)
+    zv = z[gm]
+    zv = zv[~np.isnan(zv)]
+    if len(zv) == 0:
+        return None
+    return {
+        "air_time_pct": round(float((zv > 120).mean()) * 100, 1),
+        "high_air_pct": round(float((zv > 600).mean()) * 100, 1),
+        "avg_height": round(float(zv.mean()), 0),
+    }
 
 
 def _recovery(df: pd.DataFrame, name: str, is_orange: bool,
@@ -451,6 +474,7 @@ def compute_metrics(parsed: ParsedReplay, my_player_id: str,
             pm.positioning = _positioning(df, p.name, p.is_orange)
             pm.boost = _boost(df, p.name, parsed.duration_s)
             pm.recovery = _recovery(df, p.name, p.is_orange, parsed.hits, slow_recovery_s)
+            pm.air = _air(df, p.name, parsed.duration_s)
         except Exception as e:
             warnings.append(f"Metrics error for {p.name}: {e}")
         player_metrics.append(pm)

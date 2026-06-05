@@ -331,7 +331,7 @@ function renderTracker(){
       <div class="kpi"><div class="l">Target MMR</div><div class="v" style="color:var(--green)">${tgt??'—'}</div><div class="s">${esc(M.targetRank||'')}</div></div>
       <div class="kpi"><div class="l">To go</div><div class="v" style="color:var(--amber)">${toGo!=null?toGo:'—'}</div><div class="s">${toGo!=null&&toGo<=0?'target reached! 🎉':'MMR to climb'}</div></div>
     </div>
-    <div class="card"><h2>MMR progression</h2><div class="sub">Log your ${esc(M.gamemode)} MMR after sessions to watch the trend</div>
+    <div class="card"><h2>MMR progression</h2><div class="sub">Auto-pulled from your account daily since your plan started · log manually too if you like</div>
       <div id="mmrchart"></div>
       <div class="addmmr">
         <input class="inp" id="mmr-in" type="number" placeholder="e.g. ${cur||M.currentMmr||950}" style="width:130px"/>
@@ -403,11 +403,15 @@ function saveTracker(){
 }
 
 /* boot */
+function _rerenderTracker(){ renderDrills(); renderMmrBar(); if($(".tab.active")&&$(".tab.active").dataset.t==='tracker') renderTracker(); }
 renderDrills();
 fetch('/api/tracker').then(r=>r.json()).then(t=>{
   TRACK=Object.assign({mmrLog:[],drillsDone:{},weeklyDone:{}},t||{});
-  renderDrills();renderMmrBar();
-  if($(".tab.active")?.dataset?.t==='tracker')renderTracker();
+  _rerenderTracker();
+  // Auto-pull current MMR from PsyNet (logs one snapshot per day)
+  return fetch('/api/tracker/sync-mmr',{method:'POST'}).then(r=>r.json());
+}).then(d=>{
+  if(d&&d.tracker){ TRACK=Object.assign({mmrLog:[],drillsDone:{},weeklyDone:{}},d.tracker); _rerenderTracker(); }
 }).catch(()=>{});
 </script>
 </html>

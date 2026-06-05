@@ -54,6 +54,10 @@ Analyse the WIN vs the LOSS, find the 1-2 recurring weaknesses that show up in B
 and build a plan that bridges {current_rank} -> {target_rank} on {gamemode}, scaled to
 {mins} min/day. {platform_guidance}
 
+Also weigh AIR vs GROUND balance — each player has an `air` field
+(air_time_pct / high_air_pct / avg_height). If the user is very ground-dominant (low air %),
+or over-committing to the air and missing, call it out and target it with the plan.
+
 Return EXACTLY this JSON shape (fill every field; arrays must not be empty):
 
 ```json

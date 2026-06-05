@@ -69,9 +69,12 @@ def rank_icon_url(rank: str) -> str:
 def _parse_entry(entry: dict) -> Optional[dict]:
     tier = entry.get("Tier", 0)
     division = entry.get("Division", 0)
-    mu = entry.get("Mu", 0.0)
-    sigma = entry.get("Sigma", 2.5)
-    mmr = max(0, round((mu - 3 * sigma) * 20))
+    # Prefer a direct rating field if present, else convert TrueSkill mu (~rating/20).
+    mmr = entry.get("MMR") or entry.get("SkillRating") or entry.get("Skill") or 0
+    if not mmr:
+        mu = entry.get("Mu", 0.0)
+        mmr = round(mu * 20) if mu else 0
+    mmr = max(0, int(mmr))
     rank = tier_to_rank(tier)
     return {
         "rank": rank,
