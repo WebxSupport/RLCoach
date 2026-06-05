@@ -161,6 +161,99 @@ def rank_gap(current: str, target: str) -> int:
     return max(0, ti - ci)
 
 
+import re as _re
+
+
+def _slug(s: str) -> str:
+    return _re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
+
+
+def _norm(s: str) -> str:
+    return _re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+# Generic freeplay / non-resource routines that are always allowed (no fake codes)
+_FREEPLAY_DRILLS = [
+    "Freeplay dribbling", "Freeplay aerial control", "Freeplay shooting",
+    "Freeplay recoveries", "Replay review", "Custom training (your own pack)",
+]
+
+
+def allowed_drills(platform: str) -> list:
+    """
+    The ONLY drills the coach may reference — built from the verified catalog.
+    Every entry has a real training-pack code or a real workshop map (PC only).
+    Returns [{id, name, kind, resource}].
+    """
+    has_bm = platform.lower() in ("steam", "epic")
+    out = []
+    for _, packs in TRAINING_PACKS.items():
+        for p in packs:
+            out.append({"id": _slug(p["name"]), "name": p["name"],
+                        "kind": "pack", "resource": p["code"]})
+    if has_bm:
+        for _, maps in WORKSHOP_MAPS.items():
+            for m in maps:
+                sid = m.get("steam_workshop_id", "")
+                res = f"Workshop: {m['name']}" + (f" (ID {sid})" if sid else "")
+                out.append({"id": _slug(m["name"]), "name": m["name"],
+                            "kind": "workshop", "resource": res})
+    for fp in _FREEPLAY_DRILLS:
+        out.append({"id": _slug(fp), "name": fp, "kind": "freeplay", "resource": "Freeplay"})
+    return out
+
+
+def format_drill_catalog(platform: str) -> str:
+    """A numbered, exact list of allowed drills for the prompt."""
+    lines = ["ALLOWED DRILLS — you may ONLY use these. Copy the name + resource EXACTLY:"]
+    for d in allowed_drills(platform):
+        tag = {"pack": "[Training Pack]", "workshop": "[Workshop]", "freeplay": "[Freeplay]"}.get(d["kind"], "")
+        lines.append(f"- {d['name']} {tag} → {d['resource']}")
+    return "\n".join(lines)
+
+
+def reconcile_drills(drills: list, platform: str) -> list:
+    """
+    Validate AI-produced drills against the verified catalog. Real drills are
+    normalised to their authoritative name + resource (so embellished names like
+    'Ground Zero Boost Routing' snap back to 'Ground Zero'); invented packs /
+    workshop maps with no catalog match are dropped. Generic freeplay is kept.
+    Claude-provided goal / movesMetric are preserved.
+    """
+    catalog = allowed_drills(platform)
+    norms = [(_norm(c["name"]), c) for c in catalog]
+    out, seen = [], set()
+    for d in (drills or []):
+        nn = _norm(d.get("name", ""))
+        match = None
+        if nn:
+            for cn, c in norms:          # exact first
+                if cn == nn:
+                    match = c
+                    break
+            if not match:                # then containment either way
+                for cn, c in norms:
+                    if cn and (cn in nn or nn in cn):
+                        match = c
+                        break
+        if match:
+            if match["id"] in seen:
+                continue
+            seen.add(match["id"])
+            out.append({"id": match["id"], "name": match["name"], "kind": match["kind"],
+                        "resource": match["resource"], "goal": d.get("goal", ""),
+                        "movesMetric": d.get("movesMetric", "")})
+        elif d.get("kind") == "freeplay" or "freeplay" in (d.get("resource", "") or "").lower():
+            key = _norm(d.get("name", ""))
+            if key and key not in seen:
+                seen.add(key)
+                out.append({"id": _slug(d.get("name", "freeplay")), "name": d.get("name", "Freeplay"),
+                            "kind": "freeplay", "resource": "Freeplay",
+                            "goal": d.get("goal", ""), "movesMetric": d.get("movesMetric", "")})
+        # else: hallucinated pack/workshop → dropped
+    return out
+
+
 def format_resources_for_prompt(platform: str, current_rank: str) -> str:
     """Return a concise resources block to include in the Claude prompt."""
     has_bakkesmod = platform.lower() in ("steam", "epic")

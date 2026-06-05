@@ -44,8 +44,10 @@ _PROMPT = """
 {loss_json}
 ```
 
-## Training resources you may reference
+## Training resources (context)
 {resources}
+
+## {catalog}
 
 ## Your task
 Analyse the WIN vs the LOSS, find the 1-2 recurring weaknesses that show up in BOTH,
@@ -84,6 +86,9 @@ Rules:
   Use a "rest" kind for rest days (theme "Rest", blocks can be a single light task or empty).
 - `drills` = 4-7 concrete items. Use REAL training-pack codes / workshop maps from the resources
   for PC; pack codes / freeplay only for console.
+- CRITICAL — NEVER invent, rename, or embellish a training pack, workshop map, or pack code. Use
+  ONLY entries from the ALLOWED DRILLS list above, copying the name and resource VERBATIM. If a real
+  resource doesn't fit, use a `freeplay` drill instead. Made-up maps/codes will be rejected.
 - IMPORTANT: every specific drill you put in a `week` block must ALSO appear in `drills`, and the
   block's `name` must be the EXACT same text as that drill's `name` (so they can be cross-linked
   day-by-day). Generic blocks like "Ranked + review" or "Warm-up freeplay" don't need a drill entry.
@@ -127,6 +132,7 @@ def generate_coaching_plan(
     import anthropic
     from rlcoach.training_resources import (
         PLATFORM_OPTIONS, rank_gap as calc_gap, format_resources_for_prompt,
+        format_drill_catalog, reconcile_drills,
     )
 
     platform = profile.get("platform", "steam")
@@ -161,6 +167,7 @@ def generate_coaching_plan(
         mins=mins, days=days, duo=duo, freestyle=freestyle,
         win_json=_rj(win_replay), loss_json=_rj(loss_replay),
         resources=format_resources_for_prompt(platform, current_rank),
+        catalog=format_drill_catalog(platform),
         platform_guidance=platform_guidance,
     )
 
@@ -173,6 +180,9 @@ def generate_coaching_plan(
     plan = _extract_json(msg.content[0].text)
     if plan is None:
         raise ValueError("Could not parse the coaching plan JSON from Claude")
+
+    # Validate drills against the real catalog — strip/normalise any hallucinations
+    plan["drills"] = reconcile_drills(plan.get("drills"), platform)
 
     est_target_mmr = (plan.get("tracker") or {}).get("targetMmr") or (
         (cur_mmr + gap * 30) if cur_mmr else None

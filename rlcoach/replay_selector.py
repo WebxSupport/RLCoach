@@ -48,6 +48,7 @@ class SelectedReplay:
     result_str: str
     duration_s: float
     match_json: dict
+    played_at: int = 0   # PsyNet RecordStartTimestamp (epoch seconds)
 
 
 def _entry_playlist_id(entry: dict, md: dict) -> Optional[int]:
@@ -87,7 +88,8 @@ async def _download_replay(url: str) -> Path:
     return tmp
 
 
-def _selected_from_match_json(guid: str, folder: str, mj: dict, team_size: int) -> Optional[SelectedReplay]:
+def _selected_from_match_json(guid: str, folder: str, mj: dict, team_size: int,
+                              played_at: int = 0) -> Optional[SelectedReplay]:
     """Build a SelectedReplay from an already-written match.json (reuse path)."""
     dur = mj.get("duration_s", 0) or 0
     if dur < MIN_DURATION_S:
@@ -109,6 +111,7 @@ def _selected_from_match_json(guid: str, folder: str, mj: dict, team_size: int) 
         guid=guid, folder_path=Path(folder), is_win=win,
         map_display=mj.get("map_display") or mj.get("map") or "Unknown",
         result_str=rs, duration_s=dur, match_json=mj,
+        played_at=played_at or mj.get("played_at", 0) or 0,
     )
 
 
@@ -143,7 +146,8 @@ def _process_one(tmp_path: Path, guid: str, player_id: str) -> Optional[dict]:
     }
 
 
-def _save_and_build(info: dict, guid: str, output_dir: Path, ledger) -> Optional[SelectedReplay]:
+def _save_and_build(info: dict, guid: str, output_dir: Path, ledger,
+                    played_at: int = 0) -> Optional[SelectedReplay]:
     """Run the full pipeline for a freshly-parsed replay and return a SelectedReplay."""
     from rlcoach.events import extract_moments
     from rlcoach.renderer import render_moment
@@ -192,7 +196,7 @@ def _save_and_build(info: dict, guid: str, output_dir: Path, ledger) -> Optional
     return SelectedReplay(
         guid=guid, folder_path=out_dir, is_win=info["is_win"],
         map_display=info["map_display"], result_str=info["result_str"],
-        duration_s=info["duration_s"], match_json=mj,
+        duration_s=info["duration_s"], match_json=mj, played_at=played_at,
     )
 
 
@@ -247,6 +251,10 @@ async def find_win_and_loss(
     if not matches:
         return None, None  # genuinely no recent matches
 
+    # Newest-played first, using the authoritative match timestamp
+    matches.sort(key=lambda e: (e.get("Match", {}) or {}).get("RecordStartTimestamp", 0) or 0,
+                 reverse=True)
+
     required_pl = RANKED_PLAYLIST.get(gamemode)
     win: Optional[SelectedReplay] = None
     loss: Optional[SelectedReplay] = None
@@ -274,6 +282,7 @@ async def find_win_and_loss(
         if not guid:
             continue
         short = guid[:8]
+        played_at = md.get("RecordStartTimestamp", 0) or 0
 
         # 1) COMPETITIVE + exact standard mode (authoritative via PsyNet playlist id).
         #    Excludes casual and Hoops/Rumble/Dropshot/Snowday in one check.
@@ -293,7 +302,7 @@ async def find_win_and_loss(
                 # If we couldn't pre-filter by id, verify the mode by string now
                 if pl is None and not _playlist_matches(mj.get("playlist") or mj.get("mode"), gamemode):
                     continue
-                msg = _assign(_selected_from_match_json(guid, folder, mj, team_size))
+                msg = _assign(_selected_from_match_json(guid, folder, mj, team_size, played_at))
                 if msg and progress_cb:
                     await progress_cb(msg)
                 continue
@@ -335,7 +344,7 @@ async def find_win_and_loss(
         if info["is_draw"]:
             continue
 
-        msg = _assign(_save_and_build(info, guid, output_dir, ledger))
+        msg = _assign(_save_and_build(info, guid, output_dir, ledger, played_at))
         if msg and progress_cb:
             await progress_cb(msg)
 

@@ -1046,7 +1046,14 @@ function renderMatches() {
   const grid=document.getElementById('match-grid');
   const q=(document.getElementById('match-search')?.value||'').toLowerCase().trim();
   const sort=document.getElementById('match-sort')?.value||'date_desc';
-  const dkey=m=>(m.summary&&m.summary.date)||'';
+  // Sort key: actual match-played time (epoch) is the source of truth.
+  // Fall back to the date string, then created_at, so older records still order sanely.
+  const tkey=m=>{
+    const s=m.summary||{};
+    if (s.played_at) return s.played_at*1000;
+    if (s.date) { const t=Date.parse(s.date); if(!isNaN(t)) return t; }
+    const c=Date.parse(m.created_at||''); return isNaN(c)?0:c;
+  };
   const isWin=m=>((m.summary&&m.summary.result)||'').startsWith('W');
   let list=_allMatches.slice();
   if (q) list=list.filter(m=>{
@@ -1054,10 +1061,10 @@ function renderMatches() {
     return [s.map_display,s.map,s.mode,s.result].filter(Boolean).join(' ').toLowerCase().includes(q);
   });
   list.sort((a,b)=>{
-    if (sort==='date_asc')  return dkey(a)<dkey(b)?-1:dkey(a)>dkey(b)?1:0;
-    if (sort==='result_win')  return (isWin(b)-isWin(a)) || (dkey(a)<dkey(b)?1:-1);
-    if (sort==='result_loss') return (isWin(a)-isWin(b)) || (dkey(a)<dkey(b)?1:-1);
-    return dkey(a)<dkey(b)?1:dkey(a)>dkey(b)?-1:0;   // date_desc (default)
+    if (sort==='date_asc')  return tkey(a)-tkey(b);
+    if (sort==='result_win')  return (isWin(b)-isWin(a)) || (tkey(b)-tkey(a));
+    if (sort==='result_loss') return (isWin(a)-isWin(b)) || (tkey(b)-tkey(a));
+    return tkey(b)-tkey(a);   // date_desc (default) — newest played first
   });
   if (!list.length){grid.innerHTML=`<div class="empty-state"><p>No matches match your search.</p></div>`;return;}
   grid.innerHTML=list.map(renderCard).join('');
@@ -1071,7 +1078,7 @@ function renderCard(m) {
   const myTeam=s.my_team||'blue';
   const myScore=myTeam==='orange'?s.orange_score:s.blue_score;
   const oppScore=myTeam==='orange'?s.blue_score:s.orange_score;
-  const date=(s.date||'').slice(0,10);
+  const date = s.played_at ? new Date(s.played_at*1000).toISOString().slice(0,10) : (s.date||'').slice(0,10);
   const map=s.map_display||s.map||'Unknown'; const mode=s.mode||'';
   const mid=m.match_id;
   const blue=(s.players_blue||[]).map(p=>`<span style="color:var(--cyan)">${p.name}${p.is_me?' ★':''}</span>`).join(' · ');

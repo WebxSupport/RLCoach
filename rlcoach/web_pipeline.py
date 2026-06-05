@@ -90,6 +90,7 @@ def _process_replay_sync(
     player_id: str,
     output_dir: Path,
     ledger,
+    played_at: int = 0,
 ) -> Optional[dict]:
     """
     Full pipeline for one replay: parse → metrics → moments → render → write.
@@ -210,6 +211,7 @@ def _process_replay_sync(
         "map_display": map_clean.replace("_", " ").strip(),
         "mode": mode,
         "date": parsed.date or "",
+        "played_at": played_at or 0,
         "result": result_str,
         "win": my_score > opp_score,
         "blue_score": parsed.blue_score,
@@ -423,7 +425,10 @@ async def run_pipeline_job(
             continue
         if ledger.is_processed_guid(guid):
             continue
-        new_entries.append((guid, url))
+        new_entries.append((guid, url, md.get("RecordStartTimestamp", 0) or 0))
+
+    # Process newest-played first (authoritative match timestamp)
+    new_entries.sort(key=lambda t: t[2], reverse=True)
 
     total = len(new_entries)
     await progress.update(step=f"Found {total} new replays", total=total, current=0)
@@ -435,7 +440,7 @@ async def run_pipeline_job(
     processed_summaries = []
     today_str = date.today().isoformat()
 
-    for i, (guid, replay_url) in enumerate(new_entries):
+    for i, (guid, replay_url, played_at) in enumerate(new_entries):
         short = guid[:8]
         await progress.update(
             step=f"Processing {short}… ({i+1}/{total})",
@@ -462,7 +467,7 @@ async def run_pipeline_job(
         # Parse + process (sync, in executor)
         try:
             summary = await loop.run_in_executor(
-                None, _process_replay_sync, tmp_path, guid, player_id, output_dir, ledger
+                None, _process_replay_sync, tmp_path, guid, player_id, output_dir, ledger, played_at
             )
         except Exception as e:
             await progress.msg(f"Processing error for {short}: {e}")

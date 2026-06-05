@@ -751,7 +751,8 @@ async def _run_coaching_job(
         await db.upsert_match(
             r.guid, session_id, str(r.folder_path),
             {"guid": r.guid, "map_display": r.map_display, "result": r.result_str,
-             "win": r.is_win, "duration_s": r.duration_s, "coaching_source": True},
+             "win": r.is_win, "duration_s": r.duration_s, "played_at": r.played_at,
+             "coaching_source": True},
         )
 
     state = {"status": "complete", "step": "Coaching plan ready!", "coaching_ready": True,
