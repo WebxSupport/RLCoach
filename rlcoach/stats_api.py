@@ -69,8 +69,11 @@ def rank_icon_url(rank: str) -> str:
 def _parse_entry(entry: dict) -> Optional[dict]:
     tier = entry.get("Tier", 0)
     division = entry.get("Division", 0)
-    # Direct MMR fields have values in the hundreds (100-2000+).
-    # TrueSkill fields (Mu, SkillRating, Skill) are 0-100 and need * 20.
+
+    log.debug("PsyNet skill entry fields: %s", {k: entry.get(k) for k in
+              ("MMR", "Rating", "Mu", "Sigma", "SkillRating", "Skill", "Tier", "Division")})
+
+    # Direct MMR fields are already in display range (100-2000+).
     mmr = 0
     for field in ("MMR", "Rating"):
         raw = entry.get(field)
@@ -83,18 +86,30 @@ def _parse_entry(entry: dict) -> Optional[dict]:
                 pass
             if mmr:
                 break
+
     if not mmr:
+        # PsyNet returns Mu as the *conservative* estimate (true_mu − 3σ), not the
+        # raw TrueSkill mean.  The in-game displayed MMR is true_mu × 20, so we
+        # recover it by adding back 3σ before scaling.
+        sigma = 0.0
+        try:
+            sigma = float(entry.get("Sigma") or 0)
+        except (TypeError, ValueError):
+            pass
+
         for field in ("Mu", "SkillRating", "Skill"):
             raw = entry.get(field)
             if raw is not None:
                 try:
-                    mu = float(raw)
-                    if mu > 0:
-                        mmr = max(0, round(mu * 20))
+                    mu_conservative = float(raw)
+                    if mu_conservative > 0:
+                        true_mu = mu_conservative + 3 * sigma
+                        mmr = max(0, round(true_mu * 20))
                 except (TypeError, ValueError):
                     pass
                 if mmr:
                     break
+
     mmr = max(0, int(mmr))
     rank = tier_to_rank(tier)
     return {
