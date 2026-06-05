@@ -772,7 +772,7 @@ async function applyDetectedRank() {
     banner.innerHTML = `<div class="rank-banner">${rankImgTag(det.rank,52)}
       <div class="info"><div class="label">Your current rank in ${gm}</div>
         <div class="name">${det.rank}</div>
-        <div class="meta">${det.mmr_estimate?'~'+det.mmr_estimate+' MMR · ':''}auto-detected from your account</div>
+        <div class="meta">${det.mmr_estimate?det.mmr_estimate+' MMR · ':''}auto-detected from your account</div>
       </div></div>`;
     if (!_wiz.current_rank || _wiz.current_rank === det.rank) {
       _wiz.current_rank = det.rank;
@@ -1222,7 +1222,7 @@ async function loadStats(force) {
         <div>
           <div class="pl">${labels[k]||k}</div>
           <div class="rk">${d.rank}${d.division?' · Div '+d.division:''}</div>
-          ${d.mmr_estimate?`<div class="mmr">~${d.mmr_estimate} MMR</div>`:''}
+          ${d.mmr_estimate?`<div class="mmr">${d.mmr_estimate} MMR</div>`:''}
           ${d.matches_played?`<div class="div">${d.matches_played} matches played</div>`:''}
         </div></div>`;
     }).join('');

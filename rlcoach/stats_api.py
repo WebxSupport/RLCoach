@@ -41,6 +41,9 @@ RANK_ICON: dict[str, str] = {
     "Supersonic Legend":  "gc.svg",
 }
 
+# PsyNet's reported skill sits exactly 100 below the in-game displayed MMR.
+PSYNET_MMR_OFFSET = 100
+
 _DIV_NAMES = {0: "I", 1: "II", 2: "III", 3: "IV"}
 
 PLAYLIST_CODE: dict[str, int] = {
@@ -97,6 +100,10 @@ def _parse_entry(entry: dict) -> Optional[dict]:
             mmr = max(0, round(mu * 20))
 
     mmr = max(0, int(mmr))
+    # PsyNet reports a skill value exactly 100 below the in-game displayed MMR
+    # (observed constant across 1v1/2v2/3v3) — add it back so we match the client.
+    if mmr:
+        mmr += PSYNET_MMR_OFFSET
     rank = tier_to_rank(tier)
     return {
         "rank": rank,
