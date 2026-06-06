@@ -173,6 +173,9 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 
 /* ── progress card ── */
 .prog-card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:22px;margin-bottom:16px}
+.psynet-warn{position:sticky;top:8px;z-index:60;background:#2a1a05;border:1px solid var(--amber);color:#ffe0b0;border-radius:10px;padding:11px 15px;margin-bottom:18px;font-size:12.5px;line-height:1.5}
+.psynet-warn b{color:var(--amber)}
+.prog-note{font-family:var(--mono);font-size:11px;color:var(--amber);margin-top:10px;opacity:.9}
 .prog-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 .prog-title{font-size:15px;font-weight:800}
 .prog-bar-wrap{background:#0c1623;border:1px solid var(--line);border-radius:6px;height:8px;overflow:hidden;margin-bottom:10px}
@@ -396,6 +399,9 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 
   <!-- MAIN SCREEN -->
   <div id="main-screen" style="display:none">
+    <div id="psynet-warn" class="psynet-warn" style="display:none">
+      ⚠ <b>Don't open Rocket League while this is running.</b> Fetching replays, match analysis and plan generation all use your single Epic&nbsp;/&nbsp;PsyNet connection — launching the game will disconnect RLCoach and interrupt the job (Epic allows only one active connection at a time).
+    </div>
     <div class="tab-panel active" id="tab-coaching">
       <div class="coaching-header">
         <h1>Your Coaching Plan</h1>
@@ -409,6 +415,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
           <div class="prog-head"><span class="spinner"></span><span class="prog-title" id="cp-step">Generating…</span></div>
           <div class="prog-bar-wrap"><div class="prog-bar" id="cp-bar" style="width:0%"></div></div>
           <div class="prog-msgs" id="cp-msgs"></div>
+          <div class="prog-note">⚠ Keep Rocket League closed until this finishes — it shares your single Epic/PsyNet connection.</div>
         </div>
       </div>
       <div id="coaching-info" style="display:none">
@@ -440,6 +447,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
           <div class="prog-head"><span class="spinner"></span><span class="prog-title" id="sp-step">Analysing…</span></div>
           <div class="prog-bar-wrap"><div class="prog-bar" id="sp-bar" style="width:0%"></div></div>
           <div class="prog-msgs" id="sp-msgs"></div>
+          <div class="prog-note">⚠ Keep Rocket League closed until this finishes — it shares your single Epic/PsyNet connection.</div>
         </div>
       </div>
       <div id="series-info" style="display:none">
@@ -472,6 +480,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
         </div>
         <div class="prog-bar-wrap"><div class="prog-bar" id="fp-bar" style="width:0%"></div></div>
         <div class="prog-msgs" id="fp-msgs"></div>
+        <div class="prog-note">⚠ Keep Rocket League closed until this finishes — it shares your single Epic/PsyNet connection.</div>
       </div>
       <!-- search + sort -->
       <div class="match-toolbar" id="match-toolbar" style="display:none">
@@ -1082,8 +1091,10 @@ const _PROG_MAP={
   fetch:{step:'fp-step',bar:'fp-bar',msgs:'fp-msgs',prog:'fetch-progress',btn:'fetch-btn',counter:'fp-counter'},
   series:{step:'sp-step',bar:'sp-bar',msgs:'sp-msgs',prog:'series-progress',btn:'gen-series-btn'}
 };
+function psynetWarn(on){ const el=document.getElementById('psynet-warn'); if(el) el.style.display=on?'block':'none'; }
 function onProg(p, type) {
   const e=_PROG_MAP[type]||_PROG_MAP.fetch;
+  psynetWarn(p.status==='running'||p.status==='pending');
   const step=document.getElementById(e.step), bar=document.getElementById(e.bar), msgs=document.getElementById(e.msgs);
   const ctr=e.counter?document.getElementById(e.counter):null;
   if (step) step.textContent=p.step||'…';
@@ -1099,7 +1110,8 @@ function onProg(p, type) {
   }
   if (ctr&&p.total>0) ctr.textContent=`${p.current}/${p.total}`;
   if (msgs&&p.messages) {msgs.innerHTML=p.messages.slice(-10).map(m=>`<div>${m}</div>`).join(''); msgs.scrollTop=msgs.scrollHeight;}
-  if (p.status==='complete'||p.status==='error') {
+  if (p.status==='complete'||p.status==='error'||p.status==='stopped') {
+    psynetWarn(false);
     setTimeout(async()=>{
       const pr=document.getElementById(e.prog); if(pr) pr.style.display='none';
       const b=document.getElementById(e.btn); if(b) b.disabled=false;
@@ -1234,7 +1246,8 @@ const _analysisStreams={};
 function streamAnalysis(jobId, mid) {
   const es=new EventSource('/api/fetch/stream/'+jobId);
   _analysisStreams[mid]=es;
-  const done=()=>{ es.close(); delete _analysisStreams[mid]; };
+  psynetWarn(true);
+  const done=()=>{ es.close(); delete _analysisStreams[mid]; psynetWarn(false); };
   es.onmessage=ev=>{
     let p; try{p=JSON.parse(ev.data);}catch(e){return;}
     const footer=document.getElementById('footer-'+mid);
@@ -1252,6 +1265,7 @@ function streamAnalysis(jobId, mid) {
 
 function stopAnalysis(jobId, mid){
   const es=_analysisStreams[mid]; if(es){ es.close(); delete _analysisStreams[mid]; }
+  psynetWarn(false);
   const footer=document.getElementById('footer-'+mid);
   if(footer) footer.innerHTML=`<span class="mc-analyzing"><span class="spinner"></span> Stopping…</span>`;
   post('/api/job/'+jobId+'/stop').catch(()=>{}).finally(()=>{ toast('Analysis stopped','warn'); loadMatches(); });
