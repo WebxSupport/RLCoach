@@ -80,7 +80,7 @@ def _tier_key(rank_tier: Optional[str]) -> Optional[str]:
 
 # ── Context assembly ───────────────────────────────────────────────────────
 
-def _build_context(parsed, my_player_id, positioning, touch, metrics, extended, rotation=None):
+def _build_context(parsed, my_player_id, positioning, touch, metrics, extended, rotation=None, advanced=None):
     me = next((p for p in parsed.players if _is_me(p.platform_id, my_player_id)), None)
     if me is None:
         return None
@@ -97,9 +97,14 @@ def _build_context(parsed, my_player_id, positioning, touch, metrics, extended, 
     goals_scored = sum(1 for g in parsed.goals if g.scoring_team == team)
     conceded_windows = [w for w in (extended.get("goal_windows") or []) if w.get("conceded")]
 
+    adv = advanced or {}
+    boost_econ = ((adv.get("boost_economy") or {}).get("per_player") or {}).get(name)
+    mech_rec = ((adv.get("mechanical_recovery") or {}).get("per_player") or {}).get(name)
+
     return {
         "name": name, "team": team, "enemy": enemy,
         "pos": pos, "pm": pm, "tsum": tsum, "ext_pp": ext_pp, "rotation": rotation,
+        "boost_econ": boost_econ, "mech_rec": mech_rec,
         "ballchase_idx": bc.get("index"),
         "double_commits": len(metrics.double_commit_events),
         "dc_events": metrics.double_commit_events,
@@ -376,10 +381,53 @@ def _d_rotation(ctx) -> Optional[Pattern]:
     )
 
 
+def _d_boost_waste(ctx) -> Optional[Pattern]:
+    be = ctx.get("boost_econ")
+    if not be:
+        return None
+    big, small, wasted = be.get("big_pads", 0), be.get("small_pads", 0), be.get("wasted_overfill", 0)
+    # corner-boost dependence: leaning on big pads + overfilling
+    if big < small or wasted < 120:
+        return None
+    score = (big - small) * 0.6 + (wasted - 120) / 60
+    return Pattern(
+        category="boost", title="Corner-boost dependence / overfilling", severity=_sev(score),
+        evidence=(f"{big} big pads vs {small} small, ~{int(wasted)} boost wasted to overfill "
+                  f"(economy rating {be.get('economy_rating')}/100)."),
+        pattern="You leave plays to chase full corner boost and top up when already half-full, "
+                "instead of grabbing small pads on your rotation line.",
+        consequence="Chasing corners pulls you out of position; the overfill is boost you paid for in rotation time and never used.",
+        fix="Route through small pads on the way back to position — only commit to a corner when you're genuinely empty AND safe.",
+        metric=f"big-vs-small pads {big}:{small} → flip it; wasted {int(wasted)} → <80",
+        confidence=0.6, score=score, diagram=None, timestamps=[],
+    )
+
+
+def _d_first_touch(ctx) -> Optional[Pattern]:
+    t = ctx.get("tsum")
+    if not t or getattr(t, "first_touches", 0) < 8:
+        return None
+    ft = t.first_touches
+    neg = t.first_touch_negative
+    neg_pct = 100.0 * neg / ft
+    if neg_pct < 22:
+        return None
+    score = (neg_pct - 22) / 6
+    return Pattern(
+        category="possession", title="Loose first touch", severity=_sev(score),
+        evidence=f"{neg}/{ft} first touches ({neg_pct:.0f}%) went straight to the opponent or into trouble.",
+        pattern="When you receive the ball your first touch is heavy — you give it back instead of settling it into space.",
+        consequence="A bad first touch ends your possession before it starts and invites immediate pressure.",
+        fix="Cushion the first touch into space ahead of you (away from pressure) before your next move — softer, not first-time.",
+        metric=f"bad first touches {neg_pct:.0f}% → <12%",
+        confidence=0.6, score=score, diagram=None, timestamps=[],
+    )
+
+
 _DETECTORS = [
     _d_rotation, _d_over_support, _d_under_support, _d_ball_side, _d_overcommit,
-    _d_last_man_risk, _d_giveaways, _d_panic_clears, _d_challenge_timing,
-    _d_boost_starve, _d_slow_reset,
+    _d_last_man_risk, _d_giveaways, _d_first_touch, _d_panic_clears, _d_challenge_timing,
+    _d_boost_starve, _d_boost_waste, _d_slow_reset,
 ]
 
 
@@ -387,7 +435,8 @@ _DETECTORS = [
 
 def compute_patterns(parsed, my_player_id: str, *,
                      positioning=None, touch=None, metrics=None, extended=None,
-                     rotation=None, rank_tier: Optional[str] = None, top_n: int = 6) -> PatternReport:
+                     rotation=None, advanced=None, rank_tier: Optional[str] = None,
+                     top_n: int = 6) -> PatternReport:
     """
     Detect and rank the tracked player's recurring habits.
 
@@ -416,8 +465,14 @@ def compute_patterns(parsed, my_player_id: str, *,
             rotation = compute_rotation(parsed, my_player_id)
         except Exception as e:
             log.debug("rotation unavailable for patterns: %s", e)
+    if advanced is None:
+        from .advanced import compute_advanced
+        try:
+            advanced = compute_advanced(parsed, my_player_id)
+        except Exception as e:
+            log.debug("advanced unavailable for patterns: %s", e)
 
-    ctx = _build_context(parsed, my_player_id, positioning, touch, metrics, extended, rotation)
+    ctx = _build_context(parsed, my_player_id, positioning, touch, metrics, extended, rotation, advanced)
     if ctx is None:
         return PatternReport(player="", is_me=False, rank_tier=rank_tier,
                              summary="Tracked player not found in this replay.")

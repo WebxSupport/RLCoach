@@ -76,6 +76,23 @@ def _analysis_fields(mj: dict, name: Optional[str]) -> dict:
         out["rotation_score"] = rot.get("score")
         out["poor_rotation_pct"] = round(100 * (rot.get("poor", 0) + rot.get("critical", 0)) / opp, 1)
         out["critical_errors"] = rot.get("critical")
+    # advanced execution (boost economy + mechanical recovery)
+    adv = a.get("advanced") or {}
+    be = ((adv.get("boost_economy") or {}).get("per_player") or {}).get(name)
+    if isinstance(be, dict):
+        out["boost_economy_rating"] = be.get("economy_rating")
+        out["boost_wasted"] = be.get("wasted_overfill")
+    mr = ((adv.get("mechanical_recovery") or {}).get("per_player") or {}).get(name)
+    if isinstance(mr, dict):
+        out["mech_recovery_s"] = mr.get("avg_recovery_s")
+    # first-touch quality (from the touch summary)
+    if isinstance(tp, dict):
+        ftt = tp.get("first_touches") or 0
+        if ftt:
+            out["first_touch_pos_pct"] = round(100 * (tp.get("first_touch_positive", 0)) / ftt, 1)
+    # defensive depth (last-man too high up)
+    if isinstance(pos, dict):
+        out["last_man_high_pct"] = (pos.get("last_man") or {}).get("high_pct")
     return out
 
 
@@ -134,7 +151,9 @@ def aggregate_matches(match_jsons: list, limit: int = 10) -> dict:
                    "back_post_pct", "near_post_pct", "own_half_pct",
                    "support_too_close_pct", "support_too_far_pct", "last_man_risky_pct",
                    "touch_positive_pct", "giveaways", "challenge_win_pct", "xg", "xg_diff",
-                   "rotation_score", "poor_rotation_pct", "critical_errors"]
+                   "rotation_score", "poor_rotation_pct", "critical_errors",
+                   "boost_economy_rating", "boost_wasted", "mech_recovery_s",
+                   "first_touch_pos_pct", "last_man_high_pct"]
 
     def avg_over(rows, key):
         return _mean([r.get(key) for r in rows])

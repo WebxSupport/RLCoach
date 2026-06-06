@@ -32,6 +32,7 @@ class FullAnalysis:
     shooting: object             # ShootingReport
     patterns: object             # PatternReport (tracked player)
     rotation: object = None      # RotationAnalysis (tracked player)
+    advanced: dict = None        # boost economy + mechanical recovery
 
     def to_dict(self, include_touches: bool = False, include_shots: bool = True) -> dict:
         from .positioning import positioning_to_dict
@@ -44,6 +45,7 @@ class FullAnalysis:
             "touch": touch_analysis_to_dict(self.touch, include_touches=include_touches),
             "shooting": shooting_to_dict(self.shooting, include_shots=include_shots),
             "rotation": rotation_to_dict(self.rotation or RotationAnalysis()),
+            "advanced": self.advanced or {},
             "patterns": patterns_to_dict(self.patterns),
             "extended": self.extended or {},
         }
@@ -81,13 +83,16 @@ def analyze_all(parsed, my_player_id: str, *,
     touch = _safe(lambda: compute_touch_analysis(parsed, my_player_id), None, "touch_analysis")
     shooting = _safe(lambda: compute_shooting(parsed, my_player_id), None, "shooting")
     rotation = _safe(lambda: compute_rotation(parsed, my_player_id), None, "rotation")
+    from .advanced import compute_advanced
+    advanced = _safe(lambda: compute_advanced(parsed, my_player_id), {}, "advanced")
     patterns = _safe(
         lambda: compute_patterns(parsed, my_player_id, positioning=positioning, touch=touch,
                                  metrics=metrics, extended=extended, rotation=rotation,
-                                 rank_tier=rank_tier),
+                                 advanced=advanced, rank_tier=rank_tier),
         None, "patterns")
 
     return FullAnalysis(
         metrics=metrics, extended=extended, positioning=positioning,
         touch=touch, shooting=shooting, patterns=patterns, rotation=rotation,
+        advanced=advanced,
     )

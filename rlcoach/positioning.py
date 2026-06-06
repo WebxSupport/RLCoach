@@ -106,6 +106,9 @@ class LastManMetrics:
     last_man_pct: float = 0.0
     avg_depth_when_last: float = 0.0
     risky_push_pct: float = 0.0     # share of last-man time spent out of own defensive half
+    deep_pct: float = 0.0           # last-man time in the deep third (<2000uu from own goal)
+    mid_pct: float = 0.0            # 2000–3500uu — the healthy covering band
+    high_pct: float = 0.0           # >3500uu up the field while last man — risky depth
     risky_moments: list = field(default_factory=list)  # list[LastManMoment]
 
 
@@ -355,11 +358,18 @@ def _last_man(df, gm, times, me_name, my_team_names, is_orange, bx, by) -> LastM
                 break
         moments.sort(key=lambda m: m.t)
 
-    avg_depth = float(np.nanmean(my_depth)) if np.isfinite(my_depth).any() else 0.0
+    fin = my_depth[np.isfinite(my_depth)]
+    avg_depth = float(np.nanmean(my_depth)) if fin.size else 0.0
+    deep_pct = mid_pct = high_pct = 0.0
+    if fin.size:
+        deep_pct = round(100.0 * float((fin < 2000).mean()), 1)
+        mid_pct = round(100.0 * float(((fin >= 2000) & (fin <= 3500)).mean()), 1)
+        high_pct = round(100.0 * float((fin > 3500).mean()), 1)
     return LastManMetrics(
         last_man_pct=round(100.0 * i_am_last.mean(), 1),
         avg_depth_when_last=round(avg_depth, 0),
         risky_push_pct=round(100.0 * risky.mean(), 1),
+        deep_pct=deep_pct, mid_pct=mid_pct, high_pct=high_pct,
         risky_moments=moments,
     )
 

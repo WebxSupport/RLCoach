@@ -91,6 +91,9 @@ class PlayerTouchSummary:
     avg_pressure: float = 0.0
     challenges: int = 0
     challenge_wins: int = 0
+    first_touches: int = 0       # touches where you just received/won the ball
+    first_touch_positive: int = 0
+    first_touch_negative: int = 0
 
 
 @dataclass
@@ -351,16 +354,26 @@ def _summarise_players(touches, challenges, team_of, isme_of) -> dict:
     for nm, team in team_of.items():
         summ[nm] = PlayerTouchSummary(name=nm, team=team, is_me=isme_of.get(nm, False))
     press_acc: dict = {}
+    prev_team = None
     for t in touches:
         s = summ.get(t.player)
         if s is None:
+            prev_team = t.team
             continue
         s.total += 1
         setattr(s, t.outcome, getattr(s, t.outcome) + 1)
         s.type_counts[t.type] = s.type_counts.get(t.type, 0) + 1
         if t.giveaway:
             s.giveaways += 1
+        # first touch = you just received/won the ball (previous touch was the other team)
+        if prev_team is None or prev_team != t.team:
+            s.first_touches += 1
+            if t.outcome == "positive":
+                s.first_touch_positive += 1
+            elif t.outcome == "negative":
+                s.first_touch_negative += 1
         press_acc.setdefault(t.player, []).append(t.pressure)
+        prev_team = t.team
     for c in challenges:
         s = summ.get(c.player)
         if s is None:
