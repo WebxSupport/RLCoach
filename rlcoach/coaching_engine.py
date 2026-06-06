@@ -316,4 +316,13 @@ def generate_coaching_plan(
     # Deterministic visuals for the plan's Habits panel (computed, not model-authored)
     plan["habits"] = _collect_habits(win_replay, loss_replay)
     plan["trends"] = _collect_trends(series)
+
+    # Curated tutorial videos matched to the player's habits + weaknesses + focus
+    try:
+        from rlcoach.learning_resources import select_resources
+        plan["resources"] = select_resources(
+            habits=plan["habits"], weaknesses=plan.get("weaknesses"), focus=plan.get("focus", ""))
+    except Exception as e:
+        log.info("resource selection skipped: %s", e)
+        plan["resources"] = []
     return plan
