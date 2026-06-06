@@ -196,6 +196,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.3;
   <a class="home" href="/" style="display:inline-flex;align-items:center;gap:8px">&larr; <img src="/static/logo.png" alt="RLCoach" style="height:22px;width:auto"/></a>
   <span class="kick">TRAINING PLAN</span>
   <span class="who" id="who"></span>
+  <button class="btn ghost" onclick="deletePlan()" style="color:var(--red);border-color:var(--red);padding:6px 12px;font-size:12px;margin-left:10px">🗑 Delete plan</button>
 </div>
 
 <div class="wrap">
@@ -404,6 +405,13 @@ function renderDrills(){
     html+=`<div class="card"><h2>More drills in your plan</h2><div class="sub">Extra drills from your library not tied to a specific day</div>${leftover.map(drillCard).join('')}</div>`;
   }
   $("#p-drills").innerHTML=html;
+}
+function deletePlan(){
+  var id=(typeof PLAN_ID!=='undefined')?PLAN_ID:'';
+  if(!id){ alert('Could not identify this plan to delete — go back and delete it from the app.'); return; }
+  if(!confirm('Delete this plan? This cannot be undone.')) return;
+  fetch('/api/coaching/'+encodeURIComponent(id),{method:'DELETE'})
+    .then(()=>{ location.href='/'; }).catch(()=>{ alert('Delete failed.'); });
 }
 function copyCode(code,btn){navigator.clipboard.writeText(code).then(()=>{const o=btn.textContent;btn.textContent='copied!';setTimeout(()=>btn.textContent=o,1200);});}
 function gotoDrill(id){

@@ -676,7 +676,7 @@ async def view_coaching(plan_id: Optional[str] = None, session_id: Optional[str]
             else await db.get_latest_coaching_plan(session["session_id"]))
     if not plan:
         raise HTTPException(404, "No coaching plan yet")
-    return HTMLResponse(_render_coaching_html(plan["content_md"]))
+    return HTMLResponse(_render_coaching_html(plan["content_md"], plan.get("plan_id", "")))
 
 
 # ── series (multi-match) analysis ──────────────────────────────────────────────
@@ -741,7 +741,7 @@ async def view_series(report_id: Optional[str] = None, session_id: Optional[str]
            else await db.get_latest_series(session["session_id"]))
     if not rep:
         raise HTTPException(404, "No series report yet")
-    return HTMLResponse(_render_series_html(rep["content"]))
+    return HTMLResponse(_render_series_html(rep["content"], rep.get("report_id", "")))
 
 
 async def _run_series_job(job_id: str, session: dict, profile: dict, db, api_key: str) -> None:
@@ -809,13 +809,14 @@ async def _run_series_job(job_id: str, session: dict, profile: dict, db, api_key
     await db.update_job(job_id, state)
 
 
-def _render_series_html(report_json_str: str) -> str:
+def _render_series_html(report_json_str: str, report_id: str = "") -> str:
     template = Path("static/series_template.html").read_text(encoding="utf-8")
     try:
         report = json.loads(report_json_str)
     except Exception:
         report = {}
-    injected = "const SERIES = " + json.dumps(report, ensure_ascii=False) + ";"
+    injected = ("const SERIES = " + json.dumps(report, ensure_ascii=False) + ";\n"
+                "const SERIES_ID = " + json.dumps(report_id or "") + ";")
     if "const SERIES = {};" in template:
         return template.replace("const SERIES = {};", injected, 1)
     return template.replace("/*SERIES_INJECT*/", injected, 1)
@@ -1053,14 +1054,15 @@ async def _run_coaching_job(
     log.info("Coaching job %s complete for session %s", job_id, session_id)
 
 
-def _render_coaching_html(plan_json_str: str) -> str:
-    """Inject the PLAN object into the interactive coaching dashboard template."""
+def _render_coaching_html(plan_json_str: str, plan_id: str = "") -> str:
+    """Inject the PLAN object (+ its id, for the in-report delete button) into the template."""
     template = Path("static/coaching_template.html").read_text(encoding="utf-8")
     try:
         plan = json.loads(plan_json_str)
     except Exception:
         plan = {}
-    injected = "const PLAN = " + json.dumps(plan, ensure_ascii=False) + ";"
+    injected = ("const PLAN = " + json.dumps(plan, ensure_ascii=False) + ";\n"
+                "const PLAN_ID = " + json.dumps(plan_id or "") + ";")
     if "const PLAN = {};" in template:
         return template.replace("const PLAN = {};", injected, 1)
     return template.replace("/*PLAN_INJECT*/", injected, 1)

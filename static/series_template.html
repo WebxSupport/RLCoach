@@ -70,6 +70,7 @@ body{background:radial-gradient(900px 500px at 80% -10%,#0f2236 0%,transparent 6
   <a class="home" href="/">&larr; <img src="/static/logo.png" alt="RLCoach" style="height:22px;width:auto"/></a>
   <span class="kick">SERIES REPORT</span>
   <span class="who" id="who"></span>
+  <button class="btn ghost" onclick="deleteReport()" style="color:var(--red);border-color:var(--red);padding:6px 12px;font-size:12px;margin-left:10px">🗑 Delete report</button>
 </div>
 
 <div class="wrap">
@@ -90,6 +91,13 @@ const SERIES = {};
 
 const esc=s=>(s==null?'':(''+s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const $=s=>document.querySelector(s);
+function deleteReport(){
+  var id=(typeof SERIES_ID!=='undefined')?SERIES_ID:'';
+  if(!id){ alert('Could not identify this report to delete — go back and delete it from the app.'); return; }
+  if(!confirm('Delete this series report? This cannot be undone.')) return;
+  fetch('/api/series/'+encodeURIComponent(id),{method:'DELETE'})
+    .then(()=>{ location.href='/'; }).catch(()=>{ alert('Delete failed.'); });
+}
 const M=SERIES.meta||{}, R=SERIES.record||{};
 $("#who").textContent=M.player?('👤 '+M.player):'';
 $("#foot").textContent='Series of '+(R.games||0)+' games · '+(M.gamemode||'')+' · generated '+(M.generated||'');

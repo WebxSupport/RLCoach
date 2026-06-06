@@ -55,7 +55,16 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 .input{width:100%;padding:11px 14px;background:#0c1623;border:1px solid var(--line2);
   border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:13px;outline:none;appearance:none}
 .input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px #34d6f715}.input option{background:#0c1623}
-.hist-select{width:auto;max-width:230px;font-family:var(--mono);font-size:12px;padding:7px 10px}
+/* past plans / reports — compact stacked cards */
+.hist-h{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:24px 0 10px}
+.hist-list{display:flex;flex-direction:column;gap:8px}
+.hist-card{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:11px 14px;cursor:pointer;transition:border-color .12s,transform .1s}
+.hist-card:hover{border-color:var(--cyan);transform:translateY(-1px)}
+.hist-card .hc-main{flex:1;min-width:0}
+.hist-card .hc-date{font-size:13.5px;font-weight:700}
+.hist-card .hc-sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+.hist-card .hc-del{background:none;border:1px solid var(--line2);color:var(--muted);border-radius:7px;padding:6px 9px;cursor:pointer;font-size:13px;flex-shrink:0}
+.hist-card .hc-del:hover{color:var(--red);border-color:var(--red);background:#1a0d12}
 .input-group{margin-bottom:16px}
 .input-label{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px}
 .input-hint{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:5px;line-height:1.5}
@@ -406,9 +415,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     <div class="tab-panel active" id="tab-coaching">
       <div class="coaching-header">
         <h1>Your Coaching Plan</h1>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select class="input hist-select" id="plan-history" style="display:none" onchange="onPlanHistory(this.value)"></select>
-          <button class="btn btn-danger btn-sm" id="plan-del-btn" style="display:none" title="Delete the selected past plan" onclick="deleteSelectedPlan()">🗑</button>
+        <div style="display:flex;gap:8px">
           <button class="btn btn-ghost btn-sm" id="view-plan-btn" style="display:none" onclick="openCoachingPlan()">View Full Plan ↗</button>
           <button class="btn btn-primary btn-sm" id="regen-btn" onclick="triggerCoaching()">↻ Regenerate Plan</button>
         </div>
@@ -428,6 +435,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
           <button class="btn btn-primary" onclick="openCoachingPlan()" style="width:100%;justify-content:center;margin-top:4px">Open Full Plan ↗</button>
         </div>
       </div>
+      <div id="plan-history"></div>
       <div id="coaching-empty" style="display:none">
         <div class="coaching-empty">
           <div class="icon">📋</div>
@@ -440,9 +448,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     <div class="tab-panel" id="tab-series">
       <div class="coaching-header">
         <h1>Series Report</h1>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select class="input hist-select" id="series-history" style="display:none" onchange="onSeriesHistory(this.value)"></select>
-          <button class="btn btn-danger btn-sm" id="series-del-btn" style="display:none" title="Delete the selected past report" onclick="deleteSelectedSeries()">🗑</button>
+        <div style="display:flex;gap:8px">
           <button class="btn btn-ghost btn-sm" id="view-series-btn" style="display:none" onclick="openSeries()">View Report ↗</button>
           <button class="btn btn-primary btn-sm" id="gen-series-btn" onclick="triggerSeries()">↻ Analyse Recent Games</button>
         </div>
@@ -462,6 +468,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
           <button class="btn btn-primary" onclick="openSeries()" style="width:100%;justify-content:center;margin-top:4px">Open Series Report ↗</button>
         </div>
       </div>
+      <div id="series-history"></div>
       <div id="series-empty" style="display:none">
         <div class="coaching-empty">
           <div class="icon">📊</div>
@@ -1049,20 +1056,19 @@ async function loadCoachingStatus() {
 async function loadPlanHistory(){
   try{
     const list=await get('/api/coaching/list');
-    const sel=document.getElementById('plan-history'), del2=document.getElementById('plan-del-btn');
-    if(!sel) return;
-    if(!list.length){ sel.style.display='none'; del2.style.display='none'; return; }
-    sel.style.display=''; del2.style.display='';
-    sel.innerHTML='<option value="">Past plans ('+list.length+')…</option>'+list.map(p=>{
+    const host=document.getElementById('plan-history'); if(!host) return;
+    const past=list.slice(1);   // index 0 is the current plan (shown as the big card above)
+    if(!past.length){ host.innerHTML=''; return; }
+    host.innerHTML='<div class="hist-h">Past plans</div><div class="hist-list">'+past.map(p=>{
       const d=new Date(p.generated_at).toLocaleDateString();
-      return `<option value="${p.plan_id}">${d}${p.label?' · '+p.label:''}</option>`;
-    }).join('');
+      return `<div class="hist-card" onclick="openPlanId('${p.plan_id}')">
+        <div class="hc-main"><div class="hc-date">${d}</div><div class="hc-sub">${p.label||'Coaching plan'}</div></div>
+        <button class="hc-del" title="Delete plan" onclick="event.stopPropagation();deletePlanId('${p.plan_id}')">🗑</button></div>`;
+    }).join('')+'</div>';
   }catch(e){}
 }
-function onPlanHistory(id){ if(id) window.open('/api/coaching/view?plan_id='+encodeURIComponent(id),'_blank'); }
-async function deleteSelectedPlan(){
-  const sel=document.getElementById('plan-history'), id=sel&&sel.value;
-  if(!id){ toast('Pick a past plan from the dropdown to delete.','warn'); return; }
+function openPlanId(id){ window.open('/api/coaching/view?plan_id='+encodeURIComponent(id),'_blank'); }
+async function deletePlanId(id){
   if(!confirm('Delete this saved plan? This cannot be undone.')) return;
   try{ await del('/api/coaching/'+encodeURIComponent(id)); toast('Plan deleted','success'); await loadCoachingStatus(); }
   catch(e){ toast('Delete failed: '+e.message); }
@@ -1190,20 +1196,19 @@ function openSeries(){ window.open('/api/series/view','_blank'); }
 async function loadSeriesHistory(){
   try{
     const list=await get('/api/series/list');
-    const sel=document.getElementById('series-history'), del2=document.getElementById('series-del-btn');
-    if(!sel) return;
-    if(!list.length){ sel.style.display='none'; del2.style.display='none'; return; }
-    sel.style.display=''; del2.style.display='';
-    sel.innerHTML='<option value="">Past reports ('+list.length+')…</option>'+list.map(r=>{
+    const host=document.getElementById('series-history'); if(!host) return;
+    const past=list.slice(1);   // index 0 is the current report (shown as the big card above)
+    if(!past.length){ host.innerHTML=''; return; }
+    host.innerHTML='<div class="hist-h">Past reports</div><div class="hist-list">'+past.map(r=>{
       const d=new Date(r.generated_at).toLocaleDateString();
-      return `<option value="${r.report_id}">${d} · ${r.games} games</option>`;
-    }).join('');
+      return `<div class="hist-card" onclick="openSeriesId('${r.report_id}')">
+        <div class="hc-main"><div class="hc-date">${d}</div><div class="hc-sub">${r.games} games</div></div>
+        <button class="hc-del" title="Delete report" onclick="event.stopPropagation();deleteSeriesId('${r.report_id}')">🗑</button></div>`;
+    }).join('')+'</div>';
   }catch(e){}
 }
-function onSeriesHistory(id){ if(id) window.open('/api/series/view?report_id='+encodeURIComponent(id),'_blank'); }
-async function deleteSelectedSeries(){
-  const sel=document.getElementById('series-history'), id=sel&&sel.value;
-  if(!id){ toast('Pick a past report from the dropdown to delete.','warn'); return; }
+function openSeriesId(id){ window.open('/api/series/view?report_id='+encodeURIComponent(id),'_blank'); }
+async function deleteSeriesId(id){
   if(!confirm('Delete this saved series report? This cannot be undone.')) return;
   try{ await del('/api/series/'+encodeURIComponent(id)); toast('Report deleted','success'); await loadSeriesStatus(); }
   catch(e){ toast('Delete failed: '+e.message); }
