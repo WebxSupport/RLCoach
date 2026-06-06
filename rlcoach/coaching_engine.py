@@ -321,7 +321,8 @@ def generate_coaching_plan(
     try:
         from rlcoach.learning_resources import select_resources
         plan["resources"] = select_resources(
-            habits=plan["habits"], weaknesses=plan.get("weaknesses"), focus=plan.get("focus", ""))
+            habits=plan["habits"], weaknesses=plan.get("weaknesses"),
+            focus=plan.get("focus", ""), drills=plan.get("drills"))
     except Exception as e:
         log.info("resource selection skipped: %s", e)
         plan["resources"] = []
