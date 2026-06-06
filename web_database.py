@@ -491,6 +491,32 @@ class Database:
         d["replay_guids"] = json.loads(d["replay_guids"])
         return d
 
+    async def list_coaching_plans(self, session_id: str) -> list:
+        async with self._db.execute(
+            """SELECT plan_id, content_md, generated_at FROM coaching_plans
+               WHERE session_id=? ORDER BY generated_at DESC""",
+            (session_id,),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def get_coaching_plan(self, plan_id: str, session_id: str) -> Optional[dict]:
+        async with self._db.execute(
+            "SELECT * FROM coaching_plans WHERE plan_id=? AND session_id=?",
+            (plan_id, session_id),
+        ) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["replay_guids"] = json.loads(d["replay_guids"])
+        return d
+
+    async def delete_coaching_plan(self, plan_id: str, session_id: str) -> None:
+        await self._db.execute(
+            "DELETE FROM coaching_plans WHERE plan_id=? AND session_id=?", (plan_id, session_id)
+        )
+        await self._db.commit()
+
     # ── tracker ────────────────────────────────────────────────────────────────
 
     async def get_tracker(self, session_id: str) -> dict:
@@ -529,3 +555,25 @@ class Database:
         ) as cur:
             row = await cur.fetchone()
         return dict(row) if row else None
+
+    async def list_series_reports(self, session_id: str) -> list:
+        async with self._db.execute(
+            """SELECT report_id, games, generated_at FROM series_reports
+               WHERE session_id=? ORDER BY generated_at DESC""",
+            (session_id,),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def get_series_report(self, report_id: str, session_id: str) -> Optional[dict]:
+        async with self._db.execute(
+            "SELECT * FROM series_reports WHERE report_id=? AND session_id=?",
+            (report_id, session_id),
+        ) as cur:
+            row = await cur.fetchone()
+        return dict(row) if row else None
+
+    async def delete_series_report(self, report_id: str, session_id: str) -> None:
+        await self._db.execute(
+            "DELETE FROM series_reports WHERE report_id=? AND session_id=?", (report_id, session_id)
+        )
+        await self._db.commit()

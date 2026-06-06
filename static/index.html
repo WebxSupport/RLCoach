@@ -55,6 +55,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 .input{width:100%;padding:11px 14px;background:#0c1623;border:1px solid var(--line2);
   border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:13px;outline:none;appearance:none}
 .input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px #34d6f715}.input option{background:#0c1623}
+.hist-select{width:auto;max-width:230px;font-family:var(--mono);font-size:12px;padding:7px 10px}
 .input-group{margin-bottom:16px}
 .input-label{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px}
 .input-hint{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:5px;line-height:1.5}
@@ -405,7 +406,9 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     <div class="tab-panel active" id="tab-coaching">
       <div class="coaching-header">
         <h1>Your Coaching Plan</h1>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select class="input hist-select" id="plan-history" style="display:none" onchange="onPlanHistory(this.value)"></select>
+          <button class="btn btn-danger btn-sm" id="plan-del-btn" style="display:none" title="Delete the selected past plan" onclick="deleteSelectedPlan()">🗑</button>
           <button class="btn btn-ghost btn-sm" id="view-plan-btn" style="display:none" onclick="openCoachingPlan()">View Full Plan ↗</button>
           <button class="btn btn-primary btn-sm" id="regen-btn" onclick="triggerCoaching()">↻ Regenerate Plan</button>
         </div>
@@ -437,7 +440,9 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     <div class="tab-panel" id="tab-series">
       <div class="coaching-header">
         <h1>Series Report</h1>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select class="input hist-select" id="series-history" style="display:none" onchange="onSeriesHistory(this.value)"></select>
+          <button class="btn btn-danger btn-sm" id="series-del-btn" style="display:none" title="Delete the selected past report" onclick="deleteSelectedSeries()">🗑</button>
           <button class="btn btn-ghost btn-sm" id="view-series-btn" style="display:none" onclick="openSeries()">View Report ↗</button>
           <button class="btn btn-primary btn-sm" id="gen-series-btn" onclick="triggerSeries()">↻ Analyse Recent Games</button>
         </div>
@@ -549,6 +554,7 @@ async function api(method, path, body) {
 }
 const get = p => api('GET', p);
 const post = (p,b) => api('POST', p, b);
+const del = p => api('DELETE', p);
 
 function toast(msg, type='error') {
   const PRESETS={error:{c:'var(--red)',bg:'#1a0d12'},success:{c:'var(--green)',bg:'#081a11'},info:{c:'var(--cyan)',bg:'#071318'},warn:{c:'var(--amber)',bg:'#1a1400'}};
@@ -1036,7 +1042,30 @@ async function loadCoachingStatus() {
       const d=new Date(plan.generated_at).toLocaleDateString();
       document.getElementById('plan-meta').innerHTML=`<span>${p.gamemode||''}</span><span>${p.mins_per_day||60} min/day</span><span>Generated: ${d}</span>`;
     }
+    loadPlanHistory();
   } catch(e) {}
+}
+
+async function loadPlanHistory(){
+  try{
+    const list=await get('/api/coaching/list');
+    const sel=document.getElementById('plan-history'), del2=document.getElementById('plan-del-btn');
+    if(!sel) return;
+    if(!list.length){ sel.style.display='none'; del2.style.display='none'; return; }
+    sel.style.display=''; del2.style.display='';
+    sel.innerHTML='<option value="">Past plans ('+list.length+')…</option>'+list.map(p=>{
+      const d=new Date(p.generated_at).toLocaleDateString();
+      return `<option value="${p.plan_id}">${d}${p.label?' · '+p.label:''}</option>`;
+    }).join('');
+  }catch(e){}
+}
+function onPlanHistory(id){ if(id) window.open('/api/coaching/view?plan_id='+encodeURIComponent(id),'_blank'); }
+async function deleteSelectedPlan(){
+  const sel=document.getElementById('plan-history'), id=sel&&sel.value;
+  if(!id){ toast('Pick a past plan from the dropdown to delete.','warn'); return; }
+  if(!confirm('Delete this saved plan? This cannot be undone.')) return;
+  try{ await del('/api/coaching/'+encodeURIComponent(id)); toast('Plan deleted','success'); await loadCoachingStatus(); }
+  catch(e){ toast('Delete failed: '+e.message); }
 }
 
 function busyMsg(t){
@@ -1154,9 +1183,31 @@ async function loadSeriesStatus(){
       const d=new Date(s.generated_at).toLocaleDateString();
       document.getElementById('series-meta').innerHTML=`<span>${_profile.gamemode||''}</span><span>${s.games} games</span><span>Generated: ${d}</span>`;
     }
+    loadSeriesHistory();
   }catch(e){}
 }
 function openSeries(){ window.open('/api/series/view','_blank'); }
+async function loadSeriesHistory(){
+  try{
+    const list=await get('/api/series/list');
+    const sel=document.getElementById('series-history'), del2=document.getElementById('series-del-btn');
+    if(!sel) return;
+    if(!list.length){ sel.style.display='none'; del2.style.display='none'; return; }
+    sel.style.display=''; del2.style.display='';
+    sel.innerHTML='<option value="">Past reports ('+list.length+')…</option>'+list.map(r=>{
+      const d=new Date(r.generated_at).toLocaleDateString();
+      return `<option value="${r.report_id}">${d} · ${r.games} games</option>`;
+    }).join('');
+  }catch(e){}
+}
+function onSeriesHistory(id){ if(id) window.open('/api/series/view?report_id='+encodeURIComponent(id),'_blank'); }
+async function deleteSelectedSeries(){
+  const sel=document.getElementById('series-history'), id=sel&&sel.value;
+  if(!id){ toast('Pick a past report from the dropdown to delete.','warn'); return; }
+  if(!confirm('Delete this saved series report? This cannot be undone.')) return;
+  try{ await del('/api/series/'+encodeURIComponent(id)); toast('Report deleted','success'); await loadSeriesStatus(); }
+  catch(e){ toast('Delete failed: '+e.message); }
+}
 
 let _allMatches = [];
 async function loadMatches() {

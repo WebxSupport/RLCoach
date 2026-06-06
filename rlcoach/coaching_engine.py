@@ -326,4 +326,15 @@ def generate_coaching_plan(
     except Exception as e:
         log.info("resource selection skipped: %s", e)
         plan["resources"] = []
+
+    # Start the weekly plan on the day it's generated (not always Monday). The model
+    # returns a 7-day progression; we anchor day 1 to today and label the rest forward.
+    try:
+        _DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        ti = date.today().weekday()
+        for i, d in enumerate(plan.get("week") or []):
+            if isinstance(d, dict):
+                d["day"] = _DOW[(ti + i) % 7]
+    except Exception:
+        pass
     return plan

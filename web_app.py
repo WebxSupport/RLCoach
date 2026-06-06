@@ -647,10 +647,33 @@ async def get_coaching(session_id: Optional[str] = Cookie(default=None)):
     }
 
 
-@app.get("/api/coaching/view")
-async def view_coaching(session_id: Optional[str] = Cookie(default=None)):
+@app.get("/api/coaching/list")
+async def list_coaching(session_id: Optional[str] = Cookie(default=None)):
     session = await _require_session(session_id)
-    plan = await db.get_latest_coaching_plan(session["session_id"])
+    out = []
+    for p in await db.list_coaching_plans(session["session_id"]):
+        meta = {}
+        try:
+            meta = (json.loads(p["content_md"]).get("meta") or {})
+        except Exception:
+            pass
+        label = " → ".join(x for x in (meta.get("gamemode"), meta.get("targetRank")) if x)
+        out.append({"plan_id": p["plan_id"], "generated_at": p["generated_at"], "label": label})
+    return out
+
+
+@app.delete("/api/coaching/{plan_id}")
+async def delete_coaching(plan_id: str, session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    await db.delete_coaching_plan(plan_id, session["session_id"])
+    return {"status": "deleted"}
+
+
+@app.get("/api/coaching/view")
+async def view_coaching(plan_id: Optional[str] = None, session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    plan = (await db.get_coaching_plan(plan_id, session["session_id"]) if plan_id
+            else await db.get_latest_coaching_plan(session["session_id"]))
     if not plan:
         raise HTTPException(404, "No coaching plan yet")
     return HTMLResponse(_render_coaching_html(plan["content_md"]))
@@ -697,10 +720,25 @@ async def get_series(session_id: Optional[str] = Cookie(default=None)):
             "games": rep["games"], "generated_at": rep["generated_at"]}
 
 
-@app.get("/api/series/view")
-async def view_series(session_id: Optional[str] = Cookie(default=None)):
+@app.get("/api/series/list")
+async def list_series(session_id: Optional[str] = Cookie(default=None)):
     session = await _require_session(session_id)
-    rep = await db.get_latest_series(session["session_id"])
+    return [{"report_id": r["report_id"], "games": r["games"], "generated_at": r["generated_at"]}
+            for r in await db.list_series_reports(session["session_id"])]
+
+
+@app.delete("/api/series/{report_id}")
+async def delete_series(report_id: str, session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    await db.delete_series_report(report_id, session["session_id"])
+    return {"status": "deleted"}
+
+
+@app.get("/api/series/view")
+async def view_series(report_id: Optional[str] = None, session_id: Optional[str] = Cookie(default=None)):
+    session = await _require_session(session_id)
+    rep = (await db.get_series_report(report_id, session["session_id"]) if report_id
+           else await db.get_latest_series(session["session_id"]))
     if not rep:
         raise HTTPException(404, "No series report yet")
     return HTMLResponse(_render_series_html(rep["content"]))
