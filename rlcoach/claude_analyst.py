@@ -371,3 +371,29 @@ def _inject_analysis_panels(match_obj: dict, match_json: dict) -> None:
                     "xg": me_sh.get("xg"), "finishing": me_sh.get("finishing")}
                    if me_sh else {}),
         }
+
+    def _me_of(section):
+        return next((v for v in (section or {}).values()
+                     if isinstance(v, dict) and v.get("is_me")), None)
+
+    # Touch quality + challenges (tracked player + match-level)
+    t = analysis.get("touch") or {}
+    if t:
+        match_obj["touch"] = {
+            "me": _me_of(t.get("per_player")),
+            "challenges": t.get("challenges"),
+            "possession": t.get("team_possession"),
+            "possessions": t.get("possessions"),
+        }
+
+    # Advanced execution: boost economy + mechanical recovery (tracked player)
+    adv = analysis.get("advanced") or {}
+    be = _me_of((adv.get("boost_economy") or {}).get("per_player"))
+    mr = _me_of((adv.get("mechanical_recovery") or {}).get("per_player"))
+    if be or mr:
+        match_obj["advanced"] = {"boost": be, "recovery": mr}
+
+    # Defensive depth (tracked player's last-man profile)
+    me_pos = _me_of(analysis.get("positioning"))
+    if me_pos and me_pos.get("last_man"):
+        match_obj["lastMan"] = me_pos["last_man"]

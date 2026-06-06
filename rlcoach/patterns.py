@@ -424,10 +424,33 @@ def _d_first_touch(ctx) -> Optional[Pattern]:
     )
 
 
+def _d_mechanical_recovery(ctx) -> Optional[Pattern]:
+    mr = ctx.get("mech_rec")
+    if not mr or mr.get("aerials", 0) < 5:
+        return None
+    slow = mr.get("slow_landings", 0)
+    avg = mr.get("avg_recovery_s", 0) or 0
+    ret = mr.get("speed_retention_pct")
+    slow_pct = 100.0 * slow / mr["aerials"]
+    if slow_pct < 20 and avg < 1.2:
+        return None
+    score = slow_pct / 8 + max(0.0, avg - 1.0) * 2
+    return Pattern(
+        category="defense", title="Slow aerial recoveries", severity=_sev(score),
+        evidence=(f"{slow}/{mr['aerials']} aerials landed slow; {avg:.1f}s avg to regain ground control"
+                  + (f", {ret:.0f}% speed kept." if ret is not None else ".")),
+        pattern="After committing to the air you land flat or facing the wrong way, bleeding time and speed before you can move.",
+        consequence="Every slow recovery is a free beat for the opponent — you arrive late to the next ball.",
+        fix="Air-roll to wheels-down before landing, half-flip when facing your own net, and dodge out of the landing to keep momentum.",
+        metric=f"slow landings {slow_pct:.0f}% → <10%",
+        confidence=0.55, score=score, diagram=None, timestamps=[],
+    )
+
+
 _DETECTORS = [
     _d_rotation, _d_over_support, _d_under_support, _d_ball_side, _d_overcommit,
     _d_last_man_risk, _d_giveaways, _d_first_touch, _d_panic_clears, _d_challenge_timing,
-    _d_boost_starve, _d_boost_waste, _d_slow_reset,
+    _d_boost_starve, _d_boost_waste, _d_mechanical_recovery, _d_slow_reset,
 ]
 
 

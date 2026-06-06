@@ -251,6 +251,10 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
       <div class="card"><h3>Possession & net coverage</h3><div class="sub">Who held the ball, and how often a defender was home</div><div id="possession"></div></div>
       <div class="card"><h3>Field occupancy (thirds)</h3><div class="sub">Defensive · Neutral · Offensive split</div><div id="thirds"></div></div>
     </div>
+    <div class="grid2">
+      <div class="card"><h3>Boost economy</h3><div class="sub" id="beSub">Small pads vs corner boost, and how much you overfilled</div><div id="boostEcon"></div></div>
+      <div class="card"><h3>Recovery</h3><div class="sub">Getting back to full control after committing to the air</div><div id="recovery"></div></div>
+    </div>
   </div>
 
   <!-- KICKOFFS -->
@@ -272,6 +276,16 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
     </div>
   </div>
 
+  <!-- TOUCH & DUELS -->
+  <div class="panel" data-p="touch">
+    <div class="grid2">
+      <div class="card"><h3>Touch quality</h3><div class="sub" id="tqSub">Every touch typed and scored — controlled possession vs clears and panic.</div><div id="touchTypes"></div><div id="touchOutcomes" style="margin-top:14px"></div></div>
+      <div class="card"><h3>First touch</h3><div class="sub">When you receive the ball — settled into space, or given straight back?</div><div id="firstTouch"></div></div>
+    </div>
+    <div class="card"><h3>Challenges &amp; 50/50s</h3><div class="sub" id="chSub">How you contest — and how often you come out with it.</div>
+      <div class="grid2"><div id="chOutcome"></div><div id="chType"></div></div></div>
+  </div>
+
   <!-- PLAYERS -->
   <div class="panel" data-p="players">
     <div class="card" style="padding:0;overflow:auto"><div id="ptable"></div></div>
@@ -280,6 +294,7 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
 
   <!-- POSITIONING -->
   <div class="panel" data-p="positioning">
+    <div class="card"><h3>Defensive depth — last man</h3><div class="sub" id="ddSub">How deep you sit when you're the last line. Mid band is the healthy covering zone; high = caught up the field.</div><div id="defDepth"></div></div>
     <div class="card"><h3>Positioning heatmaps</h3><div class="sub">Where each player spent their time — attacking end at the top, own net at the bottom</div>
       <div id="fieldmaps"></div></div>
   </div>
@@ -444,7 +459,23 @@ const MATCH = {
       { t:153, grade:"poor", reasons:["rotated through the middle"], support_after:1650 },
       { t:185, grade:"poor", reasons:["collapsed onto teammate (980uu — overlap)"], support_after:980 },
       { t:120, grade:"excellent", reasons:["clean back-post rotation with a pad grabbed"], support_after:2100 }
-    ]}
+    ]},
+
+  // touch quality + challenges (tracked player) and match possession
+  touch:{
+    me:{ total:49, positive:23, neutral:21, negative:5, giveaways:5, challenges:15, challenge_wins:2,
+         first_touches:21, first_touch_positive:9, first_touch_negative:4,
+         type_counts:{ controlled:7, clear:14, challenge:15, shot:11, neutral:2 } },
+    challenges:{ count:72, by_type:{ immediate:50, delayed:22 }, by_outcome:{ win:17, neutral:22, loss:33 } },
+    possession:{ blue:52, orange:48 }
+  },
+  // advanced execution: boost economy + mechanical recovery (tracked player)
+  advanced:{
+    boost:{ small_pads:74, big_pads:14, wasted_overfill:145, steals:2, avg_boost:45.3, economy_rating:62.1 },
+    recovery:{ aerials:28, avg_recovery_s:0.6, slow_landings:3, speed_retention_pct:88, recovery_dodges:22 }
+  },
+  // defensive depth — last-man profile (tracked player)
+  lastMan:{ last_man_pct:49, avg_depth_when_last:2600, risky_push_pct:22, deep_pct:54, mid_pct:13, high_pct:33 }
 };
 /* ============================  END OF EDITABLE DATA  ================================= */
 
@@ -464,7 +495,7 @@ $("#result").innerHTML=`<span class="verdict">${r.win?"Victory":"Defeat"}</span>
 $("#foot").textContent=`Generated from frame telemetry · ${MATCH.players.length} players · ${MATCH.meta.map}`;
 $("#kpis").innerHTML=MATCH.kpis.map(k=>`<div class="kpi ${k.tone||''}"><div class="l">${k.label}</div><div class="v">${k.value}</div><div class="s">${k.sub||''}</div></div>`).join('');
 
-const TABS=[["overview","Overview"],["patterns","Habits"],["autopsy","Goal Autopsy"],["shooting","Shooting xG"],["rotation","Rotation & Shape"],["boost","Boost & Possession"],["kickoffs","Kickoffs"],["positioning","Positioning"],["players","Players"],["moments","Moments"]];
+const TABS=[["overview","Overview"],["patterns","Habits"],["autopsy","Goal Autopsy"],["shooting","Shooting xG"],["touch","Touch & Duels"],["rotation","Rotation & Shape"],["boost","Boost & Possession"],["kickoffs","Kickoffs"],["positioning","Positioning"],["players","Players"],["moments","Moments"]];
 $("#tabs").innerHTML=TABS.map((t,i)=>`<button class="tab ${i==0?'active':''}" data-t="${t[0]}">${t[1]}</button>`).join('');
 $("#tabs").addEventListener('click',e=>{const b=e.target.closest('.tab'); if(!b)return;
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -780,6 +811,55 @@ function radar(stats){
       <div style="display:flex;gap:10px;align-items:center"><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${(+e.t).toFixed(0)}s</span>
       <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:${gc[e.grade]};border:1px solid currentColor;border-radius:999px;padding:2px 8px">${e.grade}</span></div>
       <div style="font-size:12.5px;color:#cdd9e6;margin-top:5px;line-height:1.45">${(e.reasons||[]).join(' · ')}</div></div>`).join('')) : '';
+})();
+
+/* touch quality + first touch + challenges */
+(function(){
+  const T=MATCH.touch;
+  if(!T||!T.me){ ['touchTypes','firstTouch','chOutcome','chType'].forEach(id=>{const e=$('#'+id); if(e)e.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">No touch data for this match.</div>';}); return; }
+  const me=T.me, TYPE_COL={controlled:'var(--green)',pass:'var(--cyan)',shot:'var(--blue)',clear:'var(--amber)',challenge:'#b98cff',panic:'var(--red)',neutral:'var(--muted)'};
+  const seg=(items,total)=>`<div style="display:flex;height:24px;border-radius:6px;overflow:hidden;border:1px solid var(--line);font-family:var(--mono);font-size:10px;font-weight:600">`+
+    items.filter(([k,v])=>v>0).map(([k,v,c])=>`<div title="${k} ${v}" style="width:${v/total*100}%;background:${c}33;color:${c};display:grid;place-items:center;min-width:0">${v}</div>`).join('')+`</div>`+
+    `<div class="legend" style="margin-top:9px">`+items.filter(([k,v])=>v>0).map(([k,v,c])=>`<span><i style="background:${c}"></i>${k} ${v}</span>`).join('')+`</div>`;
+  const tc=me.type_counts||{}, ttot=Object.values(tc).reduce((a,b)=>a+b,0)||1;
+  const titems=Object.entries(tc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,v,TYPE_COL[k]||'var(--muted)']);
+  $('#tqSub').innerHTML=`${me.total} touches — controlled possession vs clears & panic.`;
+  $('#touchTypes').innerHTML=seg(titems,ttot);
+  $('#touchOutcomes').innerHTML=seg([['positive',me.positive,'var(--green)'],['neutral',me.neutral,'var(--muted)'],['negative',me.negative,'var(--red)']],me.total||1);
+  const ft=me.first_touches||0, ftp=me.first_touch_positive||0, ftn=me.first_touch_negative||0, ftneu=Math.max(0,ft-ftp-ftn);
+  $('#firstTouch').innerHTML = ft ? `<div style="display:flex;align-items:baseline;gap:8px"><div style="font-size:30px;font-weight:800;color:${band(100*ftp/ft)}">${Math.round(100*ftp/ft)}%</div><div style="font-family:var(--mono);font-size:11px;color:var(--muted)">controlled (${ftp}/${ft})</div></div>`+seg([['controlled',ftp,'var(--green)'],['neutral',ftneu,'var(--muted)'],['lost',ftn,'var(--red)']],ft) : '<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">—</div>';
+  const ch=T.challenges||{}, bo=ch.by_outcome||{}, bt=ch.by_type||{}, cw=me.challenge_wins||0, cc=me.challenges||0;
+  $('#chSub').innerHTML=`You won <b style="color:${band(cc?100*cw/cc:0)}">${cw}/${cc}</b> of your challenges.`;
+  const hrow=(l,v,mx,c)=>`<div style="display:grid;grid-template-columns:74px 1fr 34px;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:12px;color:${c}">${l}</span><div style="height:14px;background:#0c1623;border-radius:4px;border:1px solid var(--line);overflow:hidden"><div style="height:100%;width:${v/mx*100}%;background:${c}"></div></div><span style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--muted)">${v}</span></div>`;
+  const ctot=(bo.win||0)+(bo.neutral||0)+(bo.loss||0)||1;
+  $('#chOutcome').innerHTML='<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px">OUTCOME (lobby)</div>'+hrow('win',bo.win||0,ctot,'var(--green)')+hrow('neutral',bo.neutral||0,ctot,'var(--amber)')+hrow('loss',bo.loss||0,ctot,'var(--red)');
+  const btot=ch.count||Object.values(bt).reduce((a,b)=>a+b,0)||1;
+  $('#chType').innerHTML='<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px">APPROACH</div>'+Object.entries(bt).map(([k,v])=>hrow(k,v,btot,'var(--cyan)')).join('');
+})();
+
+/* boost economy + recovery */
+(function(){
+  const A=MATCH.advanced||{}, be=A.boost, rc=A.recovery;
+  const statRows=rows=>rows.map(([l,v,c])=>`<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;border-bottom:1px dotted var(--line);padding:6px 0"><span style="color:var(--muted)">${l}</span><span style="color:${c};font-weight:600">${v}</span></div>`).join('');
+  const eb=$('#boostEcon');
+  if(eb){ if(be){ $('#beSub').innerHTML=`Economy rating <b style="color:${band(be.economy_rating)}">${be.economy_rating}</b>/100`;
+      eb.innerHTML=statRows([['Small pads',be.small_pads,'var(--green)'],['Big (corner) pads',be.big_pads,'var(--amber)'],['Boost wasted (overfill)',Math.round(be.wasted_overfill),'var(--red)'],['Stolen in attack',be.steals,'var(--cyan)']]);
+    } else eb.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">No boost data.</div>'; }
+  const rh=$('#recovery');
+  if(rh){ if(rc){ const rcol=rc.avg_recovery_s<1?'var(--green)':rc.avg_recovery_s<1.8?'var(--amber)':'var(--red)';
+      rh.innerHTML=statRows([['Committed aerials',rc.aerials,'var(--txt)'],['Avg time to control',rc.avg_recovery_s+'s',rcol],['Slow landings',rc.slow_landings,rc.slow_landings>2?'var(--red)':'var(--green)'],['Speed retained',rc.speed_retention_pct!=null?rc.speed_retention_pct+'%':'—','var(--cyan)']]);
+    } else rh.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">No aerial recovery data.</div>'; }
+})();
+
+/* defensive depth (last man) */
+(function(){
+  const lm=MATCH.lastMan, host=$('#defDepth'); if(!host) return;
+  if(!lm){ host.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">No last-man data.</div>'; return; }
+  $('#ddSub').innerHTML=`Last man ${Math.round(lm.last_man_pct)}% of the match · ${Math.round(lm.risky_push_pct)}% of that pushed out of your half.`;
+  const bands=[['Deep',lm.deep_pct||0,'var(--blue)'],['Mid (healthy)',lm.mid_pct||0,'var(--green)'],['High (risky)',lm.high_pct||0,'var(--red)']];
+  host.innerHTML='<div style="display:flex;height:24px;border-radius:6px;overflow:hidden;border:1px solid var(--line);font-family:var(--mono);font-size:10px;font-weight:600">'+
+    bands.filter(b=>b[1]>0).map(([l,v,c])=>`<div style="width:${v}%;background:${c}33;color:${c};display:grid;place-items:center;min-width:0">${Math.round(v)}%</div>`).join('')+
+    '</div><div class="legend" style="margin-top:9px">'+bands.map(([l,v,c])=>`<span><i style="background:${c}"></i>${l} ${Math.round(v)}%</span>`).join('')+'</div>';
 })();
 
 /* animate */
