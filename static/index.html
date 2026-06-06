@@ -177,6 +177,9 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 .prog-title{font-size:15px;font-weight:800}
 .prog-bar-wrap{background:#0c1623;border:1px solid var(--line);border-radius:6px;height:8px;overflow:hidden;margin-bottom:10px}
 .prog-bar{height:100%;background:var(--cyan);transition:width .4s ease;border-radius:6px}
+/* indeterminate bar for jobs with no known total (coaching/series/analysis) */
+.prog-bar-wrap.indet .prog-bar{width:38%;background:linear-gradient(90deg,#34d6f722,var(--cyan),#34d6f722);animation:indet 1.15s ease-in-out infinite}
+@keyframes indet{0%{transform:translateX(-115%)}100%{transform:translateX(330%)}}
 .prog-msgs{font-family:var(--mono);font-size:11px;color:var(--muted);max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:3px}
 
 /* ── main screen ── */
@@ -1084,7 +1087,16 @@ function onProg(p, type) {
   const step=document.getElementById(e.step), bar=document.getElementById(e.bar), msgs=document.getElementById(e.msgs);
   const ctr=e.counter?document.getElementById(e.counter):null;
   if (step) step.textContent=p.step||'…';
-  if (bar) {const pct=p.total>0?Math.round(100*p.current/p.total):(p.status==='complete'?100:0); bar.style.width=pct+'%';}
+  if (bar) {
+    const wrap=bar.parentElement;
+    if (p.status==='running' && !(p.total>0)) {        // unknown total → indeterminate
+      if(wrap) wrap.classList.add('indet'); bar.style.width='';
+    } else {
+      if(wrap) wrap.classList.remove('indet');
+      const pct=p.total>0?Math.round(100*p.current/p.total):(p.status==='complete'?100:0);
+      bar.style.width=pct+'%';
+    }
+  }
   if (ctr&&p.total>0) ctr.textContent=`${p.current}/${p.total}`;
   if (msgs&&p.messages) {msgs.innerHTML=p.messages.slice(-10).map(m=>`<div>${m}</div>`).join(''); msgs.scrollTop=msgs.scrollHeight;}
   if (p.status==='complete'||p.status==='error') {

@@ -631,7 +631,7 @@ async def view_coaching(session_id: Optional[str] = Cookie(default=None)):
 
 # ── series (multi-match) analysis ──────────────────────────────────────────────
 
-SERIES_MAX_GAMES = 12
+SERIES_MAX_GAMES = 10
 
 @app.post("/api/series/generate")
 async def series_generate(session_id: Optional[str] = Cookie(default=None)):
@@ -708,7 +708,8 @@ async def _run_series_job(job_id: str, session: dict, profile: dict, db, api_key
         )
         return
 
-    await p.update(step=f"Aggregating {len(pool)} games…")
+    await p.update(step=f"Breaking down your last {len(pool)} {gamemode} games…")
+    await p.msg("Crunching coverage, support distance, challenge timing, giveaways and xG…")
     match_jsons = []
     for m in pool:
         mjp = Path(m["folder_path"]) / "match.json"
@@ -724,7 +725,9 @@ async def _run_series_job(job_id: str, session: dict, profile: dict, db, api_key
         await p.error("Couldn't read enough match data — re-fetch your replays and try again.")
         return
 
-    await p.update(step="Writing your series report with AI…")
+    fw = aggregate.get("framework_games", 0)
+    await p.msg(f"Full frame analysis on {fw}/{aggregate.get('games', 0)} games — comparing your wins vs losses…")
+    await p.update(step="Handing it to your AI coach for the honest verdict… 🫣")
     try:
         report = await loop.run_in_executor(
             None, generate_series_report, aggregate, profile, api_key
@@ -902,7 +905,7 @@ async def _run_coaching_job(
                 if m.get("summary", {}).get("mode") == gamemode and m.get("folder_path")]
         pool.sort(key=lambda m: m.get("summary", {}).get("played_at", 0) or 0, reverse=True)
         mjs = []
-        for m in pool[:12]:
+        for m in pool[:SERIES_MAX_GAMES]:
             mjp = Path(m["folder_path"]) / "match.json"
             if mjp.exists():
                 try:
@@ -911,12 +914,14 @@ async def _run_coaching_job(
                     pass
         if len(mjs) >= 3:
             series_agg = aggregate_matches(mjs)
-            await p.msg(f"Using long-term trends from {series_agg.get('games', 0)} games")
+            fw = series_agg.get("framework_games", 0)
+            await p.msg(f"Folding in trends from your last {series_agg.get('games', 0)} games "
+                        f"({fw} with full frame analysis): coverage, giveaways, challenge timing, xG…")
     except Exception as e:
         log.info("series aggregate for plan skipped: %s", e)
 
-    await p.update(step="Generating your personalised coaching plan with AI…")
-    await p.msg("Calling Claude Sonnet 4.6…")
+    await p.update(step="Building your personalised plan with AI… 🧠")
+    await p.msg("Matching your habits to the climb — drills incoming.")
 
     loop = asyncio.get_event_loop()
     try:

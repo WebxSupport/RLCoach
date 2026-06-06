@@ -35,6 +35,44 @@ def _mean(xs):
     return round(stats.fmean(xs), 1) if xs else None
 
 
+def _analysis_fields(mj: dict, name: Optional[str]) -> dict:
+    """
+    Pull the tracked player's NEW framework metrics from match.json["analysis"]
+    (positioning / touch / shooting). Returns {} for older match.jsons that
+    predate the analysis block — those fields stay absent and are simply
+    excluded from the averages (graceful degradation as replays re-fetch).
+    """
+    a = mj.get("analysis") or {}
+    if not a or not name:
+        return {}
+    out: dict = {}
+    pos = (a.get("positioning") or {}).get(name)
+    if isinstance(pos, dict):
+        cov = pos.get("coverage") or {}
+        sup = pos.get("support") or {}
+        lm = pos.get("last_man") or {}
+        out["back_post_pct"] = cov.get("back_post_pct")
+        out["near_post_pct"] = cov.get("near_post_pct")
+        out["own_half_pct"] = cov.get("own_half_pct")
+        out["support_too_close_pct"] = sup.get("too_close_pct")
+        out["support_too_far_pct"] = sup.get("too_far_pct")
+        out["last_man_risky_pct"] = lm.get("risky_push_pct")
+    tp = ((a.get("touch") or {}).get("per_player") or {}).get(name)
+    if isinstance(tp, dict):
+        tot = tp.get("total") or 0
+        out["touch_positive_pct"] = round(100 * (tp.get("positive", 0)) / tot, 1) if tot else None
+        out["giveaways"] = tp.get("giveaways")
+        ch = tp.get("challenges") or 0
+        out["challenge_win_pct"] = round(100 * (tp.get("challenge_wins", 0)) / ch, 1) if ch else None
+    sh = a.get("shooting") or {}
+    me_sh = next((v for v in (sh.get("per_player") or {}).values()
+                  if isinstance(v, dict) and v.get("is_me")), None)
+    if me_sh:
+        out["xg"] = me_sh.get("xg")
+        out["xg_diff"] = round((me_sh.get("goals", 0) or 0) - (me_sh.get("xg") or 0), 2)
+    return out
+
+
 def _extract_game(mj: dict) -> Optional[dict]:
     """Pull the tracked player's per-game line from one match.json."""
     me = _me(mj)
@@ -52,7 +90,7 @@ def _extract_game(mj: dict) -> Optional[dict]:
     dc = len((mj.get("team_metrics") or {}).get("double_commit_events", []))
     shots = core.get("shots", 0) or 0
     goals = core.get("goals", 0) or 0
-    return {
+    g = {
         "result": f"W{my}-{opp}" if win else (f"D{my}-{opp}" if my == opp else f"L{my}-{opp}"),
         "win": win,
         "map": mj.get("map_display") or mj.get("map") or "Unknown",
@@ -65,12 +103,18 @@ def _extract_game(mj: dict) -> Optional[dict]:
         "air_time_pct": air.get("air_time_pct"), "high_air_pct": air.get("high_air_pct"),
         "double_commits": dc,
     }
+    g.update(_analysis_fields(mj, me.get("name")))  # merge the new framework metrics
+    return g
 
 
-def aggregate_matches(match_jsons: list) -> dict:
-    """Build the hard aggregate (records, averages, win/loss splits, per-game) from match.jsons."""
+def aggregate_matches(match_jsons: list, limit: int = 10) -> dict:
+    """
+    Build the hard aggregate (records, averages, win/loss splits, per-game) from
+    match.jsons. Only the most recent `limit` games (default 10) are analysed.
+    """
     games = [g for g in (_extract_game(mj) for mj in match_jsons) if g]
     games.sort(key=lambda g: g["played_at"], reverse=True)
+    games = games[:max(1, limit)]   # cap long-term analysis to the N most recent
     if not games:
         return {"games": 0}
 
@@ -79,7 +123,11 @@ def aggregate_matches(match_jsons: list) -> dict:
 
     metric_keys = ["goals", "shots", "saves", "assists", "conv", "avg_boost",
                    "time_zero_s", "def_third", "off_third", "air_time_pct",
-                   "high_air_pct", "double_commits"]
+                   "high_air_pct", "double_commits",
+                   # new framework metrics (None on pre-analysis match.jsons → excluded)
+                   "back_post_pct", "near_post_pct", "own_half_pct",
+                   "support_too_close_pct", "support_too_far_pct", "last_man_risky_pct",
+                   "touch_positive_pct", "giveaways", "challenge_win_pct", "xg", "xg_diff"]
 
     def avg_over(rows, key):
         return _mean([r.get(key) for r in rows])
@@ -88,10 +136,14 @@ def aggregate_matches(match_jsons: list) -> dict:
     win_avg = {k: avg_over(wins, k) for k in metric_keys}
     loss_avg = {k: avg_over(losses, k) for k in metric_keys}
 
+    # How many of the analysed games actually carry the new metrics yet.
+    analysed = sum(1 for g in games if g.get("back_post_pct") is not None or g.get("xg") is not None)
+
     return {
         "games": len(games),
         "wins": len(wins),
         "losses": len(losses),
+        "framework_games": analysed,   # games with the new metrics available
         "averages": overall,
         "winAverages": win_avg,
         "lossAverages": loss_avg,
@@ -99,7 +151,10 @@ def aggregate_matches(match_jsons: list) -> dict:
             {"n": i + 1, "result": g["result"], "win": g["win"], "map": g["map"],
              "goals": g["goals"], "shots": g["shots"], "saves": g["saves"],
              "avg_boost": g["avg_boost"], "double_commits": g["double_commits"],
-             "air_time_pct": g["air_time_pct"]}
+             "air_time_pct": g["air_time_pct"],
+             "support_too_close_pct": g.get("support_too_close_pct"),
+             "challenge_win_pct": g.get("challenge_win_pct"),
+             "giveaways": g.get("giveaways"), "xg": g.get("xg")}
             for i, g in enumerate(games)
         ],
     }
@@ -120,6 +175,16 @@ Per-game lines and win/loss averages:
 ```json
 {agg}
 ```
+
+## Metric legend (averages/winAverages/lossAverages keys)
+Core: goals, shots, saves, assists, conv (conversion %), avg_boost, time_zero_s, def_third/off_third
+(% time in each third), air_time_pct, double_commits. Framework metrics (when present — derived from
+frame data): back_post_pct / near_post_pct (defensive coverage side — high near-post = ball-side
+rotation), own_half_pct, support_too_close_pct / support_too_far_pct (support distance vs the
+1800-2500uu band), last_man_risky_pct (last-man pushed out of own half), touch_positive_pct
+(share of touches that kept/created), giveaways, challenge_win_pct, xg (expected goals), xg_diff
+(goals − xG; negative = finishing problem). Lean on these framework metrics where available — they
+are the highest-resolution signal.
 
 ## Your task
 Find the SESSION-LEVEL story across these games — not single-match noise. Compare the player's
