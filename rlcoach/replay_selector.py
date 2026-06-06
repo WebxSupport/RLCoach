@@ -187,7 +187,16 @@ def _save_and_build(info: dict, guid: str, output_dir: Path, ledger,
         log.warning("Moments failed for %s: %s", guid[:8], e)
         moments = []
 
-    write_match_json(parsed, info["metrics"], moments, out_dir)
+    # Full framework analysis → persisted into match.json (feeds coaching_engine).
+    analysis_dict = None
+    try:
+        from rlcoach.analysis import analyze_all
+        me_pid = next((pm.platform_id for pm in info["metrics"].players if pm.is_me), "")
+        analysis_dict = analyze_all(parsed, me_pid, metrics=info["metrics"]).to_dict()
+    except Exception as e:
+        log.warning("Full analysis failed for %s: %s", guid[:8], e)
+
+    write_match_json(parsed, info["metrics"], moments, out_dir, analysis=analysis_dict)
     write_match_md(parsed, info["metrics"], moments, out_dir)
     ledger.mark_processed_guid(guid, str(out_dir))
 

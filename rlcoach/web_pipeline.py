@@ -99,9 +99,12 @@ def _process_replay_sync(
     from rlcoach.parser import parse_replay
     from rlcoach.metrics import compute_metrics
     from rlcoach.events import extract_moments
-    from rlcoach.renderer import render_moment
+    from rlcoach.renderer import (render_moment, render_support_distance,
+                                  render_coverage_zones, render_last_man)
     from rlcoach.digest import write_match_json, write_match_md
+    from rlcoach.analysis import analyze_all
     from rlcoach.ledger import file_hash
+    from dataclasses import asdict
     import pandas as pd
     import re as _re
 
@@ -180,8 +183,39 @@ def _process_replay_sync(
             if ok:
                 m.diagram = f"moments/{ts_str}_{m.type}.png"
 
+    # Full framework analysis (positioning / touch / shooting / patterns) from the
+    # full-fidelity parsed object, plus a diagram per high-impact habit.
+    analysis_dict = None
+    try:
+        fa = analyze_all(parsed, player_id, metrics=metrics)
+        analysis_dict = fa.to_dict()
+        me_pos = next((pp for pp in fa.positioning if pp.is_me), None)
+        me_is_orange = (my_team == "orange")
+        if me_pos is not None:
+            for idx, pat in enumerate(analysis_dict.get("patterns", {}).get("patterns", [])):
+                dtype = pat.get("diagram")
+                rel = None
+                try:
+                    if dtype == "coverage":
+                        png = moments_dir / f"pattern_{idx}_coverage.png"
+                        if render_coverage_zones(asdict(me_pos.coverage), png, me_pos.name, me_is_orange):
+                            rel = f"moments/{png.name}"
+                    elif dtype == "support" and me_pos.support.worst_moments:
+                        png = moments_dir / f"pattern_{idx}_support.png"
+                        if render_support_distance(asdict(me_pos.support.worst_moments[0]), png, me_pos.name, me_is_orange):
+                            rel = f"moments/{png.name}"
+                    elif dtype == "lastman" and me_pos.last_man.risky_moments:
+                        png = moments_dir / f"pattern_{idx}_lastman.png"
+                        if render_last_man(asdict(me_pos.last_man.risky_moments[0]), png, me_pos.name, me_is_orange):
+                            rel = f"moments/{png.name}"
+                except Exception as e:
+                    log.debug("pattern diagram %d failed: %s", idx, e)
+                pat["diagram_path"] = rel
+    except Exception as e:
+        log.warning("Full analysis failed for %s: %s", guid[:8], e)
+
     # Write digest
-    write_match_json(parsed, metrics, moments, out_dir)
+    write_match_json(parsed, metrics, moments, out_dir, analysis=analysis_dict)
     write_match_md(parsed, metrics, moments, out_dir)
 
     # Mark in ledger
@@ -244,6 +278,18 @@ def _run_claude_analysis_sync(
         log.error("Failed to read match.json: %s", e)
         return None
 
+    # Preferred path: the full framework analysis was persisted at fetch time
+    # (computed from the real ParsedReplay). Use it directly — no reconstruction.
+    analysis = match_data.get("analysis") or {}
+    if analysis:
+        from rlcoach.claude_analyst import analyse_match
+        try:
+            return analyse_match(match_data, analysis.get("extended", {}), api_key)
+        except Exception as e:
+            log.error("Claude analysis failed: %s", e)
+            return None
+
+    # Legacy fallback (match.json predates persisted analysis):
     # Load frames.parquet for extended metrics
     try:
         import pandas as pd

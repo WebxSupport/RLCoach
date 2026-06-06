@@ -77,6 +77,22 @@ Every claim must trace back to the numbers — cite metrics, timestamps, players
   in the user's game vs the rest of the lobby — that's usually the highest-leverage takeaway.
 - **Possession & pressure**: tie possession % and net-coverage gaps to where goals actually happened.
 
+### Pre-computed framework analysis (match.json → "analysis")
+The match.json above may contain an "analysis" object — use it as ground truth:
+- `positioning` — per-player coverage zones (near/back post, goal line, midfield, backboard),
+  support-distance distribution (too close/optimal/too far vs the 1800-2500uu band),
+  distance-to-play, and last-man (time as last defender, risky pushes).
+- `touch` — touch quality (controlled/pass/shot/clear/challenge/panic + positive/neutral/negative),
+  possession chains with end reasons, challenge win/loss, per-player giveaways.
+- `shooting` — per-shot xG and per-player shots/goals/xG/conversion + a finishing verdict
+  (clinical / as expected / cold). xG ≫ goals = a FINISHING problem; few/low-xG shots = a
+  CHANCE-CREATION problem. Say which.
+- `patterns` — the tracked player's ranked habits, each ALREADY in Evidence→Pattern→Consequence→Fix
+  form with a target metric. These are the highest-leverage findings.
+Your `summary.topFixes`, `keyFindings`, and each player's `weaknesses`/`habit` MUST be grounded in
+`analysis.patterns` and the positioning/touch/shooting numbers. Cite the real figures; do not invent
+issues the data doesn't support.
+
 ### Fault taxonomy for conceded goals (assign exactly ONE primary cause)
 - `dc` — Double-commit / open net (both defenders forward, net undefended)
 - `turnover` — Giveaway handed the opponent the goal
@@ -191,6 +207,22 @@ Return a JSON code block with EXACTLY this structure (all fields required):
         "values": [number, number, number, number, number, number, number, number, number, number]
       }}
     ]
+  }},
+  "patterns": [
+    {{
+      "category": "rotation | positioning | possession | challenge | boost | defense",
+      "severity": "critical | major | minor",
+      "title": "string — short habit name",
+      "evidence": "string — the numbers that prove it",
+      "consequence": "string — what it cost THIS match",
+      "fix": "string — the concrete behavioural change",
+      "metric": "string — current → target"
+    }}
+  ],
+  "shooting": {{
+    "teamA": {{ "shots": number, "goals": number, "xg": number }},
+    "teamB": {{ "shots": number, "goals": number, "xg": number }},
+    "me": {{ "shots": number, "goals": number, "xg": number, "finishing": "clinical | as expected | cold" }}
   }}
 }}
 ```
@@ -207,6 +239,8 @@ Return a JSON code block with EXACTLY this structure (all fields required):
 - Double-commits: use the double_commit_events list from match.json; each entry needs t (start time) and d (duration_s).
 - Ballchase timeline: 10 values per player, one per 30-second bucket 0-270s. Use extended metrics data where available; estimate from ballchase index if per-30s not in data.
 - Be honest about opponents; explicitly say what the highest-rated player does that the user's team doesn't.
+- For `patterns`: take the tracked player's ranked habits from `analysis.patterns` (refine the wording, keep the figures and the Evidence→Consequence→Fix structure). 3–6 items, highest-impact first.
+- For `shooting`: from `analysis.shooting` (team A = tracked player's team; "me" = isMe player).
 """
 
 

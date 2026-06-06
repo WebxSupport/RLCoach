@@ -46,6 +46,15 @@ _PROMPT = """
 {loss_json}
 ```
 
+## Computed framework analysis (authoritative — derived from frames; do not contradict)
+For each replay: the tracked player's ranked habit `patterns` (already Evidence→Consequence→Fix
+with target metrics), `shooting` (xG vs goals — finishing vs chance creation), and the player's
+`positioning` (coverage zones, support distance) + `touch` (giveaways, possession) summary.
+### WIN
+{win_analysis}
+### LOSS
+{loss_analysis}
+
 ## Training resources (context)
 {resources}
 
@@ -168,6 +177,29 @@ def generate_coaching_plan(
             return '{"error":"no replay available"}'
         return json.dumps(r.match_json, ensure_ascii=False)[:7000]
 
+    def _analysis_brief(r):
+        """Compact, guaranteed-included slice of the persisted framework analysis
+        for the tracked player (the full block is truncated away by _rj)."""
+        if r is None:
+            return "(no replay)"
+        a = (getattr(r, "match_json", None) or {}).get("analysis") or {}
+        if not a:
+            return "(no computed analysis — older match)"
+        def _me(section):
+            return next((v for v in (a.get(section, {}) or {}).values()
+                         if isinstance(v, dict) and v.get("is_me")), None)
+        pats = (a.get("patterns") or {}).get("patterns", [])
+        sh = a.get("shooting") or {}
+        out = {
+            "patterns": [{k: p.get(k) for k in ("title", "severity", "evidence", "consequence", "fix", "metric")}
+                         for p in pats],
+            "shooting": {"team": sh.get("team"),
+                         "me": next((v for v in (sh.get("per_player") or {}).values() if v.get("is_me")), None)},
+            "positioning_me": _me("positioning"),
+            "touch_me": _me("touch"),
+        }
+        return json.dumps(out, ensure_ascii=False)[:4500]
+
     # Long-term trends across many games (preferred signal over single matches)
     if series and series.get("games", 0) >= 3:
         series_block = (
@@ -191,6 +223,7 @@ def generate_coaching_plan(
         mins=mins, days=days, duo=duo, freestyle=freestyle,
         series_block=series_block,
         win_json=_rj(win_replay), loss_json=_rj(loss_replay),
+        win_analysis=_analysis_brief(win_replay), loss_analysis=_analysis_brief(loss_replay),
         resources=format_resources_for_prompt(platform, current_rank),
         catalog=format_drill_catalog(platform),
         platform_guidance=platform_guidance,

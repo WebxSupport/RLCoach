@@ -351,6 +351,76 @@ def _patch_carball_compat():
     except Exception:
         pass
 
+    # 7. pandas 3.x Copy-on-Write makes DataFrame.idxmin/idxmax(axis=1) raise
+    #    "Encountered all NA values" on any all-NA row (older pandas returned NaN).
+    #    Several carball player/team stats (BallDistanceStat, TeamTendencies, …)
+    #    hit this and abort the ENTIRE analysis before the frame DataFrame and
+    #    proto are even built. Guard each stat so one pandas-3 casualty is skipped
+    #    instead of killing the whole parse. The affected stats (time-close-to-ball
+    #    etc.) are not used downstream.
+    try:
+        from carball.analysis.stats.stats_manager import StatsManager
+        from carball.analysis.stats.stats_list import StatsList
+        if not hasattr(StatsManager, "_stats_guarded"):
+            def _safe_player_stats(game, proto_game, player_map, data_frame):
+                sp = {k: p.stats for k, p in player_map.items()}
+                for sf in StatsList.get_player_stats():
+                    try:
+                        sf.calculate_player_stat(sp, game, proto_game, player_map, data_frame)
+                    except Exception as _e:
+                        log.debug("player stat %s skipped: %s", type(sf).__name__, _e)
+
+            def _safe_team_stats(game, proto_game, teams, player_map, data_frame):
+                sp = {int(t.is_orange): t.stats for t in teams}
+                for sf in StatsList.get_team_stats():
+                    try:
+                        sf.calculate_team_stat(sp, game, proto_game, player_map, data_frame)
+                    except Exception as _e:
+                        log.debug("team stat %s skipped: %s", type(sf).__name__, _e)
+
+            def _safe_game_stats(game, proto_game, player_map, data_frame):
+                for sf in StatsList.get_general_stats():
+                    try:
+                        sf.calculate_stat(proto_game.game_stats, game, proto_game, player_map, data_frame)
+                    except Exception as _e:
+                        log.debug("game stat %s skipped: %s", type(sf).__name__, _e)
+
+            StatsManager.calculate_player_stats = staticmethod(_safe_player_stats)
+            StatsManager.calculate_team_stats = staticmethod(_safe_team_stats)
+            StatsManager.calculate_game_stats = staticmethod(_safe_game_stats)
+            StatsManager._stats_guarded = True
+    except Exception:
+        pass
+
+    # 8. pandas 3.x Copy-on-Write makes carball's hit detection silently produce
+    #    ZERO hits: base_hit.get_hits_from_game uses `col.fillna(..., inplace=True)`
+    #    on a column view, which no-ops under COW, leaving the closest_player
+    #    column all-NA so every hit is dropped. Source-patch the two offending
+    #    calls into proper (non-inplace) assignment to recover real hitbox-
+    #    collision hits. Reading the installed source keeps this adaptive to the
+    #    carball version (only the two fillna sites are rewritten).
+    try:
+        import re as _re, inspect as _inspect, textwrap as _tw
+        from carball.analysis.events.hit_detection import base_hit as _bh
+        if not hasattr(_bh.BaseHit, "_fillna_patched"):
+            _src = _tw.dedent(_inspect.getsource(_bh.BaseHit.get_hits_from_game))
+            _src = "\n".join(l for l in _src.splitlines() if l.strip() != "@staticmethod")
+            _pat = _re.compile(
+                r"(collision_distances_data_frame\['closest_player', '(?:distance|name)'\])"
+                r"\.fillna\(\s*(.*?),\s*inplace=True\s*\)",
+                _re.DOTALL,
+            )
+            _new_src, _n = _pat.subn(r"\1 = \1.fillna(\2)", _src)
+            if _n == 2:
+                _ns = dict(_bh.__dict__)
+                exec(_new_src, _ns)
+                _bh.BaseHit.get_hits_from_game = staticmethod(_ns["get_hits_from_game"])
+                _bh.BaseHit._fillna_patched = True
+            else:
+                log.debug("base_hit fillna patch: expected 2 sites, found %d — skipped", _n)
+    except Exception as _e:
+        log.debug("base_hit fillna patch failed: %s", _e)
+
     # 2. np.save/np.load drop fix_imports in numpy 2.x
     try:
         import numpy as _real_np
@@ -374,10 +444,12 @@ def _patch_carball_compat():
         pass
 
 
-def _carball_from_rrrocket_json(rr_json: dict):
+def _carball_manager_from_rrrocket_json(rr_json: dict):
     """
     Feed rrrocket --network-parse JSON into carball's frame parser.
-    Returns a per-frame DataFrame with ball/player positions, or None on failure.
+    Returns the AnalysisManager (so callers can pull both the frame DataFrame
+    via get_data_frame() and the proto via get_proto() for hit/demo events),
+    or None on failure.
     """
     try:
         _patch_carball_compat()
@@ -389,10 +461,152 @@ def _carball_from_rrrocket_json(rr_json: dict):
         game.initialize(loaded_json=rr_json)
         manager = AnalysisManager(game=game)
         manager.create_analysis()
-        return manager.get_data_frame()
+        return manager
     except Exception as e:
         log.warning("carball frame parse failed: %s", e)
         return None
+
+
+def _proto_player_id_to_name(proto) -> dict:
+    """Map a proto player's unique-id string → display name."""
+    m = {}
+    for p in getattr(proto, "players", []):
+        try:
+            m[p.id.id] = p.name
+        except Exception:
+            pass
+    return m
+
+
+def _hits_from_proto(proto, frame_to_t: dict, fps: float) -> list:
+    """
+    Extract HitEvents from a carball proto's game_stats.hits list.
+
+    NOTE: under pandas 3.x carball's hit detection silently produces zero hits
+    (its fillna(inplace=True) no-ops under Copy-on-Write), so this usually
+    returns [] and the caller falls back to _synthesize_touches(). It still
+    works correctly on platforms/pandas versions where hit detection succeeds.
+    """
+    id_to_name = _proto_player_id_to_name(proto)
+    hits = []
+    for h in getattr(proto.game_stats, "hits", []):
+        fn = h.frame_number
+        t = float(frame_to_t.get(fn, fn / fps))
+        pid = getattr(getattr(h, "player_id", None), "id", None)
+        hits.append(HitEvent(
+            frame=fn,
+            time_s=t,
+            player_name=id_to_name.get(pid, "Unknown"),
+            is_shot=bool(getattr(h, "shot", False)),
+            is_save=bool(getattr(h, "save", False)),
+            is_goal=bool(getattr(h, "goal", False)),
+        ))
+    return hits
+
+
+def _demos_from_proto(proto, frame_to_t: dict, fps: float) -> list:
+    """Best-effort demo extraction from the proto's bumps list (is_demo bumps)."""
+    id_to_name = _proto_player_id_to_name(proto)
+    demos = []
+    for d in getattr(proto.game_stats, "bumps", []):
+        if not getattr(d, "is_demo", False):
+            continue
+        fn = getattr(d, "frame_number", 0)
+        t = float(frame_to_t.get(fn, fn / fps))
+        a = getattr(getattr(d, "attacker_id", None), "id", None)
+        v = getattr(getattr(d, "victim_id", None), "id", None)
+        demos.append(DemoEvent(
+            frame=fn,
+            time_s=t,
+            attacker_name=id_to_name.get(a, "Unknown"),
+            victim_name=id_to_name.get(v, "Unknown"),
+        ))
+    return demos
+
+
+# Touch synthesis tuning (used only when the proto carries no hit events).
+_TOUCH_DV_THRESH = 500.0     # uu/s change in ball velocity over one frame = a touch candidate
+_TOUCH_RADIUS = 350.0        # max player→ball distance (uu) to attribute the touch
+_TOUCH_MIN_GAP_S = 0.20      # min spacing between distinct touches
+
+
+def _synthesize_touches(frame_df: "pd.DataFrame", players: list, fps: float) -> list:
+    """
+    Reconstruct touch events from frame data when the parser provides none.
+
+    A touch is a frame where the ball's velocity vector changes sharply; it is
+    attributed to the nearest player within _TOUCH_RADIUS. is_shot/is_save are
+    left False — only contact, player, and time are inferred.
+
+    These are heuristic touches; callers should treat them as approximate.
+    """
+    import numpy as np
+
+    if frame_df is None or len(frame_df) == 0:
+        return []
+
+    def col(entity, attr):
+        try:
+            return frame_df[(entity, attr)].to_numpy(dtype=float)
+        except KeyError:
+            return None
+
+    bvx, bvy, bvz = col("ball", "vel_x"), col("ball", "vel_y"), col("ball", "vel_z")
+    bx, by = col("ball", "pos_x"), col("ball", "pos_y")
+    bz = col("ball", "pos_z")
+    if bvx is None or bvy is None or bx is None or by is None:
+        return []
+    if bvz is None:
+        bvz = np.zeros_like(bvx)
+    if bz is None:
+        bz = np.zeros_like(bx)
+
+    # Per-frame change in the ball's velocity vector.
+    dv = np.sqrt(np.diff(bvx, prepend=bvx[0]) ** 2
+                 + np.diff(bvy, prepend=bvy[0]) ** 2
+                 + np.diff(bvz, prepend=bvz[0]) ** 2)
+    candidates = np.where(dv > _TOUCH_DV_THRESH)[0]
+    if len(candidates) == 0:
+        return []
+
+    # Map frame index → canonical time using the same clock the metrics use.
+    from .metrics import _game_times
+    times = _game_times(frame_df)
+
+    # Precompute player position arrays.
+    p_arrays = {}
+    for p in players:
+        px, py = col(p.name, "pos_x"), col(p.name, "pos_y")
+        pz = col(p.name, "pos_z")
+        if px is None or py is None:
+            continue
+        p_arrays[p.name] = (px, py, pz if pz is not None else np.zeros_like(px))
+
+    if not p_arrays:
+        return []
+
+    min_gap_frames = max(1, int(_TOUCH_MIN_GAP_S * fps))
+    hits = []
+    last_frame = -10 ** 9
+    for fi in candidates:
+        if fi - last_frame < min_gap_frames:
+            continue
+        nearest_name, nearest_d = None, _TOUCH_RADIUS
+        for name, (px, py, pz) in p_arrays.items():
+            d = float(np.sqrt((px[fi] - bx[fi]) ** 2 + (py[fi] - by[fi]) ** 2 + (pz[fi] - bz[fi]) ** 2))
+            if d < nearest_d:
+                nearest_d, nearest_name = d, name
+        if nearest_name is None:
+            continue
+        hits.append(HitEvent(
+            frame=int(frame_df.index[fi]) if hasattr(frame_df.index, "__getitem__") else int(fi),
+            time_s=float(times[fi]),
+            player_name=nearest_name,
+        ))
+        last_frame = fi
+
+    log.debug("Synthesised %d touches from frame data (%d candidates)", len(hits), len(candidates))
+    return hits
 
 
 def _parse_with_rrrocket(replay_path: Path, match_id: str) -> ParsedReplay:
@@ -455,35 +669,107 @@ def _parse_with_rrrocket(replay_path: Path, match_id: str) -> ParsedReplay:
             scoring_team="orange" if int(g.get("PlayerTeam", 0)) == 1 else "blue",
         ))
 
-    # Full frame DataFrame via carball's Python analysis on the rrrocket JSON
-    frame_df = _carball_from_rrrocket_json(data)
+    # Full frame DataFrame + proto via carball's Python analysis on the rrrocket JSON
+    manager = _carball_manager_from_rrrocket_json(data)
+    frame_df = None
+    proto = None
+    if manager is not None:
+        try:
+            frame_df = manager.get_data_frame()
+        except Exception as e:
+            log.warning("get_data_frame failed on rrrocket JSON: %s", e)
+        try:
+            proto = manager.get_protobuf_data()
+        except Exception as e:
+            log.warning("get_protobuf_data failed on rrrocket JSON: %s", e)
 
     warnings = []
     if frame_df is None or len(frame_df) == 0:
         warnings.append("Positioning data unavailable — frame parse failed")
 
-    # Re-time goals using the canonical scoreboard clock from the frame data.
+    # Some replays (seen on RL 2026 / non-standard arenas) ship an empty header
+    # PlayerStats array even though the network stream has full player data.
+    # Rebuild the player list from the proto in that case — names/teams here
+    # match the frame_df column names, so downstream metrics still line up.
+    if not players and proto is not None:
+        # Backfill goal counts from the parsed goal list (proto core stats may be absent).
+        goals_by_name: dict = {}
+        for g in goals:
+            goals_by_name[g.scorer_name] = goals_by_name.get(g.scorer_name, 0) + 1
+        for p in getattr(proto, "players", []):
+            try:
+                core = getattr(p.stats, "core", None)
+                def _cstat(attr, default=0):
+                    return int(getattr(core, attr, default)) if core is not None else default
+                players.append(PlayerMeta(
+                    name=p.name,
+                    platform_id=_platform_id_str(p.id),
+                    team="orange" if p.is_orange else "blue",
+                    is_orange=bool(p.is_orange),
+                    goals=_cstat("goals", goals_by_name.get(p.name, 0)),
+                    shots=_cstat("shots"),
+                    assists=_cstat("assists"),
+                    saves=_cstat("saves"),
+                    score=_cstat("score"),
+                ))
+            except Exception as e:
+                log.debug("proto player rebuild skipped one: %s", e)
+        if players:
+            team_size = max(team_size, len(players) // 2)
+            warnings.append("Player list rebuilt from proto (empty header PlayerStats)")
+
+    # Build a frame-index → canonical-elapsed lookup from the scoreboard clock.
     # frame/fps includes pre-match and celebration overhead; seconds_remaining
     # gives elapsed time that matches exactly what the in-game clock shows.
-    if frame_df is not None and len(frame_df) > 0 and goals:
+    frame_to_t: dict = {}
+    if frame_df is not None and len(frame_df) > 0:
         try:
             from .metrics import _game_times as _canonical_times
             canon = _canonical_times(frame_df)
-            # Build a frame-index → canonical-elapsed lookup
             frame_to_t = dict(zip(frame_df.index.tolist(), canon.tolist()))
-            goals = [
-                GoalEvent(
-                    frame=g.frame,
-                    time_s=float(frame_to_t.get(g.frame, g.time_s)),
-                    scorer_name=g.scorer_name,
-                    scoring_team=g.scoring_team,
-                )
-                for g in goals
-            ]
-            log.debug("Goal times corrected to scoreboard clock: %s",
-                      [round(g.time_s, 1) for g in goals])
+            # Header TotalSecondsPlayed can be missing/0 on some replays — derive
+            # the match duration from the scoreboard clock instead.
+            if (not duration or duration <= 0) and len(canon) > 0:
+                duration = float(canon[-1])
         except Exception as e:
-            log.warning("Goal time correction failed: %s", e)
+            log.warning("Canonical clock build failed: %s", e)
+
+    # Re-time goals onto the scoreboard clock.
+    if frame_to_t and goals:
+        goals = [
+            GoalEvent(
+                frame=g.frame,
+                time_s=float(frame_to_t.get(g.frame, g.time_s)),
+                scorer_name=g.scorer_name,
+                scoring_team=g.scoring_team,
+            )
+            for g in goals
+        ]
+        log.debug("Goal times corrected to scoreboard clock: %s",
+                  [round(g.time_s, 1) for g in goals])
+
+    # ── Touch / demo events ──────────────────────────────────────────────────
+    # Preferred source: the carball proto (game_stats.hit / .demo). RL 2026
+    # network parses sometimes yield an empty hit list — in that case fall back
+    # to synthesising touches from ball-velocity discontinuities.
+    hits, demos = [], []
+    if proto is not None:
+        try:
+            hits = _hits_from_proto(proto, frame_to_t, fps)
+        except Exception as e:
+            log.warning("Hit extraction from proto failed: %s", e)
+        try:
+            demos = _demos_from_proto(proto, frame_to_t, fps)
+        except Exception as e:
+            log.warning("Demo extraction from proto failed: %s", e)
+
+    if not hits and frame_df is not None and len(frame_df) > 0:
+        try:
+            hits = _synthesize_touches(frame_df, players, fps)
+            if hits:
+                warnings.append(f"Touches synthesised from frame data ({len(hits)} — approximate)")
+        except Exception as e:
+            log.warning("Touch synthesis failed: %s", e)
 
     return ParsedReplay(
         match_id=match_id,
@@ -497,8 +783,8 @@ def _parse_with_rrrocket(replay_path: Path, match_id: str) -> ParsedReplay:
         orange_score=orange_score,
         players=players,
         goals=goals,
-        hits=[],
-        demos=[],
+        hits=hits,
+        demos=demos,
         frame_df=frame_df,
         warnings=warnings,
     )

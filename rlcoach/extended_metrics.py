@@ -29,7 +29,11 @@ _BC_LABELS = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270]
 
 
 def _normalise_boost(b: np.ndarray) -> np.ndarray:
-    if b.max() > 100:
+    # NaN-safe: boost[gm] can contain NaN frames, and ndarray.max() over any NaN
+    # returns NaN (NaN > 100 is False), which silently skipped normalisation and
+    # left boost on the raw 0–255 scale. Use the finite max to decide.
+    finite = b[~np.isnan(b)]
+    if finite.size and finite.max() > 100:
         return b / 255.0 * 100.0
     return b
 

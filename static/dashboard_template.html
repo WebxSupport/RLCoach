@@ -142,7 +142,55 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
 .feed .dot{width:11px; height:11px; border-radius:50%; margin-top:3px}
 .feed .ftxt{font-size:13px; color:#cdd9e6} .feed .ftxt b{color:var(--txt)}
 .foot{font-family:var(--mono); font-size:11px; color:var(--dim); text-align:center; margin-top:26px}
-@media(max-width:860px){ .kpis{grid-template-columns:repeat(2,1fr)} .grid2,.pgrid{grid-template-columns:1fr} .ptop{grid-template-columns:1fr} }
+
+/* habits / patterns */
+.phead{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px}
+.sev{font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; font-weight:600; padding:3px 9px; border-radius:999px; border:1px solid currentColor}
+.sev.critical{color:var(--red)} .sev.major{color:var(--amber)} .sev.minor{color:var(--cyan)}
+.cat{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim)}
+.pattern{border:1px solid var(--line); border-left-width:3px; border-radius:12px; padding:15px 17px; margin-bottom:13px; background:linear-gradient(180deg,var(--panel2),var(--panel))}
+.pattern.critical{border-left-color:var(--red)} .pattern.major{border-left-color:var(--amber)} .pattern.minor{border-left-color:var(--cyan)}
+.pattern .pt{font-weight:800; font-size:15.5px; margin:6px 0 11px; line-height:1.25}
+.pline{font-size:13px; color:#cdd9e6; line-height:1.5; margin-bottom:7px; display:flex; gap:10px}
+.pline b{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); flex:0 0 88px; padding-top:2px}
+.pline.fixline b{color:var(--green)}
+.pmetric{font-family:var(--mono); font-size:11px; color:var(--amber); letter-spacing:.03em; margin-top:6px}
+
+/* shooting / xG */
+.xgteam{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:6px}
+.xgcard{border:1px solid var(--line); border-radius:10px; padding:14px; background:#0c1623; text-align:center}
+.xgcard .big{font-size:30px; font-weight:800; font-family:var(--mono); line-height:1}
+.xgcard .sm{font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:5px}
+.fin{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:3px 9px; border-radius:999px; border:1px solid currentColor}
+.fin.clinical{color:var(--green)} .fin.cold{color:var(--red)} .fin.expected{color:var(--muted)}
+
+/* ── responsive ─────────────────────────────────────────────────── */
+@media(max-width:860px){
+  .kpis{grid-template-columns:repeat(3,1fr)}
+  .grid2,.pgrid{grid-template-columns:1fr}
+  .ptop{grid-template-columns:1fr; justify-items:center; text-align:center}
+  .ptop .rcomp{width:100%; max-width:320px}
+  .xgteam{grid-template-columns:1fr 1fr}
+}
+@media(max-width:560px){
+  body{padding:13px}
+  .brand h1{font-size:22px}
+  .top{gap:12px} .result{padding:10px 14px; gap:10px} .score{font-size:25px}
+  .kpis{grid-template-columns:repeat(2,1fr); gap:9px}
+  .kpi{padding:11px 13px} .kpi .v{font-size:21px}
+  /* tabs become a single swipeable row instead of wrapping into a tall block */
+  .tabs{flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{padding:10px 12px; white-space:nowrap}
+  .card{padding:15px 14px}
+  /* leaderboard: name + score on one line, bar full-width below */
+  .lrow{grid-template-columns:1fr 48px; grid-template-areas:"nm rn" "bar bar"; gap:6px 10px}
+  .lrow .nm{grid-area:nm} .lrow .rn{grid-area:rn} .lrow .lbar{grid-area:bar}
+  .pline{flex-direction:column; gap:2px} .pline b{flex-basis:auto; padding-top:0}
+  .sw{grid-template-columns:1fr}
+  .statgrid{grid-template-columns:1fr}
+  table{font-size:12px} th,td{padding:8px 8px}
+}
 </style>
 
 <div class="wrap">
@@ -168,6 +216,14 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
         <span><i style="background:var(--teamA)"></i>Team A goal</span><span><i style="background:var(--teamB)"></i>Team B goal</span>
         <span><i style="background:var(--green)"></i>Kickoff won</span><span><i style="background:var(--amber)"></i>Kickoff neutral</span>
         <span><i style="background:var(--red)"></i>Kickoff lost</span><span><i style="background:var(--amber)"></i>Double-commit</span></div>
+    </div>
+  </div>
+
+  <!-- HABITS / PATTERNS -->
+  <div class="panel" data-p="patterns">
+    <div class="card"><h3>Your recurring habits</h3>
+      <div class="sub">The highest-impact patterns from your play, ranked. Each is the evidence, what it cost this match, and the fix.</div>
+      <div id="patterns"></div>
     </div>
   </div>
 
@@ -200,6 +256,17 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
     <div class="grid2">
       <div class="card"><h3>Kickoff outcomes</h3><div class="sub" id="koSub"></div><div id="kodonut"></div></div>
       <div class="card"><h3>Kickoff log</h3><div class="sub">Result and time-to-concede on losses</div><div id="kotable"></div></div>
+    </div>
+  </div>
+
+  <!-- SHOOTING / xG -->
+  <div class="panel" data-p="shooting">
+    <div class="card"><h3>Expected goals (xG)</h3>
+      <div class="sub">Shot quality from distance, angle, speed and defensive pressure. xG far above goals = a finishing problem; few/low-xG shots = a chance-creation problem.</div>
+      <div class="xgteam" id="xgteam"></div>
+      <div id="xgnote" style="font-size:11.5px;color:var(--muted);margin:4px 0 16px;line-height:1.4"></div>
+      <h3 style="font-size:12px;color:var(--muted);font-family:var(--mono);letter-spacing:.1em">PER-PLAYER xG</h3>
+      <div id="xgbars" style="margin-top:10px"></div>
     </div>
   </div>
 
@@ -339,6 +406,32 @@ const MATCH = {
       {name:"nickmiless", team:"B", values:[0.0,1.2,0.0,0.0,2.3,0.0,4.3,10.8,0.0,7.4]},
       {name:"S_Taskin33", team:"B", values:[0.1,0.0,0.0,0.0,6.0,0.0,0.0,5.8,6.1,0.0]}
     ]
+  },
+
+  // ranked recurring habits for the tracked player — Evidence → Consequence → Fix
+  patterns:[
+    { category:"defense", severity:"critical", title:"Last-man overcommit on open-net concedes",
+      evidence:"Caught 2,700–3,100uu upfield as the last man for both the 54s and 76s goals — net wide open.",
+      consequence:"Directly caused 2 of the 3 conceded goals (open nets, nearest defender ~2,700uu away).",
+      fix:"Apply the commit test before pushing: 'if I lose this, is the net open?' If yes — hold back-post and shadow.",
+      metric:"open-net concedes 2 → 0" },
+    { category:"boost", severity:"major", title:"Boost starvation",
+      evidence:"Boost-starved ~12% of the match, averaging 45 — vs the lobby MVP's 4% / 54.",
+      consequence:"Arrive to challenges and recoveries empty; compounds the late rotations.",
+      fix:"Route small pads on every rotation; keep a ~30 reserve instead of chasing corner boost.",
+      metric:"time starved 12% → <8%" },
+    { category:"rotation", severity:"minor", title:"Joining the teammate's commit",
+      evidence:"On several double-commit windows you pushed in alongside swiftly_o rather than peeling off.",
+      consequence:"Turned recoverable plays into 2v0 counters — part of the 32 double-commit events.",
+      fix:"When your partner goes, you cover. One goes, one stays — every time.",
+      metric:"double-commits 32 → <10" }
+  ],
+
+  // expected-goals model: team totals + the tracked player's finishing verdict
+  shooting:{
+    teamA:{ shots:14, goals:5, xg:4.6 },
+    teamB:{ shots:14, goals:3, xg:3.9 },
+    me:{ shots:4, goals:4, xg:2.3, finishing:"clinical" }
   }
 };
 /* ============================  END OF EDITABLE DATA  ================================= */
@@ -359,7 +452,7 @@ $("#result").innerHTML=`<span class="verdict">${r.win?"Victory":"Defeat"}</span>
 $("#foot").textContent=`Generated from frame telemetry · ${MATCH.players.length} players · ${MATCH.meta.map}`;
 $("#kpis").innerHTML=MATCH.kpis.map(k=>`<div class="kpi ${k.tone||''}"><div class="l">${k.label}</div><div class="v">${k.value}</div><div class="s">${k.sub||''}</div></div>`).join('');
 
-const TABS=[["overview","Overview"],["autopsy","Goal Autopsy"],["rotation","Rotation & Shape"],["boost","Boost & Possession"],["kickoffs","Kickoffs"],["positioning","Positioning"],["players","Players"],["moments","Moments"]];
+const TABS=[["overview","Overview"],["patterns","Habits"],["autopsy","Goal Autopsy"],["shooting","Shooting xG"],["rotation","Rotation & Shape"],["boost","Boost & Possession"],["kickoffs","Kickoffs"],["positioning","Positioning"],["players","Players"],["moments","Moments"]];
 $("#tabs").innerHTML=TABS.map((t,i)=>`<button class="tab ${i==0?'active':''}" data-t="${t[0]}">${t[1]}</button>`).join('');
 $("#tabs").addEventListener('click',e=>{const b=e.target.closest('.tab'); if(!b)return;
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -613,6 +706,48 @@ function radar(stats){
   MATCH.doubleCommits.forEach(d=>ev.push({t:d.t,dot:'var(--amber)',txt:`Double-commit · ${d.d}s`}));
   ev.sort((a,b)=>a.t-b.t);
   $("#feed").innerHTML=ev.map(e=>`<li><span class="ft">${(+e.t).toFixed(1)}s</span><span class="dot" style="background:${e.dot}"></span><span class="ftxt">${e.txt}</span></li>`).join('');
+})();
+
+/* habits / patterns */
+(function(){
+  const host=$("#patterns"); if(!host) return;
+  const pats=MATCH.patterns||[];
+  if(!pats.length){ host.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">No standout habits detected this match — a balanced game.</div>'; return; }
+  host.innerHTML=pats.map(p=>{const sev=(p.severity||'minor').toLowerCase();
+    return `<div class="pattern ${sev}">
+      <div class="phead"><span class="sev ${sev}">${sev}</span><span class="cat">${p.category||''}</span></div>
+      <div class="pt">${p.title||''}</div>
+      ${p.evidence?`<div class="pline"><b>Evidence</b><span>${p.evidence}</span></div>`:''}
+      ${p.consequence?`<div class="pline"><b>Consequence</b><span>${p.consequence}</span></div>`:''}
+      ${p.fix?`<div class="pline fixline"><b>Fix</b><span>${p.fix}</span></div>`:''}
+      ${p.metric?`<div class="pmetric">${p.metric}</div>`:''}
+    </div>`;}).join('');
+})();
+
+/* shooting / xG */
+(function(){
+  const sh=MATCH.shooting, host=$("#xgteam"); if(!host) return;
+  if(!sh){ host.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">No shot data for this match.</div>'; return; }
+  const A=MATCH.meta.teamAName, B=MATCH.meta.teamBName;
+  const card=(label,col,d)=>`<div class="xgcard"><div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:${col}">${label}</div>
+    <div class="big" style="color:${col}">${(+(d.xg||0)).toFixed(1)}</div>
+    <div class="sm">xG · ${d.goals||0} goals / ${d.shots||0} shots</div></div>`;
+  host.innerHTML=card(A,'var(--teamA)',sh.teamA||{})+card(B,'var(--teamB)',sh.teamB||{});
+  const me=sh.me;
+  if(me){ const fin=(me.finishing||'').toLowerCase(); const finCls=fin.indexOf('cold')>=0?'cold':fin.indexOf('clinical')>=0?'clinical':'expected';
+    const diff=(me.goals||0)-(me.xg||0);
+    const verdict=diff<-0.7?'Finishing is leaking chances — the shots are there, the conversion is not.':diff>0.7?'Clinical — you out-finished your chance quality.':'Converting roughly in line with chance quality.';
+    $("#xgnote").innerHTML=`You: <b style="color:var(--txt)">${me.goals||0} goals on ${(+(me.xg||0)).toFixed(1)} xG</b> from ${me.shots||0} shots — <span class="fin ${finCls}">${me.finishing||'—'}</span>. ${verdict}`;
+  }
+  const players=(MATCH.players||[]).filter(p=>p.core);
+  const mx=Math.max(1,...players.map(p=>p.core.shots||0));
+  $("#xgbars").innerHTML=players.slice().sort((a,b)=>(b.core.shots||0)-(a.core.shots||0)).map(p=>{
+    const w=(p.core.shots||0)/mx*100, cv=(p.d&&p.d.conv)?p.d.conv:'—';
+    return `<div style="display:grid;grid-template-columns:108px 1fr 96px;align-items:center;gap:10px;margin-bottom:9px">
+      <div style="font-size:12px;color:${p.team=='A'?'var(--teamA)':'var(--teamB)'}">${p.name}${p.isMe?' <span class="me-tag">ME</span>':''}</div>
+      <div style="height:16px;background:#0c1623;border-radius:5px;border:1px solid var(--line);overflow:hidden"><div class="fillbar" style="height:100%;width:0;background:var(--cyan);transition:width 1s ease" data-w="${w}"></div></div>
+      <div style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--muted)">${p.core.goals||0}/${p.core.shots||0} · ${cv}</div></div>`;
+  }).join('');
 })();
 
 /* animate */

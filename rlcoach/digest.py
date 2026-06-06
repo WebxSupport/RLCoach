@@ -62,7 +62,8 @@ def _serialise(obj):
 # ── Writers ───────────────────────────────────────────────────────────────────
 
 def write_match_json(parsed: ParsedReplay, metrics: MatchMetrics,
-                     moments: list, output_dir: Path):
+                     moments: list, output_dir: Path,
+                     analysis: dict = None):
 
     # Determine result from the tracked player's perspective
     me_pm = next((pm for pm in metrics.players if pm.is_me), None)
@@ -104,6 +105,12 @@ def write_match_json(parsed: ParsedReplay, metrics: MatchMetrics,
         ],
         "warnings": metrics.warnings,
     }
+
+    # Full framework analysis (positioning / touch / shooting / patterns / extended).
+    # Computed from the full-fidelity ParsedReplay at fetch time and persisted so
+    # the on-demand AI step + coaching reader don't have to reconstruct it.
+    if analysis:
+        data["analysis"] = analysis
 
     path = output_dir / "match.json"
     with open(path, "w", encoding="utf-8") as f:

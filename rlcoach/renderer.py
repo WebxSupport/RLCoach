@@ -29,6 +29,9 @@ C_BLUE    = "#4fa3e0"
 C_ORANGE  = "#e07a1f"
 C_BALL    = "#f5f5f5"
 C_TEXT    = "#cccccc"
+C_BAD     = "#e23b3b"   # actual position when it's a mistake
+C_GOOD    = "#33c46b"   # ideal / target position
+C_IDEAL_BAND = "#33c46b"  # support-band annulus fill
 
 
 def _world_to_ax(ax, x: float, y: float):
@@ -36,8 +39,8 @@ def _world_to_ax(ax, x: float, y: float):
     return x, y
 
 
-def _render_frame(ax, snap: dict, title: str = ""):
-    """Draw one top-down frame on the given matplotlib Axes."""
+def _draw_pitch(ax):
+    """Draw the empty top-down pitch (border, midline, thirds, goals) on an Axes."""
     import matplotlib.patches as mpatches
 
     ax.set_facecolor(C_FIELD)
@@ -74,6 +77,13 @@ def _render_frame(ax, snap: dict, title: str = ""):
             fontsize=5, ha="center", va="center", zorder=3)
     ax.text(0, FIELD_Y + GOAL_DEPTH / 2, "ORANGE GOAL", color=C_ORANGE,
             fontsize=5, ha="center", va="center", zorder=3)
+
+
+def _render_frame(ax, snap: dict, title: str = ""):
+    """Draw one top-down frame on the given matplotlib Axes."""
+    import matplotlib.patches as mpatches
+
+    _draw_pitch(ax)
 
     # Ball
     ball = snap.get("ball", {})
@@ -157,4 +167,230 @@ def render_moment(snapshot: dict, output_path: Path,
 
     except Exception as e:
         log.error("Render failed → %s: %s", output_path.name, e)
+        return False
+
+
+# ── Annotated "actual vs ideal" distance diagrams ───────────────────────────────
+#
+# These answer the coaching question "where were you, and where SHOULD you have
+# been?" by drawing the player's actual position, the ideal target, the distance
+# between them, and a correction arrow.
+
+def _car(ax, x, y, color, label=None, alpha=0.95, r=130, z=4):
+    import matplotlib.patches as mpatches
+    ax.add_patch(mpatches.Circle((x, y), r, color=color, zorder=z, alpha=alpha))
+    if label:
+        ax.text(x, y + 230, label, color=color, fontsize=5.5, ha="center",
+                va="bottom", fontweight="bold", zorder=z + 3)
+
+
+def _ghost(ax, x, y, color, label=None, r=130, z=4):
+    """A hollow dashed marker = where the player SHOULD have been."""
+    import matplotlib.patches as mpatches
+    ax.add_patch(mpatches.Circle((x, y), r, fill=False, edgecolor=color,
+                                 lw=2.0, ls=(0, (4, 3)), zorder=z, alpha=0.95))
+    if label:
+        ax.text(x, y - 320, label, color=color, fontsize=5.0, ha="center",
+                va="top", fontweight="bold", zorder=z + 3)
+
+
+def render_support_distance(moment: dict, output_path: Path,
+                            player_name: str = "You",
+                            is_orange: bool = False) -> bool:
+    """
+    Diagram a support-distance mistake.
+
+    Draws the possessing teammate with the ball, the ideal support band
+    (1800-2500uu annulus around the possessor), the player's ACTUAL position
+    (red), and a dashed ghost at the nearest in-band target with a correction
+    arrow + distance labels.
+
+    `moment` is a SupportMoment-shaped dict:
+      {t, dist, kind, actual:[x,y], teammate:[x,y], ball:[x,y], ideal_lo, ideal_hi}
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+
+        team_color = C_ORANGE if is_orange else C_BLUE
+        tx, ty = moment["teammate"]
+        ax_, ay_ = moment["actual"]
+        bx, by = moment.get("ball", [tx, ty])
+        lo = float(moment.get("ideal_lo", 1800.0))
+        hi = float(moment.get("ideal_hi", 2500.0))
+        kind = moment.get("kind", "too_far")
+        dist = float(moment.get("dist", 0.0))
+
+        fig, ax = plt.subplots(figsize=(4.2, 5.2), dpi=110, facecolor=C_BG)
+        _draw_pitch(ax)
+
+        # Ideal support band (annulus around the possessor).
+        ax.add_patch(mpatches.Wedge((tx, ty), hi, 0, 360, width=hi - lo,
+                                    facecolor=C_IDEAL_BAND, alpha=0.16,
+                                    edgecolor=C_GOOD, lw=1.0, zorder=2))
+        ax.text(tx, ty + hi + 120, f"ideal support\n{int(lo)}–{int(hi)}uu",
+                color=C_GOOD, fontsize=5.0, ha="center", va="bottom", zorder=6)
+
+        # Possessor + ball.
+        _car(ax, tx, ty, team_color, label=f"{player_name}'s teammate", z=4)
+        ax.add_patch(mpatches.Circle((bx, by), 92, color=C_BALL, zorder=5))
+
+        # Correction ghost: snap actual onto the nearest band edge along the
+        # possessor→actual direction.
+        vx, vy = ax_ - tx, ay_ - ty
+        d = (vx ** 2 + vy ** 2) ** 0.5 or 1.0
+        ux, uy = vx / d, vy / d
+        target_d = lo if kind == "too_close" else hi
+        gx, gy = tx + ux * target_d, ty + uy * target_d
+
+        # Distance line possessor → actual.
+        ax.plot([tx, ax_], [ty, ay_], color=C_BAD, lw=1.3, ls=":", zorder=3)
+        ax.text((tx + ax_) / 2, (ty + ay_) / 2, f"{int(dist)}uu",
+                color=C_BAD, fontsize=6.0, ha="center", va="center",
+                fontweight="bold", zorder=7,
+                bbox=dict(boxstyle="round,pad=0.15", fc=C_BG, ec=C_BAD, lw=0.6))
+
+        # Correction arrow actual → ghost.
+        ax.annotate("", xy=(gx, gy), xytext=(ax_, ay_),
+                    arrowprops=dict(arrowstyle="-|>", color=C_GOOD, lw=1.8), zorder=6)
+
+        _car(ax, ax_, ay_, C_BAD, label=f"{player_name} (actual)", z=5)
+        _ghost(ax, gx, gy, C_GOOD, label="move here", z=5)
+
+        verdict = "TOO CLOSE — double-commit risk" if kind == "too_close" else "TOO FAR — no follow-up"
+        ax.set_title(f"Support distance @ {moment.get('t', 0):.1f}s — {verdict}",
+                     color=C_TEXT, fontsize=7, pad=4)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(str(output_path), bbox_inches="tight", facecolor=fig.get_facecolor(), dpi=110)
+        plt.close(fig)
+        return True
+    except Exception as e:
+        log.error("Support-distance render failed → %s: %s", output_path.name, e)
+        return False
+
+
+def render_last_man(moment: dict, output_path: Path,
+                    player_name: str = "You",
+                    is_orange: bool = False) -> bool:
+    """
+    Diagram a risky last-man push: the player is the deepest defender yet is up
+    the field, leaving the net exposed. Shows actual position, the ball, the
+    open net, and a ghost at a safe back-post recovery spot.
+
+    `moment` is a LastManMoment-shaped dict: {t, depth, actual:[x,y], ball:[x,y]}
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+
+        team_color = C_ORANGE if is_orange else C_BLUE
+        own_goal_y = FIELD_Y if is_orange else -FIELD_Y
+        ax_, ay_ = moment["actual"]
+        bx, by = moment.get("ball", [0.0, 0.0])
+
+        fig, ax = plt.subplots(figsize=(4.2, 5.2), dpi=110, facecolor=C_BG)
+        _draw_pitch(ax)
+
+        # Highlight the exposed net.
+        ax.add_patch(mpatches.Rectangle(
+            (-GOAL_WIDTH, own_goal_y - (GOAL_DEPTH if is_orange else 0)),
+            2 * GOAL_WIDTH, GOAL_DEPTH, facecolor=C_BAD, alpha=0.35, zorder=2))
+        ax.text(0, own_goal_y * 0.86, "NET EXPOSED", color=C_BAD, fontsize=6,
+                ha="center", va="center", fontweight="bold", zorder=6)
+
+        # Ball.
+        ax.add_patch(mpatches.Circle((bx, by), 92, color=C_BALL, zorder=5))
+
+        # Safe recovery ghost: back-post, goal-side, in own third.
+        gx = -900.0 if bx > 0 else 900.0   # opposite post to the ball
+        gy = own_goal_y + (-1500.0 if is_orange else 1500.0)
+        ax.annotate("", xy=(gx, gy), xytext=(ax_, ay_),
+                    arrowprops=dict(arrowstyle="-|>", color=C_GOOD, lw=1.8), zorder=6)
+
+        _car(ax, ax_, ay_, C_BAD, label=f"{player_name} (last man, pushed up)", z=5)
+        _ghost(ax, gx, gy, C_GOOD, label="cover back post", z=5)
+
+        ax.set_title(f"Risky last-man push @ {moment.get('t', 0):.1f}s "
+                     f"(depth {int(moment.get('depth', 0))}uu up-field)",
+                     color=C_TEXT, fontsize=7, pad=4)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(str(output_path), bbox_inches="tight", facecolor=fig.get_facecolor(), dpi=110)
+        plt.close(fig)
+        return True
+    except Exception as e:
+        log.error("Last-man render failed → %s: %s", output_path.name, e)
+        return False
+
+
+def render_coverage_zones(coverage: dict, output_path: Path,
+                          player_name: str = "You",
+                          is_orange: bool = False) -> bool:
+    """
+    Shade the five defensive-coverage zones on the player's own half and label
+    each with the share of own-half time spent there. Back post (the target) is
+    outlined green; near post / backboard (the leak zones) are outlined red.
+
+    `coverage` is a CoverageZones-shaped dict:
+      {near_post_pct, back_post_pct, goal_line_pct, midfield_pct, backboard_pct, own_half_pct}
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+
+        from .positioning import ZONE_DEEP, ZONE_MID, ZONE_WIDE_X
+
+        own_goal_y = FIELD_Y if is_orange else -FIELD_Y
+        sgn = -1.0 if is_orange else 1.0   # +1 blue: own half is negative-Y going toward midfield up (+)
+
+        fig, ax = plt.subplots(figsize=(4.2, 5.2), dpi=110, facecolor=C_BG)
+        _draw_pitch(ax)
+
+        # y-coordinates of the band boundaries, measured from own goal inward.
+        def band_y(d):
+            return own_goal_y + sgn * d
+
+        y_goal = own_goal_y
+        y_deep = band_y(ZONE_DEEP)
+        y_mid = band_y(ZONE_MID)
+        y_half = 0.0
+
+        def add_zone(y_lo, y_hi, x_lo, x_hi, pct, name, tone):
+            ylo, yhi = sorted([y_lo, y_hi])
+            edge = {"good": C_GOOD, "bad": C_BAD, "neutral": C_LINE}[tone]
+            fill = {"good": C_GOOD, "bad": C_BAD, "neutral": C_THIRDS}[tone]
+            ax.add_patch(mpatches.Rectangle((x_lo, ylo), x_hi - x_lo, yhi - ylo,
+                                            facecolor=fill, alpha=0.10 + 0.30 * min(pct / 100.0, 1.0),
+                                            edgecolor=edge, lw=1.2, zorder=2))
+            ax.text((x_lo + x_hi) / 2, (ylo + yhi) / 2, f"{name}\n{pct:.0f}%",
+                    color=C_TEXT, fontsize=5.2, ha="center", va="center",
+                    fontweight="bold", zorder=6)
+
+        # Goal-line (central deep) + backboard (wide deep)
+        add_zone(y_goal, y_deep, -ZONE_WIDE_X, ZONE_WIDE_X, coverage.get("goal_line_pct", 0), "goal line", "neutral")
+        add_zone(y_goal, y_deep, -FIELD_X, -ZONE_WIDE_X, coverage.get("backboard_pct", 0) / 2, "backboard", "bad")
+        add_zone(y_goal, y_deep, ZONE_WIDE_X, FIELD_X, coverage.get("backboard_pct", 0) / 2, "backboard", "bad")
+        # Post band: near (ball-side) vs back (away) — show both halves; near=bad, back=good
+        add_zone(y_deep, y_mid, 0, FIELD_X, coverage.get("near_post_pct", 0), "near post", "bad")
+        add_zone(y_deep, y_mid, -FIELD_X, 0, coverage.get("back_post_pct", 0), "back post", "good")
+        # Midfield (high in own half)
+        add_zone(y_mid, y_half, -FIELD_X, FIELD_X, coverage.get("midfield_pct", 0), "midfield", "neutral")
+
+        ax.set_title(f"{player_name} — defensive coverage "
+                     f"({coverage.get('own_half_pct', 0):.0f}% of play in own half)",
+                     color=C_TEXT, fontsize=7, pad=4)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(str(output_path), bbox_inches="tight", facecolor=fig.get_facecolor(), dpi=110)
+        plt.close(fig)
+        return True
+    except Exception as e:
+        log.error("Coverage-zones render failed → %s: %s", output_path.name, e)
         return False
