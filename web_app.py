@@ -85,6 +85,18 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 db = Database()
 
+# Live background-job tasks, keyed by job_id, so they can be cancelled (Stop button).
+_JOB_TASKS: dict = {}
+
+
+def _spawn_job(job_id: str, coro):
+    """Launch a background job task and track it so it can be cancelled."""
+    task = asyncio.create_task(coro)
+    _JOB_TASKS[job_id] = task
+    task.add_done_callback(lambda t: _JOB_TASKS.pop(job_id, None))
+    return task
+
+
 # ── Security headers middleware ───────────────────────────────────────────────
 class _SecurityHeaders(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -422,9 +434,7 @@ async def trigger_fetch(session_id: Optional[str] = Cookie(default=None)):
 
     job_id = str(uuid.uuid4())
     await db.create_job(job_id, session["session_id"])
-    asyncio.create_task(
-        run_pipeline_job(job_id, dict(session), db, ANTHROPIC_API_KEY)
-    )
+    _spawn_job(job_id, run_pipeline_job(job_id, dict(session), db, ANTHROPIC_API_KEY))
     return {"job_id": job_id, "status": "started"}
 
 
@@ -452,7 +462,7 @@ async def fetch_stream(job_id: str, session_id: Optional[str] = Cookie(default=N
             if ps != last_seen:
                 last_seen = ps
                 yield f"data: {ps}\n\n"
-                if json.loads(ps).get("status") in ("complete", "error"):
+                if json.loads(ps).get("status") in ("complete", "error", "stopped"):
                     return
             await asyncio.sleep(1)
 
@@ -518,8 +528,27 @@ async def analyze_match(match_id: str, session_id: Optional[str] = Cookie(defaul
     from rlcoach.web_pipeline import run_analysis_job
     job_id = str(uuid.uuid4())
     await db.create_job(job_id, session["session_id"])
-    asyncio.create_task(run_analysis_job(job_id, dict(session), dict(m), db, ANTHROPIC_API_KEY))
+    _spawn_job(job_id, run_analysis_job(job_id, dict(session), dict(m), db, ANTHROPIC_API_KEY))
     return {"job_id": job_id, "status": "started"}
+
+
+@app.post("/api/job/{job_id}/stop")
+async def stop_job(job_id: str, session_id: Optional[str] = Cookie(default=None)):
+    """Cancel a running background job (e.g. the Stop button on a match analysis)."""
+    session = await _require_session(session_id)
+    job = await db.get_job(job_id)
+    if not job or job["session_id"] != session["session_id"]:
+        raise HTTPException(404)
+    task = _JOB_TASKS.get(job_id)
+    if task and not task.done():
+        task.cancel()
+    try:
+        prog = json.loads(job["progress"])
+    except Exception:
+        prog = {}
+    prog.update({"status": "stopped", "step": "Stopped"})
+    await db.update_job(job_id, prog)
+    return {"status": "stopped"}
 
 
 def _inject_dashboard_nav(html: str) -> str:
@@ -600,9 +629,7 @@ async def coaching_generate(session_id: Optional[str] = Cookie(default=None)):
 
     job_id = str(uuid.uuid4())
     await db.create_job(job_id, session["session_id"])
-    asyncio.create_task(
-        _run_coaching_job(job_id, dict(session), dict(profile), db, ANTHROPIC_API_KEY)
-    )
+    _spawn_job(job_id, _run_coaching_job(job_id, dict(session), dict(profile), db, ANTHROPIC_API_KEY))
     return {"job_id": job_id, "status": "started"}
 
 
@@ -656,9 +683,7 @@ async def series_generate(session_id: Optional[str] = Cookie(default=None)):
 
     job_id = str(uuid.uuid4())
     await db.create_job(job_id, session["session_id"])
-    asyncio.create_task(
-        _run_series_job(job_id, dict(session), dict(profile), db, ANTHROPIC_API_KEY)
-    )
+    _spawn_job(job_id, _run_series_job(job_id, dict(session), dict(profile), db, ANTHROPIC_API_KEY))
     return {"job_id": job_id, "status": "started"}
 
 

@@ -1230,20 +1230,31 @@ async function runAnalysis(mid) {
   } catch(e) { toast(e.message); revert(); }
 }
 
+const _analysisStreams={};
 function streamAnalysis(jobId, mid) {
   const es=new EventSource('/api/fetch/stream/'+jobId);
+  _analysisStreams[mid]=es;
+  const done=()=>{ es.close(); delete _analysisStreams[mid]; };
   es.onmessage=ev=>{
     let p; try{p=JSON.parse(ev.data);}catch(e){return;}
     const footer=document.getElementById('footer-'+mid);
-    if (footer && p.status!=='complete' && p.status!=='error')
-      footer.innerHTML=`<span class="mc-analyzing"><span class="spinner"></span> ${p.step||'Analyzing…'}</span>`;
-    if (p.status==='complete'||p.status==='error'){
-      es.close();
+    if (footer && p.status!=='complete' && p.status!=='error' && p.status!=='stopped')
+      footer.innerHTML=`<span class="mc-analyzing"><span class="spinner"></span> ${p.step||'Analyzing…'}</span>`
+        +`<button class="btn btn-danger btn-sm" onclick="stopAnalysis('${jobId}','${mid}')">Stop</button>`;
+    if (p.status==='complete'||p.status==='error'||p.status==='stopped'){
+      done();
       if (p.status==='error' && !maybeEpicReauth(p)) toast(p.step||'Analysis failed');
       loadUsage(); loadMatches();
     }
   };
-  es.onerror=()=>es.close();
+  es.onerror=()=>done();
+}
+
+function stopAnalysis(jobId, mid){
+  const es=_analysisStreams[mid]; if(es){ es.close(); delete _analysisStreams[mid]; }
+  const footer=document.getElementById('footer-'+mid);
+  if(footer) footer.innerHTML=`<span class="mc-analyzing"><span class="spinner"></span> Stopping…</span>`;
+  post('/api/job/'+jobId+'/stop').catch(()=>{}).finally(()=>{ toast('Analysis stopped','warn'); loadMatches(); });
 }
 
 // ── stats page ─────────────────────────────────────────────────────────────

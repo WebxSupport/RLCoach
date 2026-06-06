@@ -82,18 +82,27 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.3;
 
 /* learning resources (tutorial videos) */
 .reslist{display:flex;flex-direction:column;gap:12px}
-.res{display:grid;grid-template-columns:148px 1fr;gap:14px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:12px;text-decoration:none;color:inherit;transition:border-color .15s,transform .12s}
-.res:hover{border-color:var(--cyan);transform:translateY(-2px)}
-.res .thumb{position:relative;width:148px;height:83px;border-radius:8px;overflow:hidden;background:#0c1623}
-.res .thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.res .dur{position:absolute;right:5px;bottom:5px;background:#000c;color:#fff;font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px}
-.res .play{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:22px;opacity:.9;text-shadow:0 1px 6px #000}
-.res .rinfo{display:flex;flex-direction:column;justify-content:center;gap:5px;min-width:0}
-.res .rtitle{font-size:14px;font-weight:700;line-height:1.3}
-.res .rmeta{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
-.res .rmeta .by{color:var(--cyan)}
-.res .rtags{font-family:var(--mono);font-size:10px;color:var(--dim);text-transform:capitalize}
-@media(max-width:520px){.res{grid-template-columns:1fr}.res .thumb{width:100%;height:auto;aspect-ratio:16/9}}
+.vid{display:grid;grid-template-columns:148px 1fr;gap:14px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:12px;text-decoration:none;color:inherit;transition:border-color .15s,transform .12s}
+.vid:hover{border-color:var(--cyan);transform:translateY(-2px)}
+.vid .thumb{position:relative;width:148px;height:83px;border-radius:8px;overflow:hidden;background:#0c1623}
+.vid .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.vid .dur{position:absolute;right:5px;bottom:5px;background:#000c;color:#fff;font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px}
+.vid .play{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:22px;opacity:.9;text-shadow:0 1px 6px #000}
+.vid .rinfo{display:flex;flex-direction:column;justify-content:center;gap:5px;min-width:0}
+.vid .rtitle{font-size:14px;font-weight:700;line-height:1.3}
+.vid .rmeta{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+.vid .rmeta .by{color:var(--cyan)}
+.vid .rtags{font-family:var(--mono);font-size:10px;color:var(--dim);text-transform:capitalize}
+@media(max-width:520px){.vid{grid-template-columns:1fr}.vid .thumb{width:100%;height:auto;aspect-ratio:16/9}}
+
+/* weekly-block drill link: pack code + copy + read-more */
+.blk .blkcode{display:flex;align-items:center;gap:6px;margin-top:6px}
+.blk .blkcode code{font-family:var(--mono);font-size:10.5px;color:var(--cyan);background:#0a131e;border:1px solid var(--line2);border-radius:5px;padding:2px 6px;letter-spacing:.02em}
+.blk .cpbtn,.blk .moreBtn{background:none;border:1px solid var(--line2);color:var(--muted);border-radius:5px;font-family:var(--mono);font-size:10px;padding:2px 7px;cursor:pointer;margin-top:6px}
+.blk .cpbtn:hover,.blk .moreBtn:hover{color:var(--cyan);border-color:var(--cyan)}
+.blk .moreBtn{margin-left:6px;color:var(--cyan);border-color:transparent;padding-left:0}
+.drill.flash{animation:flash 1.6s ease}
+@keyframes flash{0%,100%{box-shadow:none}25%{box-shadow:0 0 0 2px var(--cyan)}}
 
 /* focus hero */
 .focus{border:1px solid var(--cyan);border-radius:14px;background:linear-gradient(120deg,#0d2233,#0b1420);
@@ -304,7 +313,7 @@ $("#tabs").addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)r
   if(!res.length){
     html+=`<div class="empty">Tutorials matched to your weaknesses appear here once your plan is generated.</div>`;
   } else {
-    html+='<div class="reslist">'+res.map(r=>`<a class="res" href="${esc(r.url)}" target="_blank" rel="noopener">
+    html+='<div class="reslist">'+res.map(r=>`<a class="vid" href="${esc(r.url)}" target="_blank" rel="noopener">
       <div class="thumb"><img src="${esc(r.thumb)}" alt="" loading="lazy" onerror="this.style.opacity=0"><span class="play">▶</span><span class="dur">${esc(r.duration||'')}</span></div>
       <div class="rinfo"><div class="rtitle">${esc(r.title)}</div>
         <div class="rmeta"><span class="by">${esc(r.creator)}</span><span>${esc(r.duration||'')}</span></div>
@@ -333,7 +342,13 @@ function renderMmrBar(){
     const isRest=(d.theme||'').toLowerCase().includes('rest')||!blocks.length;
     return `<div class="day ${isRest?'rest':''}">
       <div class="dh"><span class="dn">${esc(d.day)}</span><span class="dt">${esc(d.theme||'')}</span></div>
-      ${blocks.map(b=>`<div class="blk ${esc(b.kind||'skill')}"><div class="bn">${esc(b.name)}</div><div class="bm">${b.mins?b.mins+' min':''} ${esc(b.kind||'')}</div></div>`).join('')||'<div class="blk rest"><div class="bn">Rest / light freeplay</div></div>'}
+      ${blocks.map(b=>{
+        const dr=_findDrill(b.name); const code=(dr&&_isCode(dr.resource))?dr.resource:null; const did=dr?_drillId(dr):null;
+        return `<div class="blk ${esc(b.kind||'skill')}"><div class="bn">${esc(b.name)}</div><div class="bm">${b.mins?b.mins+' min':''} ${esc(b.kind||'')}</div>`
+          +(code?`<div class="blkcode"><code>${esc(code)}</code><button class="cpbtn" onclick="copyCode('${esc(code)}',this)">copy</button></div>`:'')
+          +(did?`<button class="moreBtn" onclick="gotoDrill('${esc(did)}')">Read more →</button>`:'')
+          +`</div>`;
+      }).join('')||'<div class="blk rest"><div class="bn">Rest / light freeplay</div></div>'}
       <div class="tot">${tot?tot+' min total':''}</div></div>`;
   }).join('');
   $("#p-week").innerHTML=`<div class="card"><h2>Your 7-day split</h2><div class="sub">Tuned to ${M.minsPerDay} min/day · colour = block type</div>
@@ -358,7 +373,7 @@ function drillCard(d){
   const res=_isCode(d.resource)
     ? `<div class="res"><span>${esc(d.resource)}</span><button onclick="copyCode('${esc(d.resource)}',this)">copy</button></div>`
     : `<div class="res" style="color:var(--muted)">${esc(d.resource||'Freeplay')}</div>`;
-  return `<div class="drill">
+  return `<div class="drill" id="drill-${esc(id)}">
     <div class="dtop"><span class="dname">${esc(d.name)}</span><span class="kbadge ${esc(d.kind||'pack')}">${esc(d.kind||'')}</span></div>
     <div class="goal">🎯 ${esc(d.goal||'')}</div>
     ${d.movesMetric?`<div class="meta">Improves: ${esc(d.movesMetric)}</div>`:''}
@@ -390,7 +405,13 @@ function renderDrills(){
   }
   $("#p-drills").innerHTML=html;
 }
-function copyCode(code,btn){navigator.clipboard.writeText(code).then(()=>{btn.textContent='copied!';setTimeout(()=>btn.textContent='copy',1200);});}
+function copyCode(code,btn){navigator.clipboard.writeText(code).then(()=>{const o=btn.textContent;btn.textContent='copied!';setTimeout(()=>btn.textContent=o,1200);});}
+function gotoDrill(id){
+  const tab=[...document.querySelectorAll('.tab')].find(t=>t.dataset.t==='drills');
+  if(tab) tab.click();
+  setTimeout(()=>{const el=document.getElementById('drill-'+id);
+    if(el){el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');}},80);
+}
 function toggleDrill(id,v){
   TRACK.drillsDone=TRACK.drillsDone||{};TRACK.drillsDone[id]=v;
   document.querySelectorAll('input[type=checkbox][data-drill]').forEach(c=>{ if(c.getAttribute('data-drill')===id) c.checked=v; });
