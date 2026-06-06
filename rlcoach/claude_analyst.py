@@ -329,5 +329,41 @@ def analyse_match(
     if isinstance(extended_metrics, dict) and extended_metrics.get("field_maps"):
         match_obj["fieldMaps"] = extended_metrics["field_maps"]
 
+    # Inject the computed framework analysis DETERMINISTICALLY (like fieldMaps) so the
+    # Habits + Shooting panels always populate from real numbers — never depend on the
+    # model echoing them back. Falls back to whatever the model produced if absent.
+    _inject_analysis_panels(match_obj, match_json)
+
     html = _inject_into_template(template_html, match_obj)
     return html
+
+
+def _inject_analysis_panels(match_obj: dict, match_json: dict) -> None:
+    """Map match_json['analysis'] (positioning/touch/shooting/patterns) into the
+    MATCH object shapes the dashboard template expects (patterns[], shooting{})."""
+    analysis = (match_json or {}).get("analysis") or {}
+    if not analysis:
+        return
+
+    pats = (analysis.get("patterns") or {}).get("patterns")
+    if pats:
+        match_obj["patterns"] = [
+            {k: p.get(k) for k in
+             ("category", "severity", "title", "evidence", "consequence", "fix", "metric")}
+            for p in pats
+        ]
+
+    sh = analysis.get("shooting") or {}
+    team = sh.get("team") or {}
+    if team:
+        my_team = (match_json.get("result") or {}).get("player_team", "blue")
+        opp = "orange" if my_team == "blue" else "blue"
+        me_sh = next((v for v in (sh.get("per_player") or {}).values()
+                      if isinstance(v, dict) and v.get("is_me")), None)
+        match_obj["shooting"] = {
+            "teamA": team.get(my_team, {}),
+            "teamB": team.get(opp, {}),
+            "me": ({"shots": me_sh.get("shots"), "goals": me_sh.get("goals"),
+                    "xg": me_sh.get("xg"), "finishing": me_sh.get("finishing")}
+                   if me_sh else {}),
+        }
