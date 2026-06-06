@@ -136,6 +136,54 @@ def _extract_json(text: str) -> Optional[dict]:
     return None
 
 
+def _habits_from(r) -> list:
+    if r is None:
+        return []
+    a = (getattr(r, "match_json", None) or {}).get("analysis") or {}
+    return (a.get("patterns") or {}).get("patterns") or []
+
+
+def _collect_habits(win_replay, loss_replay) -> list:
+    """Top recurring habits across the win+loss replays (losses first), deduped."""
+    rank = {"critical": 0, "major": 1, "minor": 2}
+    cand = _habits_from(loss_replay) + _habits_from(win_replay)
+    cand.sort(key=lambda p: rank.get((p.get("severity") or "minor").lower(), 3))
+    seen, out = set(), []
+    for p in cand:
+        key = (p.get("title") or "").lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append({k: p.get(k) for k in
+                    ("category", "severity", "title", "evidence", "consequence", "fix", "metric")})
+        if len(out) >= 5:
+            break
+    return out
+
+
+def _collect_trends(series) -> list:
+    """Win-vs-loss deltas for the new framework metrics (only where both present)."""
+    if not series:
+        return []
+    wa = series.get("winAverages") or {}
+    la = series.get("lossAverages") or {}
+    specs = [
+        ("challenge_win_pct", "Challenge win %", "high"),
+        ("support_too_close_pct", "Support too close %", "low"),
+        ("back_post_pct", "Back-post coverage %", "high"),
+        ("touch_positive_pct", "Positive touches %", "high"),
+        ("giveaways", "Giveaways / game", "low"),
+        ("xg", "Expected goals", "high"),
+    ]
+    out = []
+    for key, label, better in specs:
+        wv, lv = wa.get(key), la.get(key)
+        if wv is None or lv is None:
+            continue
+        out.append({"metric": label, "win": wv, "loss": lv, "better": better})
+    return out[:5]
+
+
 def generate_coaching_plan(
     profile: dict,
     win_replay,
@@ -262,4 +310,8 @@ def generate_coaching_plan(
     }
     plan.setdefault("tracker", {})
     plan["tracker"]["targetMmr"] = est_target_mmr
+
+    # Deterministic visuals for the plan's Habits panel (computed, not model-authored)
+    plan["habits"] = _collect_habits(win_replay, loss_replay)
+    plan["trends"] = _collect_trends(series)
     return plan

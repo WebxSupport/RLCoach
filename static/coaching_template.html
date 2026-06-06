@@ -62,6 +62,24 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.3;
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:780px){.grid2{grid-template-columns:1fr}}
 
+/* habits (patterns) + win-vs-loss trends */
+.phead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.sev{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid currentColor}
+.sev.critical{color:var(--red)}.sev.major{color:var(--amber)}.sev.minor{color:var(--cyan)}
+.cat{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.pattern{border:1px solid var(--line);border-left-width:3px;border-radius:12px;padding:15px 17px;margin-bottom:13px;background:linear-gradient(180deg,var(--panel2),var(--panel))}
+.pattern.critical{border-left-color:var(--red)}.pattern.major{border-left-color:var(--amber)}.pattern.minor{border-left-color:var(--cyan)}
+.pattern .pt{font-weight:800;font-size:15px;margin:6px 0 11px;line-height:1.25}
+.pline{font-size:13px;color:#cdd9e6;line-height:1.5;margin-bottom:7px;display:flex;gap:10px}
+.pline b{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);flex:0 0 92px;padding-top:2px}
+.pline.fixline b{color:var(--green)}
+.pmetric{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.03em;margin-top:6px}
+.trow{display:grid;grid-template-columns:150px 1fr 1fr;align-items:center;gap:12px;margin-bottom:10px}
+.trow .tlab{font-size:12.5px;color:var(--txt)}
+.tbar{height:18px;border-radius:5px;border:1px solid var(--line);background:#0c1623;overflow:hidden;position:relative}
+.tbar>span{position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;padding-left:7px;font-family:var(--mono);font-size:11px;color:#04121a;font-weight:600;white-space:nowrap}
+@media(max-width:680px){.trow{grid-template-columns:1fr;gap:5px}.pline{flex-direction:column;gap:2px}.pline b{flex-basis:auto;padding-top:0}}
+
 /* focus hero */
 .focus{border:1px solid var(--cyan);border-radius:14px;background:linear-gradient(120deg,#0d2233,#0b1420);
   padding:20px 24px;margin-bottom:16px;position:relative;overflow:hidden}
@@ -160,6 +178,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.3;
   <div class="hero" id="hero"></div>
   <div class="tabs" id="tabs"></div>
   <div class="panel active" data-p="overview" id="p-overview"></div>
+  <div class="panel" data-p="habits" id="p-habits"></div>
   <div class="panel" data-p="week" id="p-week"></div>
   <div class="panel" data-p="drills" id="p-drills"></div>
   <div class="panel" data-p="tracker" id="p-tracker"></div>
@@ -200,7 +219,7 @@ $("#hero").innerHTML=`
   </div>`;
 
 /* tabs */
-const TABS=[['overview','Overview'],['week','Weekly Plan'],['drills','Drills'],['tracker','Progress Tracker']];
+const TABS=[['overview','Overview'],['habits','Habits'],['week','Weekly Plan'],['drills','Drills'],['tracker','Progress Tracker']];
 $("#tabs").innerHTML=TABS.map((t,i)=>`<button class="tab ${i==0?'active':''}" data-t="${t[0]}">${t[1]}</button>`).join('');
 $("#tabs").addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -230,6 +249,35 @@ $("#tabs").addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)r
           <h4>Root causes</h4><ul>${li(l.causes)}</ul><h4>Still went well</h4><ul>${li(l.kept)}</ul></div>
       </div></div>`;
   renderMmrBar();
+})();
+
+/* ===== HABITS (framework metrics) ===== */
+(function(){
+  const host=$("#p-habits"); if(!host) return;
+  const habits=PLAN.habits||[], trends=PLAN.trends||[];
+  let html=`<div class="card"><h2>Your recurring habits</h2><div class="sub">The highest-impact patterns from your win &amp; loss replays — what happened, what it cost, and the fix.</div>`;
+  if(!habits.length){
+    html+=`<div class="empty">No standout habits flagged yet. Fetch a few recent replays so the analyser can spot patterns.</div>`;
+  } else {
+    html+=habits.map(p=>{const sev=(p.severity||'minor').toLowerCase();
+      return `<div class="pattern ${sev}"><div class="phead"><span class="sev ${sev}">${esc(sev)}</span><span class="cat">${esc(p.category||'')}</span></div>
+        <div class="pt">${esc(p.title||'')}</div>
+        ${p.evidence?`<div class="pline"><b>Evidence</b><span>${esc(p.evidence)}</span></div>`:''}
+        ${p.consequence?`<div class="pline"><b>Consequence</b><span>${esc(p.consequence)}</span></div>`:''}
+        ${p.fix?`<div class="pline fixline"><b>Fix</b><span>${esc(p.fix)}</span></div>`:''}
+        ${p.metric?`<div class="pmetric">${esc(p.metric)}</div>`:''}</div>`;}).join('');
+  }
+  html+=`</div>`;
+  if(trends.length){
+    html+=`<div class="card"><h2>Win vs Loss — what separates them</h2><div class="sub">Your recent averages split by result. The gap is what to chase.</div>`;
+    html+=trends.map(t=>{const mx=Math.max(Math.abs(+t.win),Math.abs(+t.loss),0.1);
+      const ww=Math.min(100,Math.abs(+t.win)/mx*100), lw=Math.min(100,Math.abs(+t.loss)/mx*100);
+      return `<div class="trow"><div class="tlab">${esc(t.metric)}</div>
+        <div class="tbar"><span style="width:${ww}%;background:var(--green)">${(+t.win).toFixed(1)} W</span></div>
+        <div class="tbar"><span style="width:${lw}%;background:var(--red)">${(+t.loss).toFixed(1)} L</span></div></div>`;}).join('');
+    html+=`</div>`;
+  }
+  host.innerHTML=html;
 })();
 
 function renderMmrBar(){
