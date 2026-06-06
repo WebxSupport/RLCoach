@@ -975,15 +975,39 @@ async def _run_coaching_job(
         "planStart": today,
     })
 
+    # Surface the coaching win/loss replays as full match cards (same shape the
+    # fetch path stores) so they don't render blank in Match History.
     for r in [win, loss]:
         if r is None:
             continue
-        await db.upsert_match(
-            r.guid, session_id, str(r.folder_path),
-            {"guid": r.guid, "map_display": r.map_display, "result": r.result_str,
-             "win": r.is_win, "duration_s": r.duration_s, "played_at": r.played_at,
-             "coaching_source": True},
-        )
+        mj = getattr(r, "match_json", None) or {}
+        res = mj.get("result", {}) or {}
+
+        def _players(team):
+            return [{"name": p.get("name"), "is_me": p.get("is_me", False),
+                     "goals": (p.get("core") or {}).get("goals", 0),
+                     "shots": (p.get("core") or {}).get("shots", 0),
+                     "saves": (p.get("core") or {}).get("saves", 0),
+                     "score": (p.get("core") or {}).get("score", 0)}
+                    for p in mj.get("players", []) if p.get("team") == team]
+
+        summary = {
+            "guid": r.guid, "folder_path": str(r.folder_path),
+            "map": mj.get("map"), "map_display": r.map_display or mj.get("map_display"),
+            "mode": mj.get("mode") or mj.get("playlist") or "",
+            "date": mj.get("date", ""), "played_at": r.played_at,
+            "result": r.result_str, "win": r.is_win,
+            "blue_score": res.get("blue_score"), "orange_score": res.get("orange_score"),
+            "my_team": res.get("player_team", "blue"),
+            "duration_s": r.duration_s,
+            "double_commits": len((mj.get("team_metrics") or {}).get("double_commit_events", [])),
+            "players_blue": _players("blue"), "players_orange": _players("orange"),
+            "coaching_source": True,
+        }
+        # Preserve any existing AI-analysis state (INSERT OR REPLACE would reset it).
+        existing = await db.get_match(r.guid, session_id)
+        has = bool(existing and existing.get("has_analysis")) or (Path(r.folder_path) / "dashboard.html").exists()
+        await db.upsert_match(r.guid, session_id, str(r.folder_path), summary, has_analysis=has)
 
     state = {"status": "complete", "step": "Coaching plan ready!", "coaching_ready": True,
              "total": 0, "current": 0, "messages": []}
