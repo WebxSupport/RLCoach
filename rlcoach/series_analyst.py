@@ -70,6 +70,12 @@ def _analysis_fields(mj: dict, name: Optional[str]) -> dict:
     if me_sh:
         out["xg"] = me_sh.get("xg")
         out["xg_diff"] = round((me_sh.get("goals", 0) or 0) - (me_sh.get("xg") or 0), 2)
+    rot = a.get("rotation") or {}
+    opp = rot.get("opportunities") or 0
+    if opp:
+        out["rotation_score"] = rot.get("score")
+        out["poor_rotation_pct"] = round(100 * (rot.get("poor", 0) + rot.get("critical", 0)) / opp, 1)
+        out["critical_errors"] = rot.get("critical")
     return out
 
 
@@ -127,7 +133,8 @@ def aggregate_matches(match_jsons: list, limit: int = 10) -> dict:
                    # new framework metrics (None on pre-analysis match.jsons → excluded)
                    "back_post_pct", "near_post_pct", "own_half_pct",
                    "support_too_close_pct", "support_too_far_pct", "last_man_risky_pct",
-                   "touch_positive_pct", "giveaways", "challenge_win_pct", "xg", "xg_diff"]
+                   "touch_positive_pct", "giveaways", "challenge_win_pct", "xg", "xg_diff",
+                   "rotation_score", "poor_rotation_pct", "critical_errors"]
 
     def avg_over(rows, key):
         return _mean([r.get(key) for r in rows])
@@ -183,8 +190,10 @@ frame data): back_post_pct / near_post_pct (defensive coverage side — high nea
 rotation), own_half_pct, support_too_close_pct / support_too_far_pct (support distance vs the
 1800-2500uu band), last_man_risky_pct (last-man pushed out of own half), touch_positive_pct
 (share of touches that kept/created), giveaways, challenge_win_pct, xg (expected goals), xg_diff
-(goals − xG; negative = finishing problem). Lean on these framework metrics where available — they
-are the highest-resolution signal.
+(goals − xG; negative = finishing problem), rotation_score (0-100, quality of rotations out of the
+play), poor_rotation_pct (% of rotations graded poor/critical — ball-side / through-middle /
+overcommit), critical_errors (rotations that exposed the net or caused a double-commit). Lean on
+these framework metrics where available — they are the highest-resolution signal.
 
 ## Your task
 Find the SESSION-LEVEL story across these games — not single-match noise. Compare the player's

@@ -80,7 +80,7 @@ def _tier_key(rank_tier: Optional[str]) -> Optional[str]:
 
 # ── Context assembly ───────────────────────────────────────────────────────
 
-def _build_context(parsed, my_player_id, positioning, touch, metrics, extended):
+def _build_context(parsed, my_player_id, positioning, touch, metrics, extended, rotation=None):
     me = next((p for p in parsed.players if _is_me(p.platform_id, my_player_id)), None)
     if me is None:
         return None
@@ -99,7 +99,7 @@ def _build_context(parsed, my_player_id, positioning, touch, metrics, extended):
 
     return {
         "name": name, "team": team, "enemy": enemy,
-        "pos": pos, "pm": pm, "tsum": tsum, "ext_pp": ext_pp,
+        "pos": pos, "pm": pm, "tsum": tsum, "ext_pp": ext_pp, "rotation": rotation,
         "ballchase_idx": bc.get("index"),
         "double_commits": len(metrics.double_commit_events),
         "dc_events": metrics.double_commit_events,
@@ -349,8 +349,35 @@ def _d_slow_reset(ctx) -> Optional[Pattern]:
     )
 
 
+def _d_rotation(ctx) -> Optional[Pattern]:
+    r = ctx.get("rotation")
+    if not r or getattr(r, "opportunities", 0) < 5:
+        return None
+    poor = r.poor + r.critical
+    poor_pct = 100.0 * poor / r.opportunities
+    if poor_pct < 25 and r.critical == 0:
+        return None
+    score = max(0.0, (poor_pct - 25) / 8) + r.critical * 1.5
+    ts = [e.t for e in r.events if e.grade in ("critical", "poor")][:4]
+    return Pattern(
+        category="rotation", title="Rotations break down under pressure", severity=_sev(score),
+        evidence=(f"{poor}/{r.opportunities} rotations graded poor or critical ({poor_pct:.0f}%); "
+                  f"rotation score {r.score}/100 ({r.excellent} excellent · {r.poor} poor · "
+                  f"{r.critical} critical)."),
+        pattern="When you give up the ball you rotate ball-side, through the middle, or push up — "
+                "instead of swinging wide to the back post and holding cover.",
+        consequence=(f"{r.critical} critical rotation error(s) exposed the net or caused a "
+                     "double-commit this match."
+                     if r.critical else "Loose rotations keep handing the opponent the initiative."),
+        fix="The instant the ball leaves you: swing WIDE to back post, stay goal-side, and grab a pad "
+            "on the way — never ball-side or up the middle.",
+        metric=f"poor/critical rotations {poor_pct:.0f}% → <20%",
+        confidence=0.82, score=score, diagram="coverage", timestamps=ts,
+    )
+
+
 _DETECTORS = [
-    _d_over_support, _d_under_support, _d_ball_side, _d_overcommit,
+    _d_rotation, _d_over_support, _d_under_support, _d_ball_side, _d_overcommit,
     _d_last_man_risk, _d_giveaways, _d_panic_clears, _d_challenge_timing,
     _d_boost_starve, _d_slow_reset,
 ]
@@ -360,7 +387,7 @@ _DETECTORS = [
 
 def compute_patterns(parsed, my_player_id: str, *,
                      positioning=None, touch=None, metrics=None, extended=None,
-                     rank_tier: Optional[str] = None, top_n: int = 6) -> PatternReport:
+                     rotation=None, rank_tier: Optional[str] = None, top_n: int = 6) -> PatternReport:
     """
     Detect and rank the tracked player's recurring habits.
 
@@ -383,8 +410,14 @@ def compute_patterns(parsed, my_player_id: str, *,
         except Exception as e:
             log.debug("extended metrics unavailable for patterns: %s", e)
             extended = {}
+    if rotation is None:
+        from .rotation import compute_rotation
+        try:
+            rotation = compute_rotation(parsed, my_player_id)
+        except Exception as e:
+            log.debug("rotation unavailable for patterns: %s", e)
 
-    ctx = _build_context(parsed, my_player_id, positioning, touch, metrics, extended)
+    ctx = _build_context(parsed, my_player_id, positioning, touch, metrics, extended, rotation)
     if ctx is None:
         return PatternReport(player="", is_me=False, rank_tier=rank_tier,
                              summary="Tracked player not found in this replay.")

@@ -234,6 +234,8 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
 
   <!-- ROTATION -->
   <div class="panel" data-p="rotation">
+    <div class="card"><h3>Rotation opportunities</h3><div class="sub" id="rotSub">How well you rotated out after giving up the ball — graded back-post route, support gap, pad collection and team shape.</div>
+      <div id="rotBreakdown"></div><div id="rotEvents" style="margin-top:14px"></div></div>
     <div class="card"><h3>Ballchase Index</h3><div class="sub">Share of live play over-pursuing the ball as the cover man. &lt;5% disciplined · 5–10% loose · &gt;10% chronic.</div><div id="bcbars"></div></div>
     <div class="card"><h3>Ballchase over time</h3><div class="sub">Per-30s rotation discipline — watch where it spikes against conceded goals</div><div id="bcline"></div><div class="legend" id="bcLegend"></div></div>
     <div class="card"><h3>Double-commit log</h3><div class="sub" id="dcsub"></div><div id="dctable" style="max-height:320px;overflow:auto"></div></div>
@@ -432,7 +434,17 @@ const MATCH = {
     teamA:{ shots:14, goals:5, xg:4.6 },
     teamB:{ shots:14, goals:3, xg:3.9 },
     me:{ shots:4, goals:4, xg:2.3, finishing:"clinical" }
-  }
+  },
+
+  // rotation opportunities graded after each time the tracked player gave up the ball
+  rotation:{ opportunities:31, excellent:14, acceptable:9, poor:6, critical:2, score:66.1,
+    events:[
+      { t:54,  grade:"critical", reasons:["pushed up into a double-commit","ball-side rotation (took the near post)"], support_after:780 },
+      { t:76,  grade:"critical", reasons:["team conceded within the rotation window","didn't rotate out — stayed forward"], support_after:1020 },
+      { t:153, grade:"poor", reasons:["rotated through the middle"], support_after:1650 },
+      { t:185, grade:"poor", reasons:["collapsed onto teammate (980uu — overlap)"], support_after:980 },
+      { t:120, grade:"excellent", reasons:["clean back-post rotation with a pad grabbed"], support_after:2100 }
+    ]}
 };
 /* ============================  END OF EDITABLE DATA  ================================= */
 
@@ -748,6 +760,26 @@ function radar(stats){
       <div style="height:16px;background:#0c1623;border-radius:5px;border:1px solid var(--line);overflow:hidden"><div class="fillbar" style="height:100%;width:0;background:var(--cyan);transition:width 1s ease" data-w="${w}"></div></div>
       <div style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--muted)">${p.core.goals||0}/${p.core.shots||0} · ${cv}</div></div>`;
   }).join('');
+})();
+
+/* rotation opportunities */
+(function(){
+  const r=MATCH.rotation, host=$("#rotBreakdown"); if(!host) return;
+  if(!r || !r.opportunities){ host.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">No rotation data for this match.</div>'; if($("#rotEvents"))$("#rotEvents").innerHTML=''; return; }
+  const segs=[['excellent',r.excellent||0,'var(--green)'],['acceptable',r.acceptable||0,'var(--cyan)'],['poor',r.poor||0,'var(--amber)'],['critical',r.critical||0,'var(--red)']];
+  const tot=r.opportunities||1;
+  $("#rotSub").innerHTML=`${r.opportunities} opportunities · score <b style="color:${band(r.score)}">${r.score}</b>/100 — graded back-post route, support gap, pad collection and team shape.`;
+  let bar=`<div style="display:flex;height:26px;border-radius:6px;overflow:hidden;border:1px solid var(--line);font-family:var(--mono);font-size:11px;font-weight:600">`;
+  segs.forEach(([lab,v,c])=>{ if(v>0) bar+=`<div title="${lab} ${v}" style="width:${v/tot*100}%;background:${c}33;color:${c};display:grid;place-items:center;min-width:0">${v}</div>`; });
+  bar+=`</div><div class="legend" style="margin-top:10px">`+segs.map(([lab,v,c])=>`<span><i style="background:${c}"></i>${lab[0].toUpperCase()+lab.slice(1)} ${v}</span>`).join('')+`</div>`;
+  host.innerHTML=bar;
+  const gc={excellent:'var(--green)',acceptable:'var(--cyan)',poor:'var(--amber)',critical:'var(--red)'};
+  const ev=(r.events||[]).filter(e=>e.grade==='critical'||e.grade==='poor').slice(0,6);
+  $("#rotEvents").innerHTML = ev.length ? (`<h3 style="font-size:12px;color:var(--muted);font-family:var(--mono);letter-spacing:.1em;margin-bottom:8px">ROTATIONS TO FIX</h3>`+
+    ev.map(e=>`<div style="border:1px solid var(--line);border-left:3px solid ${gc[e.grade]};border-radius:9px;padding:9px 12px;margin-bottom:8px;background:#0c1623">
+      <div style="display:flex;gap:10px;align-items:center"><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${(+e.t).toFixed(0)}s</span>
+      <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:${gc[e.grade]};border:1px solid currentColor;border-radius:999px;padding:2px 8px">${e.grade}</span></div>
+      <div style="font-size:12.5px;color:#cdd9e6;margin-top:5px;line-height:1.45">${(e.reasons||[]).join(' · ')}</div></div>`).join('')) : '';
 })();
 
 /* animate */

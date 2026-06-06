@@ -31,16 +31,19 @@ class FullAnalysis:
     touch: object                # TouchAnalysis
     shooting: object             # ShootingReport
     patterns: object             # PatternReport (tracked player)
+    rotation: object = None      # RotationAnalysis (tracked player)
 
     def to_dict(self, include_touches: bool = False, include_shots: bool = True) -> dict:
         from .positioning import positioning_to_dict
         from .touch_analysis import touch_analysis_to_dict
         from .shooting import shooting_to_dict
         from .patterns import patterns_to_dict
+        from .rotation import rotation_to_dict, RotationAnalysis
         return {
             "positioning": positioning_to_dict(self.positioning),
             "touch": touch_analysis_to_dict(self.touch, include_touches=include_touches),
             "shooting": shooting_to_dict(self.shooting, include_shots=include_shots),
+            "rotation": rotation_to_dict(self.rotation or RotationAnalysis()),
             "patterns": patterns_to_dict(self.patterns),
             "extended": self.extended or {},
         }
@@ -57,6 +60,7 @@ def analyze_all(parsed, my_player_id: str, *,
     from .positioning import compute_positioning
     from .touch_analysis import compute_touch_analysis
     from .shooting import compute_shooting
+    from .rotation import compute_rotation
     from .patterns import compute_patterns
     from .extended_metrics import compute_extended_metrics
 
@@ -76,12 +80,14 @@ def analyze_all(parsed, my_player_id: str, *,
     positioning = _safe(lambda: compute_positioning(parsed, my_player_id), [], "positioning")
     touch = _safe(lambda: compute_touch_analysis(parsed, my_player_id), None, "touch_analysis")
     shooting = _safe(lambda: compute_shooting(parsed, my_player_id), None, "shooting")
+    rotation = _safe(lambda: compute_rotation(parsed, my_player_id), None, "rotation")
     patterns = _safe(
         lambda: compute_patterns(parsed, my_player_id, positioning=positioning, touch=touch,
-                                 metrics=metrics, extended=extended, rank_tier=rank_tier),
+                                 metrics=metrics, extended=extended, rotation=rotation,
+                                 rank_tier=rank_tier),
         None, "patterns")
 
     return FullAnalysis(
         metrics=metrics, extended=extended, positioning=positioning,
-        touch=touch, shooting=shooting, patterns=patterns,
+        touch=touch, shooting=shooting, patterns=patterns, rotation=rotation,
     )

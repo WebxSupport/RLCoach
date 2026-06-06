@@ -168,6 +168,8 @@ def _collect_trends(series) -> list:
     wa = series.get("winAverages") or {}
     la = series.get("lossAverages") or {}
     specs = [
+        ("rotation_score", "Rotation score", "high"),
+        ("poor_rotation_pct", "Poor rotations %", "low"),
         ("challenge_win_pct", "Challenge win %", "high"),
         ("support_too_close_pct", "Support too close %", "low"),
         ("back_post_pct", "Back-post coverage %", "high"),

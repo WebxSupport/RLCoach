@@ -353,6 +353,10 @@ def _inject_analysis_panels(match_obj: dict, match_json: dict) -> None:
             for p in pats
         ]
 
+    rot = analysis.get("rotation")
+    if rot and rot.get("opportunities"):
+        match_obj["rotation"] = rot
+
     sh = analysis.get("shooting") or {}
     team = sh.get("team") or {}
     if team:
