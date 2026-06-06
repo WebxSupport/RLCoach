@@ -699,6 +699,17 @@ function showEpicConnect() {
   updateEpicLabel();
 }
 
+// If a background job failed because the Epic sign-in expired, route the user
+// straight into the re-auth flow instead of showing a dead-end error message.
+function maybeEpicReauth(p){
+  if (p && p.code==='epic_reauth') {
+    toast('Epic sign-in expired — reconnecting…','warn');
+    showEpicConnect();
+    return true;
+  }
+  return false;
+}
+
 function updateEpicLabel() {
   const lbl=document.getElementById('epic-label');
   if (_me&&_me.epic_connected) {
@@ -1084,7 +1095,7 @@ function onProg(p, type) {
       if (type==='series'&&p.status==='complete'){await loadSeriesStatus();loadUsage();}
       if (type==='fetch') loadMatches();
     },1200);
-    if (p.status==='error') toast(p.step||'An error occurred');
+    if (p.status==='error' && !maybeEpicReauth(p)) toast(p.step||'An error occurred');
   }
 }
 
@@ -1216,7 +1227,7 @@ function streamAnalysis(jobId, mid) {
       footer.innerHTML=`<span class="mc-analyzing"><span class="spinner"></span> ${p.step||'Analyzing…'}</span>`;
     if (p.status==='complete'||p.status==='error'){
       es.close();
-      if (p.status==='error') toast(p.step||'Analysis failed');
+      if (p.status==='error' && !maybeEpicReauth(p)) toast(p.step||'Analysis failed');
       loadUsage(); loadMatches();
     }
   };

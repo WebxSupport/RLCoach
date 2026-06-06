@@ -394,8 +394,11 @@ class _Progress:
         self._state.update({"status": "complete", "step": "Done", "matches": matches})
         await self._db.update_job(self._job_id, self._state)
 
-    async def error(self, text: str):
-        self._state.update({"status": "error", "step": text})
+    async def error(self, text: str, code: str = None):
+        st = {"status": "error", "step": text}
+        if code:
+            st["code"] = code   # e.g. "epic_reauth" → frontend routes into the re-auth flow
+        self._state.update(st)
         await self._db.update_job(self._job_id, self._state)
 
 
@@ -424,8 +427,8 @@ async def run_pipeline_job(
     # 1. Credentials
     creds = await get_web_credentials(session, db)
     if creds is None:
-        await progress.error("Epic sign-in expired — open the ⚙ menu (top right) → "
-                             "Reconnect Epic, then try again.")
+        await progress.error("Your Epic sign-in expired — reconnecting you now…",
+                             code="epic_reauth")
         return
     access_token, account_id, display_name = creds
 
