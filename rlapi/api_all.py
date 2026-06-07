@@ -42,20 +42,37 @@ class SkillsAPI:
         _log.warning("All skills probes returned nothing — rank will fall back to self-reported")
         return None
 class StatsAPI:
-    # The lifetime stats Rocket League tracks per account (same set TRN shows).
-    LIFETIME_STATS = ["Wins", "Goals", "Assists", "Saves", "Shots", "MVPs"]
+    # Locked from server logs: this service + body works (returns {LeaderboardID,
+    # bHasValue, Value}); the other variants are ServiceNotFound.
+    LIFETIME_SERVICE = "Stats/GetStatLeaderboardValueForUser v1"
+
+    # Candidate leaderboard stat names — discovery phase. We log the full response
+    # for each so the real names can be confirmed from:
+    #   docker compose logs | grep -i "lifetime stat"
+    LIFETIME_STAT_CANDIDATES = [
+        "Wins", "Goals", "Saves", "Assists", "MVPs", "Shots",
+        "Win", "Goal", "Save", "Assist", "MVP", "Shot",
+        "Demolitions", "GoalShots", "Centers", "Clears", "Touches",
+        "MatchesPlayed", "GamesPlayed", "TimePlayed", "Points", "Score",
+    ]
 
     @staticmethod
     def _extract_stat_value(result):
-        """Pull the first numeric stat value out of an unknown response shape."""
+        """Pull the numeric stat value out of the response. Handles the locked
+        {bHasValue, Value} shape plus a few generic fallbacks."""
         if isinstance(result, (int, float)):
             return int(result)
         if isinstance(result, dict):
-            for k in ("Value", "value", "StatValue", "Total", "Count"):
+            if "bHasValue" in result or "Value" in result:
+                if result.get("bHasValue") is False:
+                    return None
+                v = result.get("Value")
+                return int(v) if isinstance(v, (int, float)) else None
+            for k in ("value", "StatValue", "Total", "Count"):
                 v = result.get(k)
                 if isinstance(v, (int, float)):
                     return int(v)
-            for k in ("Stats", "Values", "Value", "Results", "PlayerStats", "Leaderboard"):
+            for k in ("Stats", "Values", "Results", "PlayerStats", "Leaderboard"):
                 lst = result.get(k)
                 if isinstance(lst, list) and lst:
                     inner = StatsAPI._extract_stat_value(lst[0])
@@ -65,47 +82,24 @@ class StatsAPI:
             return StatsAPI._extract_stat_value(result[0])
         return None
 
-    async def get_lifetime_stats(self, timeout: float = 8.0) -> Optional[Dict[str, int]]:
+    async def get_lifetime_stats(self, timeout: float = 6.0) -> Optional[Dict[str, int]]:
         """
-        Fetch the player's lifetime career totals from PsyNet's stat leaderboards.
-
-        The exact RPC method + body shape is undocumented, so we probe candidates
-        with the 'Wins' stat, lock onto whatever returns a numeric value, then
-        fetch the rest with that shape. Confirm/lock from:
-            docker compose logs | grep -i "lifetime stat"
+        Fetch the player's lifetime career totals from PsyNet's stat-leaderboard
+        service. The service/body are locked; we probe candidate stat NAMES and
+        keep whichever return a value (full responses are logged for confirmation).
         """
         pid = str(self.local_player_id)
-        candidates = [
-            ("Stats/GetStatLeaderboardValueForUsers v1", lambda s: {"Stat": s, "PlayerIDs": [pid]}),
-            ("Stats/GetStatLeaderboardValueForUser v1",  lambda s: {"Stat": s, "PlayerID": pid}),
-            ("Stats/GetStatLeaderboardValueForUsers v1", lambda s: {"Stat": s, "Players": [{"PlayerID": pid}]}),
-            ("Stats/GetStatLeaderboardValueForUser v1",  lambda s: {"StatName": s, "PlayerID": pid}),
-        ]
-        chosen = None
-        for service, build in candidates:
-            try:
-                result = await self.send_request_sync(service, build("Wins"), timeout)
-                val = self._extract_stat_value(result)
-                shape = list(result.keys()) if isinstance(result, dict) else type(result).__name__
-                _log.info("lifetime stat probe service=%r -> shape=%s Wins=%s", service, shape, val)
-                if val is not None:
-                    chosen = (service, build)
-                    break
-            except Exception as e:
-                _log.info("lifetime stat probe FAIL service=%r -> %s", service, e)
-        if not chosen:
-            _log.warning("No PsyNet lifetime-stats RPC matched — career totals unavailable")
-            return None
-
-        service, build = chosen
         out: Dict[str, int] = {}
-        for stat in self.LIFETIME_STATS + ["MatchesPlayed"]:
+        for name in self.LIFETIME_STAT_CANDIDATES:
             try:
-                v = self._extract_stat_value(await self.send_request_sync(service, build(stat), timeout))
-                if v is not None:
-                    out[stat.lower()] = v
+                result = await self.send_request_sync(
+                    self.LIFETIME_SERVICE, {"Stat": name, "PlayerID": pid}, timeout)
+                val = self._extract_stat_value(result)
+                _log.info("lifetime stat %r -> %r (val=%s)", name, result, val)
+                if val is not None:
+                    out[name.lower()] = val
             except Exception as e:
-                _log.info("lifetime stat %s failed: %s", stat, e)
+                _log.info("lifetime stat %r FAIL -> %s", name, e)
         _log.info("lifetime stats fetched: %s", out)
         return out or None
 class ClubsAPI: pass
