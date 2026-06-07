@@ -187,7 +187,12 @@ async def _require_epic(session: dict) -> None:
 @app.get("/", response_class=HTMLResponse)
 async def frontend():
     index = Path("static/index.html")
-    return HTMLResponse(index.read_text(encoding="utf-8"))
+    # No-cache on the SPA shell so a deploy is picked up on the next load without
+    # needing a hard refresh (the inline JS changes every release).
+    return HTMLResponse(
+        index.read_text(encoding="utf-8"),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/favicon.ico")
@@ -516,10 +521,21 @@ _TRN_PLATFORM = {"steam": "steam", "epic": "epic", "ps4": "psn", "ps5": "psn",
 
 def _trn_profile_url(player_id: str, display_name: str) -> Optional[str]:
     """Deep link to the player's rocketleague.tracker.network profile."""
-    plat, _, ident = (player_id or "").partition(":")
-    slug = _TRN_PLATFORM.get(plat.lower())
-    if plat.lower() == "epic":      # TRN keys Epic profiles by display name, not the EOS id
-        ident = display_name or ident
+    pid = (player_id or "").strip()
+    if ":" in pid:
+        plat, _, ident = pid.partition(":")
+        plat = plat.lower()
+    elif pid.isdigit() and len(pid) >= 16:   # bare steamID64 entered without a prefix
+        plat, ident = "steam", pid
+    else:
+        plat, ident = "epic", pid            # bare value → assume an Epic name
+    slug = _TRN_PLATFORM.get(plat)
+    if plat == "epic":
+        # TRN keys Epic profiles by display name; an EOS account id won't resolve,
+        # so only build the link when we actually know the username.
+        if not display_name:
+            return None
+        ident = display_name
     if not slug or not ident:
         return None
     from urllib.parse import quote
