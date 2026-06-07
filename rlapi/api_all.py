@@ -46,32 +46,39 @@ class StatsAPI:
     # bHasValue, Value}); the other variants are ServiceNotFound.
     LIFETIME_SERVICE = "Stats/GetStatLeaderboardValueForUser v1"
 
-    # Candidate leaderboard stat names — discovery phase. We log the full response
-    # for each so the real names can be confirmed from:
-    #   docker compose logs | grep -i "lifetime stat"
-    LIFETIME_STAT_CANDIDATES = [
-        "Wins", "Goals", "Saves", "Assists", "MVPs", "Shots",
-        "Win", "Goal", "Save", "Assist", "MVP", "Shot",
-        "Demolitions", "GoalShots", "Centers", "Clears", "Touches",
-        "MatchesPlayed", "GamesPlayed", "TimePlayed", "Points", "Score",
-    ]
+    # Locked from server logs — these are the valid lifetime stat-leaderboard
+    # names (others return RequestError). PsyNet returns the Value as a STRING.
+    LIFETIME_STAT_NAMES = ["Wins", "Goals", "Saves", "Assists", "MVPs", "Shots"]
+
+    @staticmethod
+    def _to_int(v):
+        if isinstance(v, bool):
+            return None
+        if isinstance(v, (int, float)):
+            return int(v)
+        if isinstance(v, str):
+            s = v.strip()
+            try:
+                return int(float(s)) if s else None
+            except ValueError:
+                return None
+        return None
 
     @staticmethod
     def _extract_stat_value(result):
-        """Pull the numeric stat value out of the response. Handles the locked
-        {bHasValue, Value} shape plus a few generic fallbacks."""
-        if isinstance(result, (int, float)):
-            return int(result)
+        """Pull the stat value out of the {LeaderboardID, bHasValue, Value} shape
+        (Value arrives as a numeric string), with a few generic fallbacks."""
+        if isinstance(result, (int, float, str)):
+            return StatsAPI._to_int(result)
         if isinstance(result, dict):
             if "bHasValue" in result or "Value" in result:
                 if result.get("bHasValue") is False:
                     return None
-                v = result.get("Value")
-                return int(v) if isinstance(v, (int, float)) else None
+                return StatsAPI._to_int(result.get("Value"))
             for k in ("value", "StatValue", "Total", "Count"):
-                v = result.get(k)
-                if isinstance(v, (int, float)):
-                    return int(v)
+                n = StatsAPI._to_int(result.get(k))
+                if n is not None:
+                    return n
             for k in ("Stats", "Values", "Results", "PlayerStats", "Leaderboard"):
                 lst = result.get(k)
                 if isinstance(lst, list) and lst:
@@ -84,22 +91,21 @@ class StatsAPI:
 
     async def get_lifetime_stats(self, timeout: float = 6.0) -> Optional[Dict[str, int]]:
         """
-        Fetch the player's lifetime career totals from PsyNet's stat-leaderboard
-        service. The service/body are locked; we probe candidate stat NAMES and
-        keep whichever return a value (full responses are logged for confirmation).
+        Fetch the player's lifetime career totals (Wins/Goals/Saves/Assists/MVPs/
+        Shots) from PsyNet's stat-leaderboard service. Service, body and stat names
+        are all locked from server logs.
         """
         pid = str(self.local_player_id)
         out: Dict[str, int] = {}
-        for name in self.LIFETIME_STAT_CANDIDATES:
+        for name in self.LIFETIME_STAT_NAMES:
             try:
                 result = await self.send_request_sync(
                     self.LIFETIME_SERVICE, {"Stat": name, "PlayerID": pid}, timeout)
                 val = self._extract_stat_value(result)
-                _log.info("lifetime stat %r -> %r (val=%s)", name, result, val)
                 if val is not None:
                     out[name.lower()] = val
             except Exception as e:
-                _log.info("lifetime stat %r FAIL -> %s", name, e)
+                _log.info("lifetime stat %r failed: %s", name, e)
         _log.info("lifetime stats fetched: %s", out)
         return out or None
 class ClubsAPI: pass
