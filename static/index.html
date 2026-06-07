@@ -604,6 +604,16 @@ async function api(method, path, body) {
 const get = p => api('GET', p);
 const post = (p,b) => api('POST', p, b);
 const del = p => api('DELETE', p);
+// GET with a timeout so a stuck request surfaces an error instead of spinning forever.
+function getT(path, ms=15000){
+  const ctl=new AbortController();
+  const to=setTimeout(()=>ctl.abort(), ms);
+  return fetch(path,{signal:ctl.signal}).then(async r=>{
+    if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText})); throw new Error(e.detail||r.statusText);}
+    return r.json();
+  }).catch(e=>{ if(e.name==='AbortError') throw new Error('timed out'); throw e; })
+    .finally(()=>clearTimeout(to));
+}
 
 function toast(msg, type='error') {
   const PRESETS={error:{c:'var(--red)',bg:'#1a0d12'},success:{c:'var(--green)',bg:'#081a11'},info:{c:'var(--cyan)',bg:'#071318'},warn:{c:'var(--amber)',bg:'#1a1400'}};
@@ -1546,8 +1556,8 @@ async function loadCareer(){
   const host=document.getElementById('stats-career'); if(!host) return;
   host.innerHTML=`<div class="card"><div class="stats-note" style="margin:0"><span class="spinner"></span> Loading career stats…</div></div>`;
   let d;
-  try{ d=await get('/api/stats/summary'); }
-  catch(e){ host.innerHTML=`<div class="card"><div class="stats-note" style="margin:0">Couldn't load career stats: ${esc(e.message||e)}</div></div>`; return; }
+  try{ d=await getT('/api/stats/summary', 15000); }
+  catch(e){ host.innerHTML=`<div class="card"><div class="stats-note" style="margin:0">Couldn't load career stats (${esc(e.message||e)}). <a href="#" onclick="loadCareer();return false" style="color:var(--cyan)">Retry</a></div></div>`; return; }
   const trnBtn = d.trn_url
     ? `<a href="${d.trn_url}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="text-decoration:none">View on Tracker Network ↗</a>` : '';
   // Render the replay-derived card immediately so the section never waits on the
@@ -1556,7 +1566,7 @@ async function loadCareer(){
   catch(e){ host.innerHTML=`<div class="card"><div class="stats-note" style="margin:0">Career render error: ${esc(e.message||e)}</div></div>`; return; }
   // Then try lifetime totals in the background; prepend the card if they resolve.
   try{
-    const life=await get('/api/stats/lifetime');
+    const life=await getT('/api/stats/lifetime', 20000);
     if(life && life.available && life.stats){
       host.innerHTML=_careerLifetimeCard(life.stats, d, trnBtn)+_careerRecentCard(d, trnBtn, true);
     }
