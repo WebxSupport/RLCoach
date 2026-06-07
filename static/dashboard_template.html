@@ -155,6 +155,9 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
 .pline b{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); flex:0 0 88px; padding-top:2px}
 .pline.fixline b{color:var(--green)}
 .pmetric{font-family:var(--mono); font-size:11px; color:var(--amber); letter-spacing:.03em; margin-top:6px}
+.pdiag{margin:12px 0 0; padding:0; border:1px solid var(--line2); border-radius:10px; background:#0a131e; overflow:hidden}
+.pdiag img{display:block; width:100%; max-width:330px; height:auto; margin:0 auto}
+.pdiag figcaption{font-family:var(--mono); font-size:10.5px; color:var(--dim); text-align:center; padding:7px 10px; border-top:1px solid var(--line)}
 
 /* shooting / xG */
 .xgteam{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:6px}
@@ -764,6 +767,7 @@ function radar(stats){
       ${p.consequence?`<div class="pline"><b>Consequence</b><span>${p.consequence}</span></div>`:''}
       ${p.fix?`<div class="pline fixline"><b>Fix</b><span>${p.fix}</span></div>`:''}
       ${p.metric?`<div class="pmetric">${p.metric}</div>`:''}
+      ${p.diagram?`<figure class="pdiag"><img src="${p.diagram}" alt="Where you were vs where you should have been" loading="lazy"/><figcaption>Where you were (red) vs where you should have been (dashed green)</figcaption></figure>`:''}
     </div>`;}).join('');
 })();
 

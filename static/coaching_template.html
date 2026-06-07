@@ -74,6 +74,9 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.3;
 .pline b{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);flex:0 0 92px;padding-top:2px}
 .pline.fixline b{color:var(--green)}
 .pmetric{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.03em;margin-top:6px}
+.pdiag{margin:12px 0 0;padding:0;border:1px solid var(--line2);border-radius:10px;background:#0a131e;overflow:hidden}
+.pdiag img{display:block;width:100%;max-width:330px;height:auto;margin:0 auto}
+.pdiag figcaption{font-family:var(--mono);font-size:10.5px;color:var(--dim);text-align:center;padding:7px 10px;border-top:1px solid var(--line)}
 .trow{display:grid;grid-template-columns:150px 1fr 1fr;align-items:center;gap:12px;margin-bottom:10px}
 .trow .tlab{font-size:12.5px;color:var(--txt)}
 .tbar{height:18px;border-radius:5px;border:1px solid var(--line);background:#0c1623;overflow:hidden;position:relative}
@@ -291,7 +294,8 @@ $("#tabs").addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)r
         ${p.evidence?`<div class="pline"><b>Evidence</b><span>${esc(p.evidence)}</span></div>`:''}
         ${p.consequence?`<div class="pline"><b>Consequence</b><span>${esc(p.consequence)}</span></div>`:''}
         ${p.fix?`<div class="pline fixline"><b>Fix</b><span>${esc(p.fix)}</span></div>`:''}
-        ${p.metric?`<div class="pmetric">${esc(p.metric)}</div>`:''}</div>`;}).join('');
+        ${p.metric?`<div class="pmetric">${esc(p.metric)}</div>`:''}
+        ${p.diagram?`<figure class="pdiag"><img src="${esc(p.diagram)}" alt="Where you were vs where you should have been" loading="lazy"/><figcaption>Where you were (red) vs where you should have been (dashed green)</figcaption></figure>`:''}</div>`;}).join('');
   }
   html+=`</div>`;
   if(trends.length){

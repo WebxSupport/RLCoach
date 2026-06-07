@@ -28,6 +28,7 @@ from typing import Optional
 import numpy as np
 
 from .metrics import _col, _game_times, _gameplay_mask, _is_me
+from .phrasing import field_fraction
 from .positioning import SUPPORT_MIN, SUPPORT_MAX
 
 log = logging.getLogger(__name__)
@@ -232,9 +233,9 @@ def compute_rotation(parsed, my_player_id: str) -> RotationAnalysis:
         if through_middle:
             reasons.append("rotated through the middle")
         if collapsed:
-            reasons.append(f"collapsed onto teammate ({int(support_after)}uu — overlap)")
+            reasons.append(f"collapsed onto your teammate ({field_fraction(support_after)} apart — overlap)")
         if too_far:
-            reasons.append(f"drifted too far for support ({int(support_after)}uu)")
+            reasons.append(f"drifted too far to support ({field_fraction(support_after)} apart)")
 
         pos_good = goalward and goal_side_of_ball and back_post and not through_middle \
             and SUPPORT_MIN - 300 <= support_after <= SUPPORT_MAX + 300

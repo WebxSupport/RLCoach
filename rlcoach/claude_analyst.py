@@ -26,7 +26,16 @@ TEMPLATE_PATH = Path(__file__).parent.parent / "static" / "dashboard_template.ht
 _SYSTEM = """You are a Grand Champion-level Rocket League coach and data analyst.
 You receive pre-computed match telemetry and produce a structured coaching analysis.
 Return ONLY a single JSON code block (```json ... ```) containing the MATCH object.
-No commentary outside the code block. The JSON must be valid and complete."""
+No commentary outside the code block. The JSON must be valid and complete.
+
+PLAIN-ENGLISH VOICE — every word the player reads must be plain English:
+- NEVER print raw unreal-units distances like "2700uu" or "1800-2500uu". Say distances as a
+  fraction of the pitch instead ("about a third of the pitch upfield", "a passing-lane gap"),
+  or qualitatively ("too far to follow up", "right on top of his teammate").
+- NEVER expose internal field/metric names (e.g. support_too_far_pct, challenge_win_pct,
+  own_half_pct, last_man_pct). Use natural phrases: "you supported too far back 60% of the time",
+  "you won 2 of 15 challenges", "you were the last defender about half the match".
+- Percentages, counts, goals, MMR and timestamps are fine as-is. Keep it readable, not jargon."""
 
 _PROMPT_TEMPLATE = """
 # Rocket League Match Analysis
@@ -80,7 +89,7 @@ Every claim must trace back to the numbers — cite metrics, timestamps, players
 ### Pre-computed framework analysis (match.json → "analysis")
 The match.json above may contain an "analysis" object — use it as ground truth:
 - `positioning` — per-player coverage zones (near/back post, goal line, midfield, backboard),
-  support-distance distribution (too close/optimal/too far vs the 1800-2500uu band),
+  support-distance distribution (too close/optimal/too far vs the ideal passing-lane gap),
   distance-to-play, and last-man (time as last defender, risky pushes).
 - `touch` — touch quality (controlled/pass/shot/clear/challenge/panic + positive/neutral/negative),
   possession chains with end reasons, challenge win/loss, per-player giveaways.
@@ -293,6 +302,7 @@ def analyse_match(
     match_json: dict,
     extended_metrics: dict,
     api_key: str,
+    base_dir=None,
 ) -> str:
     """
     Call Claude Sonnet 4.6 to analyse the match.
@@ -332,13 +342,13 @@ def analyse_match(
     # Inject the computed framework analysis DETERMINISTICALLY (like fieldMaps) so the
     # Habits + Shooting panels always populate from real numbers — never depend on the
     # model echoing them back. Falls back to whatever the model produced if absent.
-    _inject_analysis_panels(match_obj, match_json)
+    _inject_analysis_panels(match_obj, match_json, base_dir)
 
     html = _inject_into_template(template_html, match_obj)
     return html
 
 
-def _inject_analysis_panels(match_obj: dict, match_json: dict) -> None:
+def _inject_analysis_panels(match_obj: dict, match_json: dict, base_dir=None) -> None:
     """Map match_json['analysis'] (positioning/touch/shooting/patterns) into the
     MATCH object shapes the dashboard template expects (patterns[], shooting{})."""
     analysis = (match_json or {}).get("analysis") or {}
@@ -347,11 +357,16 @@ def _inject_analysis_panels(match_obj: dict, match_json: dict) -> None:
 
     pats = (analysis.get("patterns") or {}).get("patterns")
     if pats:
-        match_obj["patterns"] = [
-            {k: p.get(k) for k in
-             ("category", "severity", "title", "evidence", "consequence", "fix", "metric")}
-            for p in pats
-        ]
+        from .renderer import diagram_data_uri
+        out_pats = []
+        for p in pats:
+            entry = {k: p.get(k) for k in
+                     ("category", "severity", "title", "evidence", "consequence", "fix", "metric")}
+            uri = diagram_data_uri(base_dir, p.get("diagram_path"))
+            if uri:
+                entry["diagram"] = uri
+            out_pats.append(entry)
+        match_obj["patterns"] = out_pats
 
     rot = analysis.get("rotation")
     if rot and rot.get("opportunities"):

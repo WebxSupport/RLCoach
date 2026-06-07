@@ -19,7 +19,14 @@ MAX_TOKENS = 7000
 
 _SYSTEM = """You are an elite Rocket League coach who builds structured, data-driven training plans.
 You return ONLY a single JSON object inside a ```json code block — no prose outside it.
-The JSON must be valid and complete, matching the requested schema exactly."""
+The JSON must be valid and complete, matching the requested schema exactly.
+
+PLAIN ENGLISH ONLY — this plan is read by improving players, many of them new:
+- NEVER print raw distances in unreal units (e.g. "1800-2500uu", "2700uu"). Use a fraction of the
+  pitch ("about a third of the pitch") or a qualitative phrase ("a passing-lane gap behind play").
+- NEVER expose internal metric/field names (support_too_far_pct, challenge_win_pct, own_half_pct,
+  etc.). Say them in words: "you supported too far back", "you won under half your challenges".
+- Percentages, counts, goals and MMR are fine. Keep every sentence readable and jargon-free."""
 
 _PROMPT = """
 # Build a structured Rocket League training plan
@@ -137,25 +144,34 @@ def _extract_json(text: str) -> Optional[dict]:
 
 
 def _habits_from(r) -> list:
+    """Each habit paired with the replay folder it came from (for diagram inlining)."""
     if r is None:
         return []
     a = (getattr(r, "match_json", None) or {}).get("analysis") or {}
-    return (a.get("patterns") or {}).get("patterns") or []
+    base = getattr(r, "folder_path", None)
+    return [(p, base) for p in ((a.get("patterns") or {}).get("patterns") or [])]
 
 
 def _collect_habits(win_replay, loss_replay) -> list:
-    """Top recurring habits across the win+loss replays (losses first), deduped."""
+    """Top recurring habits across the win+loss replays (losses first), deduped.
+    Inlines each habit's "where you should have been" field diagram as a data URI
+    so the coaching plan's Habits tab can show it without an image endpoint."""
+    from rlcoach.renderer import diagram_data_uri
     rank = {"critical": 0, "major": 1, "minor": 2}
     cand = _habits_from(loss_replay) + _habits_from(win_replay)
-    cand.sort(key=lambda p: rank.get((p.get("severity") or "minor").lower(), 3))
+    cand.sort(key=lambda pb: rank.get((pb[0].get("severity") or "minor").lower(), 3))
     seen, out = set(), []
-    for p in cand:
+    for p, base in cand:
         key = (p.get("title") or "").lower()
         if not key or key in seen:
             continue
         seen.add(key)
-        out.append({k: p.get(k) for k in
-                    ("category", "severity", "title", "evidence", "consequence", "fix", "metric")})
+        habit = {k: p.get(k) for k in
+                 ("category", "severity", "title", "evidence", "consequence", "fix", "metric")}
+        uri = diagram_data_uri(base, p.get("diagram_path"))
+        if uri:
+            habit["diagram"] = uri
+        out.append(habit)
         if len(out) >= 5:
             break
     return out
@@ -168,14 +184,14 @@ def _collect_trends(series) -> list:
     wa = series.get("winAverages") or {}
     la = series.get("lossAverages") or {}
     specs = [
-        ("rotation_score", "Rotation score", "high"),
-        ("poor_rotation_pct", "Poor rotations %", "low"),
-        ("challenge_win_pct", "Challenge win %", "high"),
-        ("support_too_close_pct", "Support too close %", "low"),
-        ("back_post_pct", "Back-post coverage %", "high"),
-        ("touch_positive_pct", "Positive touches %", "high"),
-        ("giveaways", "Giveaways / game", "low"),
-        ("xg", "Expected goals", "high"),
+        ("rotation_score", "Rotation quality", "high"),
+        ("poor_rotation_pct", "Poor rotations", "low"),
+        ("challenge_win_pct", "Challenges won", "high"),
+        ("support_too_close_pct", "Crowding your teammate", "low"),
+        ("back_post_pct", "Back-post coverage", "high"),
+        ("touch_positive_pct", "Clean touches", "high"),
+        ("giveaways", "Giveaways per game", "low"),
+        ("xg", "Chance quality (xG)", "high"),
     ]
     out = []
     for key, label, better in specs:

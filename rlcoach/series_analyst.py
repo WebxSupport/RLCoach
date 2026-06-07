@@ -207,7 +207,7 @@ Core: goals, shots, saves, assists, conv (conversion %), avg_boost, time_zero_s,
 (% time in each third), air_time_pct, double_commits. Framework metrics (when present — derived from
 frame data): back_post_pct / near_post_pct (defensive coverage side — high near-post = ball-side
 rotation), own_half_pct, support_too_close_pct / support_too_far_pct (support distance vs the
-1800-2500uu band), last_man_risky_pct (last-man pushed out of own half), touch_positive_pct
+ideal passing-lane gap), last_man_risky_pct (last-man pushed out of own half), touch_positive_pct
 (share of touches that kept/created), giveaways, challenge_win_pct, xg (expected goals), xg_diff
 (goals − xG; negative = finishing problem), rotation_score (0-100, quality of rotations out of the
 play), poor_rotation_pct (% of rotations graded poor/critical — ball-side / through-middle /
@@ -239,6 +239,10 @@ Rules:
 - `winVsLoss`: 3-5 metrics where wins and losses differ most (use winAverages vs lossAverages).
 - `topFixes`: exactly 3, ranked by impact, each tied to a number.
 - Be specific and honest; this is a Grand-Champion-level read of the session.
+- PLAIN ENGLISH ONLY in every value you output. NEVER print an internal key name like
+  support_too_far_pct or challenge_win_pct — use a readable label ("Support too far back",
+  "Challenges won"). NEVER print raw distances in uu — say a fraction of the pitch
+  ("about a third of the pitch") or a qualitative phrase. Percentages/counts/MMR are fine.
 """
 
 

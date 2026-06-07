@@ -99,12 +99,10 @@ def _process_replay_sync(
     from rlcoach.parser import parse_replay
     from rlcoach.metrics import compute_metrics
     from rlcoach.events import extract_moments
-    from rlcoach.renderer import (render_moment, render_support_distance,
-                                  render_coverage_zones, render_last_man)
+    from rlcoach.renderer import render_moment, render_pattern_diagrams
     from rlcoach.digest import write_match_json, write_match_md
     from rlcoach.analysis import analyze_all
     from rlcoach.ledger import file_hash
-    from dataclasses import asdict
     import pandas as pd
     import re as _re
 
@@ -189,28 +187,7 @@ def _process_replay_sync(
     try:
         fa = analyze_all(parsed, player_id, metrics=metrics)
         analysis_dict = fa.to_dict()
-        me_pos = next((pp for pp in fa.positioning if pp.is_me), None)
-        me_is_orange = (my_team == "orange")
-        if me_pos is not None:
-            for idx, pat in enumerate(analysis_dict.get("patterns", {}).get("patterns", [])):
-                dtype = pat.get("diagram")
-                rel = None
-                try:
-                    if dtype == "coverage":
-                        png = moments_dir / f"pattern_{idx}_coverage.png"
-                        if render_coverage_zones(asdict(me_pos.coverage), png, me_pos.name, me_is_orange):
-                            rel = f"moments/{png.name}"
-                    elif dtype == "support" and me_pos.support.worst_moments:
-                        png = moments_dir / f"pattern_{idx}_support.png"
-                        if render_support_distance(asdict(me_pos.support.worst_moments[0]), png, me_pos.name, me_is_orange):
-                            rel = f"moments/{png.name}"
-                    elif dtype == "lastman" and me_pos.last_man.risky_moments:
-                        png = moments_dir / f"pattern_{idx}_lastman.png"
-                        if render_last_man(asdict(me_pos.last_man.risky_moments[0]), png, me_pos.name, me_is_orange):
-                            rel = f"moments/{png.name}"
-                except Exception as e:
-                    log.debug("pattern diagram %d failed: %s", idx, e)
-                pat["diagram_path"] = rel
+        render_pattern_diagrams(analysis_dict, moments_dir, my_team == "orange")
     except Exception as e:
         log.warning("Full analysis failed for %s: %s", guid[:8], e)
 
@@ -284,7 +261,8 @@ def _run_claude_analysis_sync(
     if analysis:
         from rlcoach.claude_analyst import analyse_match
         try:
-            return analyse_match(match_data, analysis.get("extended", {}), api_key)
+            return analyse_match(match_data, analysis.get("extended", {}), api_key,
+                                 base_dir=match_json_path.parent)
         except Exception as e:
             log.error("Claude analysis failed: %s", e)
             return None
@@ -346,7 +324,7 @@ def _run_claude_analysis_sync(
 
     from rlcoach.claude_analyst import analyse_match
     try:
-        html = analyse_match(match_data, ext_metrics, api_key)
+        html = analyse_match(match_data, ext_metrics, api_key, base_dir=match_json_path.parent)
         return html
     except Exception as e:
         log.error("Claude analysis failed: %s", e)

@@ -188,11 +188,17 @@ def _save_and_build(info: dict, guid: str, output_dir: Path, ledger,
         moments = []
 
     # Full framework analysis → persisted into match.json (feeds coaching_engine).
+    # Also render the per-habit support/coverage/last-man field diagrams so the
+    # coaching plan can show "where you should have been" visuals (same path the
+    # fetch pipeline uses).
     analysis_dict = None
     try:
         from rlcoach.analysis import analyze_all
+        from rlcoach.renderer import render_pattern_diagrams
         me_pid = next((pm.platform_id for pm in info["metrics"].players if pm.is_me), "")
+        me_is_orange = next((pm.team == "orange" for pm in info["metrics"].players if pm.is_me), False)
         analysis_dict = analyze_all(parsed, me_pid, metrics=info["metrics"]).to_dict()
+        render_pattern_diagrams(analysis_dict, moments_dir, me_is_orange)
     except Exception as e:
         log.warning("Full analysis failed for %s: %s", guid[:8], e)
 

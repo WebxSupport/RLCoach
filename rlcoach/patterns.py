@@ -23,6 +23,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Optional
 
 from .metrics import _is_me
+from .phrasing import SUPPORT_GAP_PHRASE, field_fraction
 
 log = logging.getLogger(__name__)
 
@@ -136,14 +137,13 @@ def _d_over_support(ctx) -> Optional[Pattern]:
     moments = [m.t for m in pos.support.worst_moments if m.kind == "too_close"][:4]
     return Pattern(
         category="positioning", title="Over-supporting the play", severity=_sev(score),
-        evidence=(f"You were inside the {int(pos.support.support_frames)}-frame support window "
-                  f"and TOO CLOSE to your teammate {close:.0f}% of the time "
-                  f"(avg {pos.support.avg_support_dist:.0f}uu)."),
+        evidence=(f"As the second man you sat too close to your teammate {close:.0f}% of your support time "
+                  f"(only {field_fraction(pos.support.avg_support_dist)} apart on average)."),
         pattern="You collapse onto your teammate when they have the ball instead of holding a support gap.",
         consequence=(f"This fed {dc} double-commit window(s) this match"
                      + (f" and contributed to {ctx['goals_conceded']} conceded goal(s)." if dc else ".")),
-        fix="Hold 1800–2500uu of support distance as second man — close enough to follow up, far enough that losing the ball doesn't open the net.",
-        metric=f"too-close {close:.0f}% → <20%",
+        fix=f"Hold {SUPPORT_GAP_PHRASE} as second man — close enough to follow up a rebound, far enough that losing the ball doesn't leave your net open.",
+        metric=f"too-close {close:.0f}% → under 20%",
         confidence=0.8, score=score, diagram="support", timestamps=moments,
     )
 
@@ -159,11 +159,11 @@ def _d_under_support(ctx) -> Optional[Pattern]:
     moments = [m.t for m in pos.support.worst_moments if m.kind == "too_far"][:4]
     return Pattern(
         category="positioning", title="Supporting too far back", severity=_sev(score),
-        evidence=f"As support you were TOO FAR from the ball-carrier {far:.0f}% of the time (avg {pos.support.avg_support_dist:.0f}uu).",
+        evidence=f"As support you were too far from the ball-carrier {far:.0f}% of the time (sitting {field_fraction(pos.support.avg_support_dist)} back on average).",
         pattern="You sit too deep behind the play, so there is no follow-up when your teammate's touch creates a chance.",
         consequence="Won balls die with no second-man support; attacks fizzle and possession is handed back.",
-        fix="Close the gap to 1800–2500uu when your teammate is attacking so you can finish rebounds.",
-        metric=f"too-far {far:.0f}% → <40%",
+        fix=f"Close the gap to {SUPPORT_GAP_PHRASE} when your teammate is attacking so you can finish the rebounds.",
+        metric=f"too-far {far:.0f}% → under 40%",
         confidence=0.65, score=score, diagram="support", timestamps=moments,
     )
 

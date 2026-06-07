@@ -13,6 +13,8 @@ from typing import Optional
 
 import numpy as np
 
+from .phrasing import depth_phrase, field_fraction
+
 log = logging.getLogger(__name__)
 
 FIELD_X = 4096.0
@@ -230,7 +232,7 @@ def render_support_distance(moment: dict, output_path: Path,
         ax.add_patch(mpatches.Wedge((tx, ty), hi, 0, 360, width=hi - lo,
                                     facecolor=C_IDEAL_BAND, alpha=0.16,
                                     edgecolor=C_GOOD, lw=1.0, zorder=2))
-        ax.text(tx, ty + hi + 120, f"ideal support\n{int(lo)}–{int(hi)}uu",
+        ax.text(tx, ty + hi + 120, "ideal support zone\n(a passing-lane gap)",
                 color=C_GOOD, fontsize=5.0, ha="center", va="bottom", zorder=6)
 
         # Possessor + ball.
@@ -247,8 +249,8 @@ def render_support_distance(moment: dict, output_path: Path,
 
         # Distance line possessor → actual.
         ax.plot([tx, ax_], [ty, ay_], color=C_BAD, lw=1.3, ls=":", zorder=3)
-        ax.text((tx + ax_) / 2, (ty + ay_) / 2, f"{int(dist)}uu",
-                color=C_BAD, fontsize=6.0, ha="center", va="center",
+        ax.text((tx + ax_) / 2, (ty + ay_) / 2, field_fraction(dist),
+                color=C_BAD, fontsize=5.5, ha="center", va="center",
                 fontweight="bold", zorder=7,
                 bbox=dict(boxstyle="round,pad=0.15", fc=C_BG, ec=C_BAD, lw=0.6))
 
@@ -316,7 +318,7 @@ def render_last_man(moment: dict, output_path: Path,
         _ghost(ax, gx, gy, C_GOOD, label="cover back post", z=5)
 
         ax.set_title(f"Risky last-man push @ {moment.get('t', 0):.1f}s "
-                     f"(depth {int(moment.get('depth', 0))}uu up-field)",
+                     f"(pushed up {depth_phrase(moment.get('depth', 0))})",
                      color=C_TEXT, fontsize=7, pad=4)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -394,3 +396,67 @@ def render_coverage_zones(coverage: dict, output_path: Path,
     except Exception as e:
         log.error("Coverage-zones render failed → %s: %s", output_path.name, e)
         return False
+
+
+# ── Shared wiring: render a diagram per positioning habit ────────────────────────
+
+def render_pattern_diagrams(analysis: dict, moments_dir: Path, is_orange: bool) -> None:
+    """Render an "actual vs ideal" field diagram for every positioning habit that
+    has one (support / coverage / last-man) and stamp the relative PNG path onto
+    each pattern dict as `diagram_path`.
+
+    Works purely from the persisted analysis dict (the support/last-man worst
+    moments serialise into match.json), so the fetch and coaching pipelines share
+    one code path. Mutates `analysis` in place; call before write_match_json.
+    """
+    try:
+        pats = (analysis.get("patterns") or {}).get("patterns") or []
+        if not pats:
+            return
+        pos_all = analysis.get("positioning") or {}
+        me_name, me_pos = next(
+            ((k, v) for k, v in pos_all.items() if isinstance(v, dict) and v.get("is_me")),
+            (None, None))
+        if not me_pos:
+            return
+        support_moments = (me_pos.get("support") or {}).get("worst_moments") or []
+        risky_moments = (me_pos.get("last_man") or {}).get("risky_moments") or []
+        coverage = me_pos.get("coverage") or {}
+        for idx, pat in enumerate(pats):
+            dtype = pat.get("diagram")
+            rel = None
+            try:
+                if dtype == "coverage" and coverage:
+                    png = moments_dir / f"pattern_{idx}_coverage.png"
+                    if render_coverage_zones(coverage, png, me_name, is_orange):
+                        rel = f"moments/{png.name}"
+                elif dtype == "support" and support_moments:
+                    png = moments_dir / f"pattern_{idx}_support.png"
+                    if render_support_distance(support_moments[0], png, me_name, is_orange):
+                        rel = f"moments/{png.name}"
+                elif dtype == "lastman" and risky_moments:
+                    png = moments_dir / f"pattern_{idx}_lastman.png"
+                    if render_last_man(risky_moments[0], png, me_name, is_orange):
+                        rel = f"moments/{png.name}"
+            except Exception as e:
+                log.debug("pattern diagram %d failed: %s", idx, e)
+            pat["diagram_path"] = rel
+    except Exception as e:
+        log.warning("render_pattern_diagrams failed: %s", e)
+
+
+def diagram_data_uri(base_dir, rel_path: Optional[str]) -> Optional[str]:
+    """Read a rendered PNG under `base_dir` and return a base64 data URI so it can
+    be inlined into a self-contained dashboard (no extra image endpoint needed).
+    Returns None if the path is missing or unreadable."""
+    if not rel_path or not base_dir:
+        return None
+    try:
+        import base64
+        p = Path(base_dir) / rel_path
+        if not p.exists():
+            return None
+        return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode("ascii")
+    except Exception as e:
+        log.debug("diagram inline failed for %s: %s", rel_path, e)
+        return None
