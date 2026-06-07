@@ -36,6 +36,7 @@ Replays:
 
 Stats:
   GET  /api/metrics/history      Skill-progression snapshots + trackable-metric catalogue
+  GET  /api/stats/summary        Career stats from tracked replays + peak MMR + Tracker Network link
 
 Misc:
   GET  /api/resources
@@ -506,6 +507,69 @@ async def get_ranks(session_id: Optional[str] = Cookie(default=None)):
     access_token, account_id, display_name = creds
     ranks = await fetch_all_ranks(access_token, account_id, display_name)
     return {"ranks": ranks, "available": bool(ranks)}
+
+
+# Map our player-id platform prefix → Tracker Network profile slug.
+_TRN_PLATFORM = {"steam": "steam", "epic": "epic", "ps4": "psn", "ps5": "psn",
+                 "psn": "psn", "xbl": "xbl", "switch": "switch"}
+
+
+def _trn_profile_url(player_id: str, display_name: str) -> Optional[str]:
+    """Deep link to the player's rocketleague.tracker.network profile."""
+    plat, _, ident = (player_id or "").partition(":")
+    slug = _TRN_PLATFORM.get(plat.lower())
+    if plat.lower() == "epic":      # TRN keys Epic profiles by display name, not the EOS id
+        ident = display_name or ident
+    if not slug or not ident:
+        return None
+    from urllib.parse import quote
+    return f"https://rocketleague.tracker.network/rocket-league/profile/{slug}/{quote(ident)}/overview"
+
+
+@app.get("/api/stats/summary")
+async def stats_summary(session_id: Optional[str] = Cookie(default=None)):
+    """Career stats aggregated from the player's tracked replays (no extra PsyNet
+    connection), plus peak MMR and a Tracker Network deep link, to enrich My Stats."""
+    session = await _require_session(session_id)
+    sid = session["session_id"]
+    matches = await db.get_matches(sid)
+
+    def blank():
+        return {"games": 0, "wins": 0, "losses": 0, "goals": 0, "shots": 0, "saves": 0, "score": 0}
+
+    overall, by_mode = blank(), {}
+    for m in matches:
+        s = m.get("summary", {}) or {}
+        players = (s.get("players_blue") or []) + (s.get("players_orange") or [])
+        me = next((p for p in players if p.get("is_me")), None)
+        if not me:
+            continue
+        bucket = by_mode.setdefault(s.get("mode") or "?", blank())
+        for b in (overall, bucket):
+            b["games"] += 1
+            b["wins" if s.get("win") else "losses"] += 1
+            for k in ("goals", "shots", "saves", "score"):
+                b[k] += int(me.get(k) or 0)
+
+    def finalize(b):
+        g = b["games"] or 1
+        return {
+            "games": b["games"], "wins": b["wins"], "losses": b["losses"],
+            "win_pct": round(100 * b["wins"] / b["games"]) if b["games"] else 0,
+            "per_game": {"goals": round(b["goals"] / g, 2), "shots": round(b["shots"] / g, 2),
+                         "saves": round(b["saves"] / g, 2), "score": round(b["score"] / g)},
+            "shooting_pct": round(100 * b["goals"] / b["shots"]) if b["shots"] else 0,
+        }
+
+    tr = await db.get_tracker(sid)
+    mmrs = [e.get("mmr") for e in (tr.get("mmrLog") or []) if isinstance(e.get("mmr"), (int, float))]
+    return {
+        "tracked_games": overall["games"],
+        "career": {"overall": finalize(overall),
+                   "by_mode": {k: finalize(v) for k, v in sorted(by_mode.items())}},
+        "peak_mmr": max(mmrs) if mmrs else None,
+        "trn_url": _trn_profile_url(session.get("player_id") or "", session.get("display_name") or ""),
+    }
 
 
 # ── replay fetch ──────────────────────────────────────────────────────────────
