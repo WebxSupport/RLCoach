@@ -366,11 +366,10 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
       </div>
       <div id="epic-device" style="display:none">
         <div class="code-box">
-          <div class="code-hint">1. Open this link:</div>
-          <div style="margin:6px 0"><a id="verify-link" href="#" target="_blank" class="code-hint" style="color:var(--cyan);font-size:13px;font-weight:600">epicgames.com/activate</a></div>
-          <div class="code-hint" style="margin-top:8px">2. Enter this code:</div>
-          <div class="user-code" id="user-code">——————</div>
-          <div class="waiting"><span class="spinner"></span><span id="epic-msg">Waiting for you to complete…</span></div>
+          <p class="sub" style="margin-bottom:12px">A tab opened on Epic with your code already filled in — just sign in if asked and click <b>Confirm</b>. We'll detect it automatically.</p>
+          <a id="verify-complete-link" href="#" target="_blank" rel="noopener" class="btn btn-primary" style="width:100%;justify-content:center;text-decoration:none">Open Epic to confirm →</a>
+          <div class="waiting" style="margin-top:14px"><span class="spinner"></span><span id="epic-msg">Waiting for you to confirm on Epic…</span></div>
+          <div class="code-hint" style="margin-top:14px;font-size:11px;color:var(--muted);line-height:1.5">Tab didn't open? Go to <a id="verify-link" href="#" target="_blank" rel="noopener" style="color:var(--cyan)">epicgames.com/activate</a> and enter code <b id="user-code" style="color:var(--txt);letter-spacing:.08em">——————</b></div>
         </div>
         <button class="btn btn-ghost btn-sm" id="cancel-epic-btn" style="width:100%;justify-content:center;margin-top:8px">Cancel</button>
       </div>
@@ -745,16 +744,26 @@ function updateEpicLabel() {
 document.getElementById('connect-btn').onclick = async () => {
   const btn=document.getElementById('connect-btn');
   btn.disabled=true; btn.textContent='Starting…';
+  // Open a blank tab *synchronously* inside the click gesture so the browser
+  // doesn't pop-up-block it; we redirect it to Epic once the device code lands.
+  let popup = window.open('', '_blank');
   try {
     const d = await post('/api/epic/start');
     _epicDeviceCode=d.device_code; _epicInterval=d.interval||5;
+    const complete = d.verification_uri_complete || d.verification_uri;
     document.getElementById('user-code').textContent=d.user_code;
     const lnk=document.getElementById('verify-link');
     lnk.href=d.verification_uri; lnk.textContent=d.verification_uri.replace('https://','');
+    document.getElementById('verify-complete-link').href=complete;
+    // Send the pre-opened tab straight to Epic with the code pre-filled.
+    if (popup && !popup.closed) { try { popup.location.href = complete; } catch(_) {} }
     document.getElementById('epic-start').style.display='none';
     document.getElementById('epic-device').style.display='block';
     _epicPollTimer=setInterval(pollEpic, _epicInterval*1000);
-  } catch(e) { toast('Failed to start: '+e.message); btn.disabled=false; btn.textContent='Connect Epic Games Account'; }
+  } catch(e) {
+    if (popup && !popup.closed) { try { popup.close(); } catch(_) {} }
+    toast('Failed to start: '+e.message); btn.disabled=false; btn.textContent='Connect Epic Games Account';
+  }
 };
 
 document.getElementById('cancel-epic-btn').onclick = () => {

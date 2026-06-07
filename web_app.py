@@ -302,6 +302,7 @@ async def epic_start(session_id: Optional[str] = Cookie(default=None)):
         "user_code": device.user_code,
         "device_code": device.device_code,
         "verification_uri": device.verification_uri,
+        "verification_uri_complete": device.verification_uri_complete,
         "expires_in": device.expires_in,
         "interval": device.interval,
     }

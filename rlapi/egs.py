@@ -192,6 +192,7 @@ class DeviceAuthResponse:
     verification_uri: str
     expires_in: int
     interval: int
+    verification_uri_complete: Optional[str] = None  # activate URL with the code pre-filled
 
 
 # ── Device Authorization Grant (RFC 8628) ─────────────────────────────────────
@@ -215,6 +216,7 @@ def authenticate_with_device(egs: "EGS") -> DeviceAuthResponse:
         verification_uri=d["verification_uri"],
         expires_in=d["expires_in"],
         interval=d.get("interval", 5),
+        verification_uri_complete=d.get("verification_uri_complete"),
     )
 
 
