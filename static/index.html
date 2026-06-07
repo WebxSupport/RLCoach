@@ -242,6 +242,33 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 .stats-note{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:16px;line-height:1.5}
 .stats-empty{text-align:center;padding:60px 20px;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
 
+/* accountability tracker (home) */
+.acc-card{margin-bottom:16px}
+.acc-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.acc-head h2{font-size:15px;font-weight:800}
+.acc-count{font-family:var(--mono);font-size:12px;color:var(--cyan)}
+.acc-bar{height:12px;border-radius:7px;background:#0c1623;border:1px solid var(--line);overflow:hidden;margin-bottom:14px}
+.acc-bar>div{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:7px;transition:width .6s ease}
+.acc-days{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+@media(max-width:760px){.acc-days{grid-template-columns:repeat(2,1fr)}}
+.acc-day{border:1px solid var(--line);border-radius:10px;background:#0c1623;padding:10px;display:flex;flex-direction:column;gap:4px;cursor:pointer;position:relative;transition:border-color .15s}
+.acc-day:hover{border-color:var(--cyan)}
+.acc-day.rest{opacity:.55;cursor:default}
+.acc-day.done{border-color:var(--green);background:#0c1f17}
+.acc-day input{position:absolute;top:8px;right:8px;width:16px;height:16px;accent-color:var(--green);cursor:pointer}
+.acc-day .acc-dn{font-weight:800;font-size:13px}
+.acc-day .acc-dt{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.3}
+
+/* skill progression (My Stats) */
+.mchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.mchip{font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:999px;border:1px solid var(--line2);background:none;color:var(--muted);cursor:pointer;transition:all .15s}
+.mchip:hover{color:var(--txt);border-color:var(--muted)}
+.mchip.on{color:#04121a;background:var(--cyan);border-color:var(--cyan);font-weight:600}
+.mcharts{display:flex;flex-direction:column;gap:16px}
+.mchart-card{border:1px solid var(--line);border-radius:10px;background:#0c1623;padding:12px 14px}
+.mchart-h{font-size:13px;font-weight:700;margin-bottom:6px}
+.mchart-h span{font-family:var(--mono);font-size:10px;color:var(--dim);font-weight:400}
+
 /* ── settings menu ── */
 .settings-wrap{position:relative}
 .settings-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:200px;z-index:80;
@@ -418,11 +445,13 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     <div class="tab-panel active" id="tab-coaching">
       <div class="coaching-header">
         <h1>Your Coaching Plan</h1>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" id="view-plan-btn" style="display:none" onclick="openCoachingPlan()">View Full Plan ↗</button>
+          <button class="btn btn-ghost btn-sm" id="complete-plan-btn" style="display:none;color:var(--green);border-color:var(--green)" onclick="completePlan()">✓ Mark Plan Complete</button>
           <button class="btn btn-primary btn-sm" id="regen-btn" onclick="triggerCoaching()">↻ Regenerate Plan</button>
         </div>
       </div>
+      <div id="accountability"></div>
       <div id="coaching-progress" style="display:none">
         <div class="prog-card">
           <div class="prog-head"><span class="spinner"></span><span class="prog-title" id="cp-step">Generating…</span></div>
@@ -1053,28 +1082,76 @@ async function loadUsage() {
   try {
     const u=await get('/api/usage');
     const c=document.getElementById('usage-chip');
-    c.style.display=''; c.textContent=`AI ${u.today}/${u.limit} today`;
-    c.className='chip'+(u.today>=u.limit?' full':u.today>=u.limit-1?' warn':'');
+    const mr=(u.match&&u.match.remaining)??0, sr=(u.series&&u.series.remaining)??0;
+    c.style.display='';
+    c.textContent=`Today · Match ${mr>0?'available':'used'} · Series ${sr>0?'available':'used'}`;
+    c.title=`Match analysis ${u.match.used}/${u.match.limit} · Series ${u.series.used}/${u.series.limit} today`;
+    c.className='chip'+((mr<=0&&sr<=0)?' full':(mr<=0||sr<=0)?' warn':'');
   } catch(e) {}
 }
 
+let _coachingPlan=null;
 async function loadCoachingStatus() {
   try {
     const plan=await get('/api/coaching');
+    _coachingPlan=plan;
     const empty=document.getElementById('coaching-empty');
     const info=document.getElementById('coaching-info');
     const vbtn=document.getElementById('view-plan-btn');
+    const regen=document.getElementById('regen-btn');
+    const comp=document.getElementById('complete-plan-btn');
+    const cyc=plan.cycle||{};
     if (!plan.exists) {
       empty.style.display='block'; info.style.display='none'; vbtn.style.display='none';
+      regen.style.display='none'; comp.style.display='none';
     } else {
       empty.style.display='none'; info.style.display='block'; vbtn.style.display='';
       const p=_profile;
       document.getElementById('plan-title').textContent=`${p.display_name||'Your'} Plan → ${p.target_rank||'Target Rank'}`;
       const d=new Date(plan.generated_at).toLocaleDateString();
       document.getElementById('plan-meta').innerHTML=`<span>${p.gamemode||''}</span><span>${p.mins_per_day||60} min/day</span><span>Generated: ${d}</span>`;
+      // Plan-cycle gating: regenerate (1/cycle) → complete → fresh generate
+      if (cyc.can_regenerate) { regen.style.display=''; regen.disabled=false; regen.textContent=`↻ Regenerate Plan (${cyc.regens_left} left)`; }
+      else if (cyc.can_generate) { regen.style.display=''; regen.disabled=false; regen.textContent='✨ Generate New Plan'; }
+      else { regen.style.display='none'; }
+      comp.style.display=cyc.can_complete?'':'none';
     }
+    renderAccountability(plan);
     loadPlanHistory();
   } catch(e) {}
+}
+
+// ── accountability tracker (home tab) ──────────────────────────────────────
+async function renderAccountability(plan) {
+  const host=document.getElementById('accountability'); if(!host) return;
+  if (!plan || !plan.exists || !(plan.week && plan.week.length)) { host.innerHTML=''; return; }
+  let tr={}; try { tr=await get('/api/tracker'); } catch(e) {}
+  const done=(tr.weeklyDaysDone)||{};
+  const week=plan.week;
+  const train=week.filter(d=>!d.rest);
+  const doneCount=train.filter(d=>done[d.day]).length;
+  const pct=train.length?Math.round(100*doneCount/train.length):0;
+  host.innerHTML=`<div class="card acc-card">
+    <div class="acc-head"><h2>This week's training</h2><span class="acc-count">${doneCount}/${train.length} days done · ${pct}%</span></div>
+    <div class="acc-bar"><div style="width:${pct}%"></div></div>
+    <div class="acc-days">`+week.map(d=>{
+      if (d.rest) return `<div class="acc-day rest"><div class="acc-dn">${esc(d.day)}</div><div class="acc-dt">Rest</div></div>`;
+      const dn=!!done[d.day];
+      return `<label class="acc-day ${dn?'done':''}">
+        <input type="checkbox" ${dn?'checked':''} onchange="toggleTrainingDay('${esc(d.day).replace(/'/g,"\\'")}',this.checked)"/>
+        <div class="acc-dn">${esc(d.day)}</div><div class="acc-dt">${esc(d.theme||'Training')}${d.mins?(' · '+d.mins+'m'):''}</div></label>`;
+    }).join('')+`</div></div>`;
+}
+async function toggleTrainingDay(day, v) {
+  let tr={}; try { tr=await get('/api/tracker'); } catch(e) {}
+  tr.weeklyDaysDone=tr.weeklyDaysDone||{}; tr.weeklyDaysDone[day]=v;
+  try { await post('/api/tracker', tr); } catch(e) {}
+  if (_coachingPlan) renderAccountability(_coachingPlan);
+}
+async function completePlan() {
+  if (!confirm('Mark this plan complete? This closes the current plan cycle and unlocks a fresh plan you can generate when ready.')) return;
+  try { await post('/api/coaching/complete'); toast('Plan marked complete — generate your next one when ready!','success'); await loadCoachingStatus(); }
+  catch(e) { toast('Failed: '+e.message); }
 }
 
 async function loadPlanHistory(){
@@ -1383,10 +1460,12 @@ async function loadStats(force) {
       <div class="card" style="margin-top:6px"><h2 style="font-size:15px;font-weight:800;margin-bottom:4px">MMR progression</h2>
         <div class="sub" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px">
           ${_profile.gamemode||'2v2'} · logged automatically each day you open RLCoach</div>
-        <div id="stats-mmr-chart"></div></div>`;
+        <div id="stats-mmr-chart"></div></div>
+      <div id="stats-progress" style="margin-top:6px"></div>`;
     // Auto-log today's MMR then draw the progression chart
     try { await post('/api/tracker/sync-mmr'); } catch(e) {}
     drawStatsMmr();
+    loadProgression();
   } catch(e) {
     body.innerHTML=`<div class="stats-empty"><p>Error loading stats: ${e.message}</p></div>`;
   }
@@ -1410,6 +1489,74 @@ async function drawStatsMmr() {
   log.forEach((p,i)=>{s+=`<circle cx="${x(i)}" cy="${y(p.mmr)}" r="3.5" fill="var(--cyan)"><title>${p.date}: ${p.mmr}</title></circle>`;
     if(i===log.length-1)s+=`<text x="${x(i)}" y="${y(p.mmr)-9}" fill="var(--cyan)" font-size="11" font-family="var(--mono)" text-anchor="middle">${p.mmr}</text>`;});
   log.forEach((p,i)=>{if(i%Math.ceil(log.length/6||1)===0||i===log.length-1)s+=`<text x="${x(i)}" y="${H-8}" fill="var(--dim)" font-size="9" font-family="var(--mono)" text-anchor="middle">${(p.date||'').slice(5)}</text>`;});
+  el.innerHTML=s+`</svg>`;
+}
+
+// ── skill progression (user-selectable metrics) ────────────────────────────
+let _metricHist=[], _metricCat=[], _statSel=[];
+async function _patchTracker(patch){
+  let tr={}; try{ tr=await get('/api/tracker'); }catch(e){}
+  Object.assign(tr, patch);
+  try{ await post('/api/tracker', tr); }catch(e){}
+  return tr;
+}
+function _availMetrics(){
+  const present=new Set();
+  _metricHist.forEach(h=>Object.keys(h.metrics||{}).forEach(k=>present.add(k)));
+  return _metricCat.filter(m=>present.has(m.key));
+}
+async function loadProgression(){
+  const host=document.getElementById('stats-progress'); if(!host) return;
+  let data; try{ data=await get('/api/metrics/history'); }catch(e){ host.innerHTML=''; return; }
+  _metricHist=data.history||[]; _metricCat=data.catalogue||[];
+  const avail=_availMetrics();
+  if(!_metricHist.length || !avail.length){
+    host.innerHTML=`<div class="card"><h2 style="font-size:15px;font-weight:800;margin-bottom:4px">Skill progression</h2>
+      <div class="stats-note" style="margin:0">Run a match analysis, a series report, or generate a plan and we'll chart how your skills move over time here — alongside MMR.</div></div>`;
+    return;
+  }
+  let tr={}; try{ tr=await get('/api/tracker'); }catch(e){}
+  _statSel=((tr.statMetrics||[]).filter(k=>avail.some(m=>m.key===k)));
+  if(!_statSel.length) _statSel=avail.slice(0,3).map(m=>m.key);
+  renderProgression();
+}
+function renderProgression(){
+  const host=document.getElementById('stats-progress'); if(!host) return;
+  const avail=_availMetrics();
+  const chips=avail.map(m=>`<button class="mchip ${_statSel.includes(m.key)?'on':''}" onclick="toggleStatMetric('${m.key}')">${esc(m.label)}</button>`).join('');
+  const charts=_statSel.map(k=>{
+    const m=avail.find(x=>x.key===k)||{key:k,label:k,unit:''};
+    return `<div class="mchart-card"><div class="mchart-h">${esc(m.label)}${m.unit?(' <span>('+esc(m.unit)+')</span>'):''}</div><div id="mc-${k}"></div></div>`;
+  }).join('') || '<div class="stats-note" style="margin:0">Pick a metric above to chart it.</div>';
+  host.innerHTML=`<div class="card">
+    <h2 style="font-size:15px;font-weight:800;margin-bottom:4px">Skill progression</h2>
+    <div class="stats-note" style="margin:0 0 10px">Captured each time you run a match analysis, a series, or generate a plan. Tap to choose what to track.</div>
+    <div class="mchips">${chips}</div>
+    <div class="mcharts">${charts}</div></div>`;
+  _statSel.forEach(k=>{ const m=avail.find(x=>x.key===k)||{}; drawMetricChart(k, m.better||'high'); });
+}
+function toggleStatMetric(k){
+  const i=_statSel.indexOf(k);
+  if(i>=0){ if(_statSel.length<=1) return; _statSel.splice(i,1); } else _statSel.push(k);
+  _patchTracker({statMetrics:_statSel});
+  renderProgression();
+}
+function drawMetricChart(key, better){
+  const el=document.getElementById('mc-'+key); if(!el) return;
+  const pts=_metricHist.filter(h=>h.metrics&&h.metrics[key]!=null).map(h=>({t:h.captured_at,v:+h.metrics[key],src:h.source}));
+  if(!pts.length){ el.innerHTML='<div class="stats-note" style="margin:0">No data yet.</div>'; return; }
+  const W=720,H=150,pl=42,pr=16,pt=14,pb=22;
+  const vals=pts.map(p=>p.v); let mn=Math.min(...vals),mx=Math.max(...vals); if(mn===mx){mn-=1;mx+=1;}
+  const pad=(mx-mn)*0.12; mn-=pad; mx+=pad;
+  const x=i=>pl+(pts.length<=1?0.5:i/(pts.length-1))*(W-pl-pr), y=v=>pt+(1-(v-mn)/(mx-mn))*(H-pt-pb);
+  const first=pts[0].v, last=pts[pts.length-1].v;
+  const improved = better==='low' ? last<=first : last>=first;
+  const col = pts.length<2 ? 'var(--cyan)' : (improved?'var(--green)':'var(--red)');
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="overflow:visible">`;
+  for(let g=0;g<=2;g++){const v=mn+(mx-mn)*g/2;s+=`<line x1="${pl}" y1="${y(v)}" x2="${W-pr}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl-7}" y="${y(v)+3}" fill="var(--dim)" font-size="10" font-family="var(--mono)" text-anchor="end">${Math.round(v*10)/10}</text>`;}
+  if(pts.length>1) s+=`<polyline points="${pts.map((p,i)=>x(i)+','+y(p.v)).join(' ')}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round"/>`;
+  pts.forEach((p,i)=>{s+=`<circle cx="${x(i)}" cy="${y(p.v)}" r="3.4" fill="${col}"><title>${(p.t||'').slice(0,10)} · ${p.src}: ${p.v}</title></circle>`;});
+  s+=`<text x="${x(pts.length-1)}" y="${y(last)-8}" fill="${col}" font-size="11" font-family="var(--mono)" text-anchor="end">${last}</text>`;
   el.innerHTML=s+`</svg>`;
 }
 

@@ -20,8 +20,9 @@ Rank / stats:
 
 Profile + coaching:
   GET/POST /api/profile
-  POST /api/coaching/generate
-  GET  /api/coaching
+  POST /api/coaching/generate    (gated: 1 regenerate per cycle)
+  POST /api/coaching/complete    Mark plan cycle complete → unlock a fresh Generate
+  GET  /api/coaching             (+ plan-cycle state + week summary for the home tracker)
   GET  /api/coaching/view
 
 Replays:
@@ -31,7 +32,10 @@ Replays:
   GET  /api/matches
   GET  /api/matches/{id}
   GET  /api/matches/{id}/dashboard
-  GET  /api/usage
+  GET  /api/usage                Per-type daily caps (match 1/day, series 1/day)
+
+Stats:
+  GET  /api/metrics/history      Skill-progression snapshots + trackable-metric catalogue
 
 Misc:
   GET  /api/resources
@@ -66,6 +70,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 # ── Config from environment ───────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 DAILY_LIMIT       = int(os.environ.get("DAILY_ANALYSIS_LIMIT", "5"))
+MATCH_DAILY_LIMIT = int(os.environ.get("MATCH_DAILY_LIMIT", "1"))   # 1 match analysis / day
+SERIES_DAILY_LIMIT= int(os.environ.get("SERIES_DAILY_LIMIT", "1"))  # 1 series analysis / day
+PLAN_MAX_REGENS   = int(os.environ.get("PLAN_MAX_REGENS", "1"))     # regenerates per plan cycle
 SECURE_COOKIES    = os.environ.get("SECURE_COOKIES", "false").lower() == "true"
 ALLOWED_ORIGINS   = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
@@ -595,12 +602,12 @@ async def analyze_match(match_id: str, session_id: Optional[str] = Cookie(defaul
     if m.get("has_analysis"):
         return {"status": "already_done"}
 
-    # Daily cap check up-front (the job re-checks too)
+    # Daily cap check up-front (the job re-checks too) — 1 match analysis/day
     today = date.today().isoformat()
     if session.get("eos_account_id"):
-        used = await db.get_usage(session["eos_account_id"], today)
-        if used >= DAILY_LIMIT:
-            raise HTTPException(429, f"Daily AI limit reached ({used}/{DAILY_LIMIT}). Try again tomorrow.")
+        used = await db.get_usage_kind(session["eos_account_id"], today, "match")
+        if used >= MATCH_DAILY_LIMIT:
+            raise HTTPException(429, "You've used today's match analysis. Come back tomorrow for the next one.")
 
     # One job at a time per session (prevents ledger/output races)
     active = await db.get_active_job(session["session_id"])
@@ -662,16 +669,26 @@ def _inject_dashboard_nav(html: str) -> str:
 @app.get("/api/usage")
 async def usage(session_id: Optional[str] = Cookie(default=None)):
     session = await _require_session(session_id)
-    if not session.get("eos_account_id"):
-        return {"today": 0, "limit": DAILY_LIMIT, "remaining": DAILY_LIMIT, "has_api_key": bool(ANTHROPIC_API_KEY)}
+    eos = session.get("eos_account_id")
     today = date.today().isoformat()
-    count = await db.get_usage(session["eos_account_id"], today)
+    match_used = await db.get_usage_kind(eos, today, "match") if eos else 0
+    series_used = await db.get_usage_kind(eos, today, "series") if eos else 0
     return {
-        "today": count,
-        "limit": DAILY_LIMIT,
-        "remaining": max(0, DAILY_LIMIT - count),
         "has_api_key": bool(ANTHROPIC_API_KEY),
+        "match": {"used": match_used, "limit": MATCH_DAILY_LIMIT,
+                  "remaining": max(0, MATCH_DAILY_LIMIT - match_used)},
+        "series": {"used": series_used, "limit": SERIES_DAILY_LIMIT,
+                   "remaining": max(0, SERIES_DAILY_LIMIT - series_used)},
     }
+
+
+@app.get("/api/metrics/history")
+async def metrics_history(session_id: Optional[str] = Cookie(default=None)):
+    """Skill-progression history + the catalogue of trackable metrics for My Stats."""
+    session = await _require_session(session_id)
+    from rlcoach.phrasing import metric_catalogue
+    history = await db.get_metric_history(session["session_id"])
+    return {"history": history, "catalogue": metric_catalogue()}
 
 
 # ── profile ───────────────────────────────────────────────────────────────────
@@ -705,6 +722,14 @@ async def coaching_generate(session_id: Optional[str] = Cookie(default=None)):
     if not profile:
         raise HTTPException(400, "Complete your profile setup first")
 
+    # Plan-cycle gating: a new cycle starts with a fresh Generate; within an active
+    # cycle you get PLAN_MAX_REGENS regenerate(s), then must "Mark Plan Complete".
+    pst = await db.get_plan_state(session["session_id"])
+    if pst["active"] and pst["regens_used"] >= PLAN_MAX_REGENS:
+        raise HTTPException(429,
+            "You've used your regenerate for this plan. Click 'Mark Plan Complete' "
+            "once you've worked through it to unlock a fresh plan.")
+
     # One job at a time per session (prevents ledger/output races)
     active = await db.get_active_job(session["session_id"])
     if active:
@@ -718,18 +743,60 @@ async def coaching_generate(session_id: Optional[str] = Cookie(default=None)):
     return {"job_id": job_id, "status": "started"}
 
 
+def _plan_week_summary(content_md: str) -> list:
+    """Extract the 7-day week (day label + rest flag) from a stored plan, for the
+    accountability tracker on the home tab."""
+    try:
+        week = (json.loads(content_md).get("week") or [])
+    except Exception:
+        return []
+    out = []
+    for d in week:
+        blocks = d.get("blocks") or []
+        theme = (d.get("theme") or "")
+        is_rest = ("rest" in theme.lower()) or (not blocks)
+        mins = sum(int(b.get("mins") or 0) for b in blocks)
+        out.append({"day": d.get("day", ""), "theme": theme, "rest": is_rest, "mins": mins})
+    return out
+
+
+async def _plan_cycle_view(session_id: str) -> dict:
+    pst = await db.get_plan_state(session_id)
+    regens_left = max(0, PLAN_MAX_REGENS - pst["regens_used"])
+    return {
+        "cycle_no": pst["cycle_no"],
+        "active": bool(pst["active"]),
+        "regens_used": pst["regens_used"],
+        "regens_left": regens_left,
+        "can_regenerate": bool(pst["active"]) and regens_left > 0,
+        "can_generate": not pst["active"],
+        "can_complete": bool(pst["active"]),
+    }
+
+
 @app.get("/api/coaching")
 async def get_coaching(session_id: Optional[str] = Cookie(default=None)):
     session = await _require_session(session_id)
+    cycle = await _plan_cycle_view(session["session_id"])
     plan = await db.get_latest_coaching_plan(session["session_id"])
     if not plan:
-        return {"exists": False}
+        return {"exists": False, "cycle": cycle}
     return {
         "exists": True,
         "plan_id": plan["plan_id"],
         "generated_at": plan["generated_at"],
         "replay_guids": plan["replay_guids"],
+        "week": _plan_week_summary(plan["content_md"]),
+        "cycle": cycle,
     }
+
+
+@app.post("/api/coaching/complete")
+async def coaching_complete(session_id: Optional[str] = Cookie(default=None)):
+    """Mark the current plan cycle complete, unlocking a fresh Generate."""
+    session = await _require_session(session_id)
+    cycle = await db.complete_plan_cycle(session["session_id"])
+    return {"status": "ok", "active": bool(cycle["active"]), "cycle_no": cycle["cycle_no"]}
 
 
 @app.get("/api/coaching/list")
@@ -779,9 +846,9 @@ async def series_generate(session_id: Optional[str] = Cookie(default=None)):
 
     today = date.today().isoformat()
     if session.get("eos_account_id"):
-        used = await db.get_usage(session["eos_account_id"], today)
-        if used >= DAILY_LIMIT:
-            raise HTTPException(429, f"Daily AI limit reached ({used}/{DAILY_LIMIT}). Try again tomorrow.")
+        used = await db.get_usage_kind(session["eos_account_id"], today, "series")
+        if used >= SERIES_DAILY_LIMIT:
+            raise HTTPException(429, "You've used today's series analysis. Come back tomorrow for the next one.")
 
     active = await db.get_active_job(session["session_id"])
     if active:
@@ -887,7 +954,18 @@ async def _run_series_job(job_id: str, session: dict, profile: dict, db, api_key
     report_id = str(uuid.uuid4())
     await db.save_series_report(report_id, session_id, json.dumps(report), aggregate.get("games", 0))
     if eos:
-        await db.increment_usage(eos, date.today().isoformat())
+        await db.incr_usage_kind(eos, date.today().isoformat(), "series")
+    # Snapshot the session's average framework metrics for My Stats progression.
+    try:
+        avgs = aggregate.get("averages") or {}
+        from rlcoach.phrasing import METRIC_CATALOGUE
+        keys = {m["key"] for m in METRIC_CATALOGUE}
+        snap = {k: round(float(v), 2) for k, v in avgs.items()
+                if k in keys and isinstance(v, (int, float))}
+        if snap:
+            await db.add_metric_snapshot(session_id, eos, "series", snap)
+    except Exception as e:
+        log.debug("metric snapshot (series) failed: %s", e)
 
     state = {"status": "complete", "step": "Series report ready!", "type": "series",
              "series_ready": True, "total": 0, "current": 0, "messages": []}
@@ -1085,6 +1163,27 @@ async def _run_coaching_job(
     guids = [r.guid for r in [win, loss] if r is not None]
     await db.save_coaching_plan(plan_id, session_id, json.dumps(plan), guids)
 
+    # Advance the plan cycle (new cycle, or count this as the cycle's regenerate).
+    await db.apply_plan_generated(session_id, plan_id)
+
+    # Snapshot current skill metrics for the My Stats progression (plan source).
+    try:
+        from rlcoach.phrasing import METRIC_CATALOGUE
+        keys = {m["key"] for m in METRIC_CATALOGUE}
+        avgs = (series_agg or {}).get("averages") or {}
+        snap = {k: round(float(v), 2) for k, v in avgs.items()
+                if k in keys and isinstance(v, (int, float))}
+        if not snap:
+            from rlcoach.series_analyst import tracked_player_metrics
+            for r in [win, loss]:
+                snap = tracked_player_metrics(getattr(r, "match_json", None) or {})
+                if snap:
+                    break
+        if snap:
+            await db.add_metric_snapshot(session_id, session.get("eos_account_id"), "plan", snap)
+    except Exception as e:
+        log.debug("metric snapshot (plan) failed: %s", e)
+
     # Seed the tracker — keep the player's MMR history, reset per-plan checkmarks.
     # Drop a starting MMR point so the progress graph begins at plan generation.
     existing = await db.get_tracker(session_id)
@@ -1096,6 +1195,8 @@ async def _run_coaching_job(
         "mmrLog": mmr_log,
         "drillsDone": {},
         "weeklyDone": {},
+        "weeklyDaysDone": {},
+        "statMetrics": existing.get("statMetrics", []),
         "planStart": today,
     })
 

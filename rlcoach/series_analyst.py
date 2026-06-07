@@ -23,6 +23,17 @@ MAX_TOKENS = 6000
 
 # ── aggregation ───────────────────────────────────────────────────────────────
 
+def tracked_player_metrics(mj: dict) -> dict:
+    """Numeric framework metrics for the tracked player, for skill-progression
+    snapshots on the My Stats page. {} if the match predates the analysis block."""
+    me = _me(mj)
+    if not me:
+        return {}
+    raw = _analysis_fields(mj, me.get("name"))
+    return {k: round(float(v), 2) for k, v in raw.items()
+            if isinstance(v, (int, float))}
+
+
 def _me(mj: dict) -> Optional[dict]:
     for p in mj.get("players", []):
         if p.get("is_me"):

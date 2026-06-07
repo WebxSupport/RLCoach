@@ -20,7 +20,9 @@ from typing import Optional
 
 log = logging.getLogger(__name__)
 
-DAILY_LIMIT = 5
+import os
+# Per-type daily AI caps (1 match analysis + 1 series per day by default).
+MATCH_DAILY_LIMIT = int(os.environ.get("MATCH_DAILY_LIMIT", "1"))
 
 
 # ── credential management ──────────────────────────────────────────────────────
@@ -551,10 +553,12 @@ async def run_analysis_job(
         await progress.error("AI analysis is not configured on this server")
         return
 
-    # Daily cap
-    usage = await db.get_usage(eos_account_id, today_str)
-    if usage >= DAILY_LIMIT:
-        await progress.error(f"Daily AI limit reached ({usage}/{DAILY_LIMIT}). Try again tomorrow.")
+    # Daily cap — 1 match analysis per day
+    usage = await db.get_usage_kind(eos_account_id, today_str, "match")
+    if usage >= MATCH_DAILY_LIMIT:
+        await progress.error(
+            f"You've used today's match analysis ({usage}/{MATCH_DAILY_LIMIT}). "
+            f"Come back tomorrow for the next one.")
         return
 
     folder_path = Path(match["folder_path"])
@@ -582,7 +586,17 @@ async def run_analysis_job(
 
     (folder_path / "dashboard.html").write_text(html, encoding="utf-8")
     await db.mark_analysis_done(match["match_id"])
-    await db.increment_usage(eos_account_id, today_str)
+    await db.incr_usage_kind(eos_account_id, today_str, "match")
+
+    # Snapshot the tracked player's framework metrics for the My Stats progression.
+    try:
+        from rlcoach.series_analyst import tracked_player_metrics
+        mj = json.loads(match_json_path.read_text(encoding="utf-8"))
+        snap = tracked_player_metrics(mj)
+        if snap:
+            await db.add_metric_snapshot(session_id, eos_account_id, "match", snap)
+    except Exception as e:
+        log.debug("metric snapshot (match) failed: %s", e)
 
     state = {"status": "complete", "step": "Analysis ready!", "type": "analysis",
              "analysis_ready": True, "match_id": match["match_id"],

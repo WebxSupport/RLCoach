@@ -94,3 +94,33 @@ FRIENDLY_METRIC = {
 def friendly_metric(key: str) -> str:
     """Readable label for an internal metric key (falls back to a de-snaked key)."""
     return FRIENDLY_METRIC.get(key) or key.replace("_", " ").replace(" pct", " %").strip().capitalize()
+
+
+# Metrics the player can track over time on the My Stats page. `better` says which
+# direction is improvement (for colouring trend lines); `unit` is for axis labels.
+METRIC_CATALOGUE = [
+    {"key": "rotation_score",       "unit": "/100", "better": "high"},
+    {"key": "poor_rotation_pct",    "unit": "%",    "better": "low"},
+    {"key": "challenge_win_pct",    "unit": "%",    "better": "high"},
+    {"key": "touch_positive_pct",   "unit": "%",    "better": "high"},
+    {"key": "first_touch_pos_pct",  "unit": "%",    "better": "high"},
+    {"key": "giveaways",            "unit": "",     "better": "low"},
+    {"key": "xg",                   "unit": "",     "better": "high"},
+    {"key": "xg_diff",              "unit": "",     "better": "high"},
+    {"key": "boost_economy_rating", "unit": "/100", "better": "high"},
+    {"key": "boost_wasted",         "unit": "",     "better": "low"},
+    {"key": "support_too_far_pct",  "unit": "%",    "better": "low"},
+    {"key": "support_too_close_pct","unit": "%",    "better": "low"},
+    {"key": "back_post_pct",        "unit": "%",    "better": "high"},
+    {"key": "near_post_pct",        "unit": "%",    "better": "low"},
+    {"key": "own_half_pct",         "unit": "%",    "better": "high"},
+    {"key": "last_man_risky_pct",   "unit": "%",    "better": "low"},
+    {"key": "last_man_high_pct",    "unit": "%",    "better": "low"},
+    {"key": "mech_recovery_s",      "unit": "s",    "better": "low"},
+]
+
+
+def metric_catalogue() -> list:
+    """Catalogue of trackable metrics with readable labels, for the My Stats picker."""
+    return [{"key": m["key"], "label": friendly_metric(m["key"]),
+             "unit": m["unit"], "better": m["better"]} for m in METRIC_CATALOGUE]

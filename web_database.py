@@ -166,6 +166,40 @@ CREATE TABLE IF NOT EXISTS series_reports (
     games        INTEGER NOT NULL DEFAULT 0,
     generated_at TEXT NOT NULL
 );
+
+-- Per-type daily AI usage (match analysis vs series), 1/day each.
+CREATE TABLE IF NOT EXISTS usage_daily (
+    eos_account_id TEXT NOT NULL,
+    usage_date     TEXT NOT NULL,
+    kind           TEXT NOT NULL,   -- 'match' | 'series'
+    count          INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (eos_account_id, usage_date, kind)
+);
+
+-- Time-series of the tracked player's framework metrics, captured on each match
+-- analysis / series / plan, so My Stats can chart progression over time.
+CREATE TABLE IF NOT EXISTS metric_history (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id     TEXT NOT NULL,
+    eos_account_id TEXT,
+    source         TEXT NOT NULL,   -- 'match' | 'series' | 'plan'
+    captured_at    TEXT NOT NULL,
+    metrics        TEXT NOT NULL    -- JSON {metric_key: number}
+);
+CREATE INDEX IF NOT EXISTS idx_metric_history_sess
+    ON metric_history(session_id, captured_at);
+
+-- Server-enforced coaching plan cycle: 1 regenerate per cycle, then the user must
+-- "Mark Plan Complete" to start a fresh cycle. (Not in the user-writable tracker.)
+CREATE TABLE IF NOT EXISTS plan_state (
+    session_id   TEXT PRIMARY KEY,
+    cycle_no     INTEGER NOT NULL DEFAULT 0,
+    regens_used  INTEGER NOT NULL DEFAULT 0,
+    plan_id      TEXT,
+    active       INTEGER NOT NULL DEFAULT 0,
+    started_at   TEXT,
+    updated_at   TEXT NOT NULL
+);
 """
 
 DAILY_LIMIT = 5
@@ -365,6 +399,100 @@ class Database:
         )
         await self._db.commit()
         return await self.get_usage(eos_account_id, usage_date)
+
+    # ── per-type daily usage (match analysis / series — 1/day each) ──────────────
+
+    async def get_usage_kind(self, eos_account_id: str, usage_date: str, kind: str) -> int:
+        async with self._db.execute(
+            "SELECT count FROM usage_daily WHERE eos_account_id=? AND usage_date=? AND kind=?",
+            (eos_account_id, usage_date, kind),
+        ) as cur:
+            row = await cur.fetchone()
+        return row["count"] if row else 0
+
+    async def incr_usage_kind(self, eos_account_id: str, usage_date: str, kind: str) -> int:
+        await self._db.execute(
+            """INSERT INTO usage_daily (eos_account_id, usage_date, kind, count) VALUES (?,?,?,1)
+               ON CONFLICT(eos_account_id, usage_date, kind)
+               DO UPDATE SET count = count + 1""",
+            (eos_account_id, usage_date, kind),
+        )
+        await self._db.commit()
+        return await self.get_usage_kind(eos_account_id, usage_date, kind)
+
+    # ── metric history (skill progression over time) ─────────────────────────────
+
+    async def add_metric_snapshot(self, session_id: str, eos_account_id: Optional[str],
+                                  source: str, metrics: dict) -> None:
+        if not metrics:
+            return
+        await self._db.execute(
+            "INSERT INTO metric_history (session_id, eos_account_id, source, captured_at, metrics)"
+            " VALUES (?,?,?,?,?)",
+            (session_id, eos_account_id or "", source, self._now(), json.dumps(metrics)),
+        )
+        await self._db.commit()
+
+    async def get_metric_history(self, session_id: str, limit: int = 400) -> list:
+        async with self._db.execute(
+            """SELECT source, captured_at, metrics FROM metric_history
+               WHERE session_id=? ORDER BY captured_at ASC LIMIT ?""",
+            (session_id, limit),
+        ) as cur:
+            rows = await cur.fetchall()
+        out = []
+        for r in rows:
+            try:
+                m = json.loads(r["metrics"])
+            except Exception:
+                m = {}
+            out.append({"source": r["source"], "captured_at": r["captured_at"], "metrics": m})
+        return out
+
+    # ── coaching plan cycle (server-enforced regenerate gating) ──────────────────
+
+    async def get_plan_state(self, session_id: str) -> dict:
+        async with self._db.execute(
+            "SELECT cycle_no, regens_used, plan_id, active, started_at FROM plan_state WHERE session_id=?",
+            (session_id,),
+        ) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return {"cycle_no": 0, "regens_used": 0, "plan_id": None, "active": 0, "started_at": None}
+        return dict(row)
+
+    async def apply_plan_generated(self, session_id: str, plan_id: str) -> dict:
+        """Record a successful plan generation. If a cycle is active this counts as
+        a regenerate; otherwise it starts a new cycle (regens reset to 0)."""
+        st = await self.get_plan_state(session_id)
+        now = self._now()
+        if st["active"]:
+            cycle = st["cycle_no"]
+            regens = st["regens_used"] + 1
+            started = st["started_at"] or now
+        else:
+            cycle = st["cycle_no"] + 1
+            regens = 0
+            started = now
+        await self._db.execute(
+            """INSERT INTO plan_state (session_id, cycle_no, regens_used, plan_id, active, started_at, updated_at)
+               VALUES (?,?,?,?,1,?,?)
+               ON CONFLICT(session_id) DO UPDATE SET
+                 cycle_no=excluded.cycle_no, regens_used=excluded.regens_used,
+                 plan_id=excluded.plan_id, active=1, started_at=excluded.started_at,
+                 updated_at=excluded.updated_at""",
+            (session_id, cycle, regens, plan_id, started, now),
+        )
+        await self._db.commit()
+        return await self.get_plan_state(session_id)
+
+    async def complete_plan_cycle(self, session_id: str) -> dict:
+        await self._db.execute(
+            "UPDATE plan_state SET active=0, updated_at=? WHERE session_id=?",
+            (self._now(), session_id),
+        )
+        await self._db.commit()
+        return await self.get_plan_state(session_id)
 
     # ── jobs ──────────────────────────────────────────────────────────────────
 
