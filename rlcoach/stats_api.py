@@ -210,6 +210,28 @@ async def fetch_lifetime_stats(
         return {}
 
 
+async def run_psynet_probe(
+    access_token: str,
+    account_id: str,
+    display_name: str,
+    target_pid: Optional[str] = None,
+) -> dict:
+    """Open a PsyNet connection and run the cross-player / match-history probe."""
+    try:
+        from rlapi.client import create_client
+        client = await create_client(access_token, account_id, display_name)
+        try:
+            return await client.psynet_probe(target_pid=target_pid)
+        finally:
+            try:
+                await client.close()
+            except Exception:
+                pass
+    except Exception as e:
+        log.info("run_psynet_probe failed (%s)", e)
+        return {"error": str(e)}
+
+
 async def fetch_player_stats(
     access_token: str,
     account_id: str,

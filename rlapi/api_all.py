@@ -89,13 +89,13 @@ class StatsAPI:
             return StatsAPI._extract_stat_value(result[0])
         return None
 
-    async def get_lifetime_stats(self, timeout: float = 6.0) -> Optional[Dict[str, int]]:
+    async def get_lifetime_stats(self, timeout: float = 6.0, player_id: Optional[str] = None) -> Optional[Dict[str, int]]:
         """
-        Fetch the player's lifetime career totals (Wins/Goals/Saves/Assists/MVPs/
-        Shots) from PsyNet's stat-leaderboard service. Service, body and stat names
-        are all locked from server logs.
+        Fetch lifetime career totals (Wins/Goals/Saves/Assists/MVPs/Shots) from
+        PsyNet's stat-leaderboard service. Defaults to the authenticated player;
+        pass `player_id` (PsyNet "Platform|id|0" form) to look up another player.
         """
-        pid = str(self.local_player_id)
+        pid = player_id or str(self.local_player_id)
         out: Dict[str, int] = {}
         for name in self.LIFETIME_STAT_NAMES:
             try:
@@ -106,8 +106,76 @@ class StatsAPI:
                     out[name.lower()] = val
             except Exception as e:
                 _log.info("lifetime stat %r failed: %s", name, e)
-        _log.info("lifetime stats fetched: %s", out)
         return out or None
+
+    async def psynet_probe(self, target_pid: Optional[str] = None, timeout: float = 8.0) -> Dict[str, Any]:
+        """
+        DIAGNOSTIC (log + return, no side effects). Answers two questions:
+          1. Can ONE authenticated connection look up ANOTHER player's rank/stats
+             by PlayerID? (→ TRN-style background stats off a service account, with
+             zero per-user token and zero disconnect risk.)
+          2. How deep does Matches/GetMatchHistory go, and does it work cross-player?
+        """
+        self_pid = str(self.local_player_id)
+        out: Dict[str, Any] = {"self_pid": self_pid}
+
+        def _summarise_matches(mh):
+            matches = (mh.get("Matches") if isinstance(mh, dict) else mh) or []
+            ts = []
+            for m in matches:
+                if isinstance(m, dict):
+                    for k in ("RecordStartTimestamp", "Date", "Time", "Timestamp"):
+                        v = m.get(k)
+                        if isinstance(v, (int, float)):
+                            ts.append(v); break
+            return {
+                "count": len(matches),
+                "oldest_ts": min(ts) if ts else None,
+                "newest_ts": max(ts) if ts else None,
+                "first_keys": list(matches[0].keys()) if matches and isinstance(matches[0], dict) else None,
+            }
+
+        # 1) SELF match-history depth (always allowed) + log one full match object.
+        try:
+            mh = await self.send_request_sync("Matches/GetMatchHistory v1", {"PlayerID": self_pid}, timeout)
+            out["self_match_history"] = _summarise_matches(mh)
+            matches = (mh.get("Matches") if isinstance(mh, dict) else mh) or []
+            if matches:
+                _log.info("psynet_probe self match[0] = %r", matches[0])
+        except Exception as e:
+            out["self_match_history"] = {"error": str(e)}
+
+        # 2) SELF lifetime Wins (control — we know this works).
+        try:
+            r = await self.send_request_sync(self.LIFETIME_SERVICE, {"Stat": "Wins", "PlayerID": self_pid}, timeout)
+            out["self_wins"] = self._extract_stat_value(r)
+        except Exception as e:
+            out["self_wins_error"] = str(e)
+
+        # 3) CROSS-PLAYER lookups on a different PlayerID (the decisive test).
+        if target_pid:
+            cross: Dict[str, Any] = {"target_pid": target_pid}
+            for label, service, body in (
+                ("skills", "Skills/GetSkills v1", {"Players": [{"PlayerID": target_pid}]}),
+                ("lifetime_wins", self.LIFETIME_SERVICE, {"Stat": "Wins", "PlayerID": target_pid}),
+                ("match_history", "Matches/GetMatchHistory v1", {"PlayerID": target_pid}),
+            ):
+                try:
+                    res = await self.send_request_sync(service, body, timeout)
+                    if label == "skills":
+                        cross["skills_ok"] = bool(res)
+                        cross["skills_keys"] = list(res.keys()) if isinstance(res, dict) else type(res).__name__
+                    elif label == "lifetime_wins":
+                        cross["wins"] = self._extract_stat_value(res)
+                        cross["wins_raw"] = res
+                    else:
+                        cross["match_history"] = _summarise_matches(res)
+                except Exception as e:
+                    cross[label + "_error"] = str(e)
+            out["cross"] = cross
+
+        _log.info("psynet_probe result: %r", out)
+        return out
 class ClubsAPI: pass
 class PartyAPI: pass
 class MatchmakingAPI: pass

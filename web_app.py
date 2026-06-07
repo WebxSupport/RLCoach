@@ -596,6 +596,45 @@ _LIFETIME_CACHE: dict = {}
 _LIFETIME_TTL = 6 * 3600
 
 
+# app player-id platform prefix → PsyNet PlayerID platform token
+_PSY_PLATFORM = {"steam": "Steam", "epic": "Epic", "ps4": "PS4", "ps5": "PS4",
+                 "psn": "PS4", "xbl": "XboxOne", "xbox": "XboxOne", "switch": "Switch"}
+
+
+def _to_psynet_pid(s: str) -> Optional[str]:
+    """Convert an app player-id ('steam:7656…' / 'epic:…') to PsyNet 'Platform|id|0'."""
+    s = (s or "").strip()
+    if not s:
+        return None
+    if "|" in s:
+        return s  # already PsyNet form
+    if ":" in s:
+        plat, _, ident = s.partition(":")
+        tok = _PSY_PLATFORM.get(plat.lower())
+        return f"{tok}|{ident}|0" if (tok and ident) else None
+    if s.isdigit():
+        return f"Steam|{s}|0"
+    return None
+
+
+@app.get("/api/debug/psynet-probe")
+async def psynet_probe(target: Optional[str] = None, session_id: Optional[str] = Cookie(default=None)):
+    """DIAGNOSTIC: tests cross-player PsyNet lookups + GetMatchHistory depth using
+    the caller's connection. `target` = another player's id ('steam:…'/'epic:…')."""
+    session = await _require_session(session_id)
+    if not session.get("eos_account_id"):
+        raise HTTPException(400, "Connect your Epic account first")
+    from rlcoach.web_pipeline import get_web_credentials
+    from rlcoach.stats_api import run_psynet_probe
+    creds = await get_web_credentials(session, db)
+    if not creds:
+        raise HTTPException(400, "Epic auth expired — reconnect your account")
+    access_token, account_id, display_name = creds
+    target_pid = _to_psynet_pid(target) if target else None
+    result = await run_psynet_probe(access_token, account_id, display_name, target_pid)
+    return {"target_input": target, "target_pid": target_pid, "result": result}
+
+
 @app.get("/api/stats/lifetime")
 async def stats_lifetime(force: bool = False, session_id: Optional[str] = Cookie(default=None)):
     """Lifetime account totals (wins/goals/saves/assists/shots/mvps) from PsyNet —
