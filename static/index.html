@@ -1544,14 +1544,16 @@ function _careerLifetimeCard(s, d, trnBtn){
 }
 async function loadCareer(){
   const host=document.getElementById('stats-career'); if(!host) return;
+  host.innerHTML=`<div class="card"><div class="stats-note" style="margin:0"><span class="spinner"></span> Loading career stats…</div></div>`;
   let d;
   try{ d=await get('/api/stats/summary'); }
   catch(e){ host.innerHTML=`<div class="card"><div class="stats-note" style="margin:0">Couldn't load career stats: ${esc(e.message||e)}</div></div>`; return; }
   const trnBtn = d.trn_url
     ? `<a href="${d.trn_url}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="text-decoration:none">View on Tracker Network ↗</a>` : '';
   // Render the replay-derived card immediately so the section never waits on the
-  // (possibly slow) lifetime probe.
-  host.innerHTML=_careerRecentCard(d, trnBtn, false);
+  // (possibly slow) lifetime probe. Surface any render error instead of going blank.
+  try{ host.innerHTML=_careerRecentCard(d, trnBtn, false); }
+  catch(e){ host.innerHTML=`<div class="card"><div class="stats-note" style="margin:0">Career render error: ${esc(e.message||e)}</div></div>`; return; }
   // Then try lifetime totals in the background; prepend the card if they resolve.
   try{
     const life=await get('/api/stats/lifetime');
