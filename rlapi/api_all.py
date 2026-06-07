@@ -155,23 +155,37 @@ class StatsAPI:
         # 3) CROSS-PLAYER lookups on a different PlayerID (the decisive test).
         if target_pid:
             cross: Dict[str, Any] = {"target_pid": target_pid}
-            for label, service, body in (
-                ("skills", "Skills/GetSkills v1", {"Players": [{"PlayerID": target_pid}]}),
-                ("lifetime_wins", self.LIFETIME_SERVICE, {"Stat": "Wins", "PlayerID": target_pid}),
-                ("match_history", "Matches/GetMatchHistory v1", {"PlayerID": target_pid}),
-            ):
+            # Skills: try the same method variants get_player_skills uses, report
+            # the first that returns data (and how many playlists it carries).
+            skills_variants = [
+                ("Skills/GetSkills v1", {"Players": [{"PlayerID": target_pid}]}),
+                ("Skills/GetSkills v1", {"PlayerID": target_pid}),
+                ("Skills/GetPlayerSkill v1", {"PlayerID": target_pid}),
+                ("Skills/GetSkills v2", {"PlayerID": target_pid}),
+            ]
+            cross["skills_attempts"] = []
+            for method, body in skills_variants:
                 try:
-                    res = await self.send_request_sync(service, body, timeout)
-                    if label == "skills":
-                        cross["skills_ok"] = bool(res)
-                        cross["skills_keys"] = list(res.keys()) if isinstance(res, dict) else type(res).__name__
-                    elif label == "lifetime_wins":
-                        cross["wins"] = self._extract_stat_value(res)
-                        cross["wins_raw"] = res
-                    else:
-                        cross["match_history"] = _summarise_matches(res)
+                    res = await self.send_request_sync(method, body, timeout)
+                    keys = list(res.keys()) if isinstance(res, dict) else type(res).__name__
+                    cross["skills_attempts"].append({"method": method, "ok": bool(res), "keys": keys})
+                    if res and "skills_ok_method" not in cross:
+                        cross["skills_ok_method"] = method
+                        cross["skills_sample"] = res
                 except Exception as e:
-                    cross[label + "_error"] = str(e)
+                    cross["skills_attempts"].append({"method": method, "error": str(e)})
+            # Lifetime Wins + match history (already-known shapes).
+            try:
+                r = await self.send_request_sync(self.LIFETIME_SERVICE, {"Stat": "Wins", "PlayerID": target_pid}, timeout)
+                cross["wins"] = self._extract_stat_value(r)
+                cross["wins_raw"] = r
+            except Exception as e:
+                cross["wins_error"] = str(e)
+            try:
+                mh = await self.send_request_sync("Matches/GetMatchHistory v1", {"PlayerID": target_pid}, timeout)
+                cross["match_history"] = _summarise_matches(mh)
+            except Exception as e:
+                cross["match_history_error"] = str(e)
             out["cross"] = cross
 
         _log.info("psynet_probe result: %r", out)
