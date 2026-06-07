@@ -622,6 +622,19 @@ def _to_psynet_pid(s: str) -> Optional[str]:
     return None
 
 
+@app.get("/api/debug/service-status")
+async def service_status(session_id: Optional[str] = Cookie(default=None)):
+    """Health of the background-stats service account: is it linked, and how long
+    is its refresh token valid for (it auto-renews well before this)."""
+    await _require_session(session_id)
+    tokens = await db.get_service_tokens()
+    if not tokens:
+        return {"linked": False}
+    return {"linked": True,
+            "refresh_valid_until": tokens.get("eos_refresh_expires_at"),
+            "access_valid_until": tokens.get("eos_expires_at")}
+
+
 @app.get("/api/debug/psynet-probe")
 async def psynet_probe(target: Optional[str] = None, session_id: Optional[str] = Cookie(default=None)):
     """DIAGNOSTIC: tests cross-player PsyNet lookups + GetMatchHistory depth using

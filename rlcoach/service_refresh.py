@@ -30,6 +30,9 @@ log = logging.getLogger(__name__)
 INTERVAL_MIN = int(os.environ.get("SERVICE_REFRESH_INTERVAL_MIN", "180"))   # full pass cadence
 STAGGER_S = float(os.environ.get("SERVICE_REFRESH_STAGGER_S", "3"))         # gap between accounts
 START_DELAY_S = int(os.environ.get("SERVICE_REFRESH_START_DELAY_S", "60"))  # delay after boot
+# Proactively rotate the refresh token once it's within this many days of expiring,
+# so the service account stays verified forever (never relies on a last-minute refresh).
+RENEW_MARGIN_DAYS = int(os.environ.get("SERVICE_REFRESH_RENEW_MARGIN_DAYS", "3"))
 
 
 def _target_pid(eos_account_id: str):
@@ -39,10 +42,14 @@ def _target_pid(eos_account_id: str):
 
 
 def _refresh_tokens_sync(tokens: dict):
-    """If the service access token is expired, refresh it via the EOS refresh token
-    (which rotates — caller must persist the result). Returns (tokens, changed)."""
+    """Refresh the EOS tokens (rotating — caller must persist the result) if the
+    access token is expired OR the refresh token is nearing expiry (proactive
+    renewal so the account never lapses). Returns (tokens, changed)."""
     from rlcoach.psynet_auth import _is_expired
-    if not _is_expired(tokens.get("eos_expires_at", "")):
+    access_expired = _is_expired(tokens.get("eos_expires_at", ""))
+    refresh_near_expiry = _is_expired(tokens.get("eos_refresh_expires_at", ""),
+                                      margin_s=RENEW_MARGIN_DAYS * 86400)
+    if not access_expired and not refresh_near_expiry:
         return tokens, False
     if _is_expired(tokens.get("eos_refresh_expires_at", "")):
         raise RuntimeError("service refresh token expired — re-link the service account")
@@ -72,9 +79,15 @@ async def _service_creds(db):
         loop = asyncio.get_event_loop()
         tokens, changed = await loop.run_in_executor(None, _refresh_tokens_sync, tokens)
         if changed:
-            await db.save_service_tokens(tokens)
+            await db.save_service_tokens(tokens)   # persist the rotated token immediately
+            log.info("service token rotated — refresh valid until %s",
+                     tokens.get("eos_refresh_expires_at"))
+        else:
+            log.info("service token healthy — refresh valid until %s",
+                     tokens.get("eos_refresh_expires_at"))
     except Exception as e:
-        log.warning("service account token refresh failed: %s", e)
+        log.error("SERVICE ACCOUNT NEEDS RE-LINK — token refresh failed: %s "
+                  "(run: python -m rlcoach.service_link)", e)
         return None
     return tokens["eos_access_token"], tokens["account_id"], tokens.get("display_name", "Service")
 
