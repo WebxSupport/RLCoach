@@ -1471,17 +1471,21 @@ async function loadStats(force) {
     ranksBlock=`<div class="card" style="margin-bottom:6px"><div class="stats-note" style="margin:0">Live ranks unavailable right now. Your career stats and progression below still work.</div></div>`;
   }
   _statsLoaded=true;
-  body.innerHTML=`${ranksBlock}
-    <div id="stats-career" style="margin-top:6px"></div>
-    <div class="card" style="margin-top:6px"><h2 style="font-size:15px;font-weight:800;margin-bottom:4px">MMR progression</h2>
-      <div class="sub" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px">
-        ${_profile.gamemode||'2v2'} · logged automatically each day you open RLCoach</div>
-      <div id="stats-mmr-chart"></div></div>
-    <div id="stats-progress" style="margin-top:6px"></div>`;
-  try { await post('/api/tracker/sync-mmr'); } catch(e) {}
-  drawStatsMmr();
-  loadCareer();
-  loadProgression();
+  try {
+    body.innerHTML=`${ranksBlock}
+      <div id="stats-career" style="margin-top:6px"></div>
+      <div class="card" style="margin-top:6px"><h2 style="font-size:15px;font-weight:800;margin-bottom:4px">MMR progression</h2>
+        <div class="sub" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px">
+          ${((_profile&&_profile.gamemode)||'2v2')} · logged automatically each day you open RLCoach</div>
+        <div id="stats-mmr-chart"></div></div>
+      <div id="stats-progress" style="margin-top:6px"></div>`;
+    post('/api/tracker/sync-mmr').catch(()=>{}).finally(drawStatsMmr);
+    loadCareer();
+    loadProgression();
+  } catch(e) {
+    body.innerHTML=`<div class="stats-empty"><p>Couldn't render stats: ${esc(e.message||e)}</p>
+      <p style="font-family:var(--mono);font-size:12px;margin-top:8px">Try the Refresh button. If it persists, hard-refresh (Ctrl+Shift+R).</p></div>`;
+  }
 }
 
 async function drawStatsMmr() {
@@ -1507,48 +1511,54 @@ async function drawStatsMmr() {
 
 // ── career stats (tracked replays) + Tracker Network link ───────────────────
 function _fmtNum(n){ return (typeof n==='number'&&n>=1000)?n.toLocaleString():n; }
-async function loadCareer(){
-  const host=document.getElementById('stats-career'); if(!host) return;
-  let d, life={available:false,stats:{}};
-  try{ d=await get('/api/stats/summary'); }catch(e){ host.innerHTML=''; return; }
-  try{ life=await get('/api/stats/lifetime'); }catch(e){}
-  const trnBtn = d.trn_url
-    ? `<a href="${d.trn_url}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="text-decoration:none">View on Tracker Network ↗</a>` : '';
-  let html='';
-
-  // ── Lifetime career (whole account, from PsyNet) — the TRN-style view ──
-  if(life.available && life.stats){
-    const s=life.stats, lt=[];
-    if(d.peak_mmr) lt.push(['Peak MMR',d.peak_mmr]);
-    if(s.win_pct!=null) lt.push(['Win rate',s.win_pct+'%']);
-    if(s.games!=null) lt.push(['Games',_fmtNum(s.games)]);
-    [['Wins','wins'],['Goals','goals'],['Assists','assists'],['Saves','saves'],['Shots','shots'],['MVPs','mvps']]
-      .forEach(([lab,k])=>{ if(s[k]!=null) lt.push([lab,_fmtNum(s[k])]); });
-    html+=`<div class="card"><div class="acc-head"><h2>Lifetime career</h2>${trnBtn}</div>
-      <div class="stats-note" style="margin:0 0 12px">Your whole-account totals across all games (from Rocket League / PsyNet).</div>
-      <div class="career-tiles">${lt.map(t=>`<div class="ctile"><div class="cv">${t[1]}</div><div class="cl">${esc(t[0])}</div></div>`).join('')}</div></div>`;
-  }
-
-  // ── Recent form, from the replays we've parsed (detailed per-mode breakdown) ──
-  if(d.tracked_games){
-    const ov=d.career.overall, tiles=[];
-    if(!life.available && d.peak_mmr) tiles.push(['Peak MMR',d.peak_mmr]);
-    tiles.push(['Win rate',ov.win_pct+'%'],['Record',ov.wins+'–'+ov.losses],
-      ['Goals/game',ov.per_game.goals],['Shooting %',ov.shooting_pct+'%'],
-      ['Saves/game',ov.per_game.saves],['Shots/game',ov.per_game.shots],['Avg score',ov.per_game.score]);
-    const modeRows=Object.entries(d.career.by_mode).map(([k,v])=>
-      `<tr><td>${esc(k)}</td><td class="num">${v.games}</td><td class="num">${v.wins}–${v.losses}</td><td class="num">${v.win_pct}%</td><td class="num">${v.per_game.goals}</td><td class="num">${v.per_game.saves}</td><td class="num">${v.shooting_pct}%</td></tr>`).join('');
-    html+=`<div class="card">
-      <div class="acc-head"><h2>${life.available?'Recent form — tracked games':'Career stats'}</h2>${life.available?'':trnBtn}</div>
-      <div class="stats-note" style="margin:0 0 12px">From your ${d.tracked_games} tracked ${d.tracked_games===1?'replay':'replays'} · per-game detail you won't find on Tracker Network.</div>
-      <div class="career-tiles">${tiles.map(t=>`<div class="ctile"><div class="cv">${t[1]}</div><div class="cl">${esc(t[0])}</div></div>`).join('')}</div>
-      <table class="career-table"><tr><th>Mode</th><th class="num">Games</th><th class="num">W–L</th><th class="num">Win%</th><th class="num">Goals/gm</th><th class="num">Saves/gm</th><th class="num">Shot%</th></tr>${modeRows}</table>
-    </div>`;
-  } else if(!life.available){
-    html=`<div class="card"><div class="acc-head"><h2>Career stats</h2>${trnBtn}</div>
+function _careerRecentCard(d, trnBtn, hasLifetime){
+  if(!d.tracked_games){
+    if(hasLifetime) return '';
+    return `<div class="card"><div class="acc-head"><h2>Career stats</h2>${trnBtn}</div>
       <div class="stats-note" style="margin:0">Fetch some replays in Match History and your win-rate, shooting % and per-game stats will build here.${d.peak_mmr?(' Peak MMR logged so far: <b style="color:var(--cyan)">'+d.peak_mmr+'</b>.'):''}</div></div>`;
   }
-  host.innerHTML=html;
+  const ov=d.career.overall, tiles=[];
+  if(!hasLifetime && d.peak_mmr) tiles.push(['Peak MMR',d.peak_mmr]);
+  tiles.push(['Win rate',ov.win_pct+'%'],['Record',ov.wins+'–'+ov.losses],
+    ['Goals/game',ov.per_game.goals],['Shooting %',ov.shooting_pct+'%'],
+    ['Saves/game',ov.per_game.saves],['Shots/game',ov.per_game.shots],['Avg score',ov.per_game.score]);
+  const modeRows=Object.entries(d.career.by_mode).map(([k,v])=>
+    `<tr><td>${esc(k)}</td><td class="num">${v.games}</td><td class="num">${v.wins}–${v.losses}</td><td class="num">${v.win_pct}%</td><td class="num">${v.per_game.goals}</td><td class="num">${v.per_game.saves}</td><td class="num">${v.shooting_pct}%</td></tr>`).join('');
+  return `<div class="card">
+    <div class="acc-head"><h2>${hasLifetime?'Recent form — tracked games':'Career stats'}</h2>${hasLifetime?'':trnBtn}</div>
+    <div class="stats-note" style="margin:0 0 12px">From your ${d.tracked_games} tracked ${d.tracked_games===1?'replay':'replays'} · per-game detail you won't find on Tracker Network.</div>
+    <div class="career-tiles">${tiles.map(t=>`<div class="ctile"><div class="cv">${t[1]}</div><div class="cl">${esc(t[0])}</div></div>`).join('')}</div>
+    <table class="career-table"><tr><th>Mode</th><th class="num">Games</th><th class="num">W–L</th><th class="num">Win%</th><th class="num">Goals/gm</th><th class="num">Saves/gm</th><th class="num">Shot%</th></tr>${modeRows}</table>
+  </div>`;
+}
+function _careerLifetimeCard(s, d, trnBtn){
+  const lt=[];
+  if(d.peak_mmr) lt.push(['Peak MMR',d.peak_mmr]);
+  if(s.win_pct!=null) lt.push(['Win rate',s.win_pct+'%']);
+  if(s.games!=null) lt.push(['Games',_fmtNum(s.games)]);
+  [['Wins','wins'],['Goals','goals'],['Assists','assists'],['Saves','saves'],['Shots','shots'],['MVPs','mvps']]
+    .forEach(([lab,k])=>{ if(s[k]!=null) lt.push([lab,_fmtNum(s[k])]); });
+  return `<div class="card"><div class="acc-head"><h2>Lifetime career</h2>${trnBtn}</div>
+    <div class="stats-note" style="margin:0 0 12px">Your whole-account totals across all games (from Rocket League / PsyNet).</div>
+    <div class="career-tiles">${lt.map(t=>`<div class="ctile"><div class="cv">${t[1]}</div><div class="cl">${esc(t[0])}</div></div>`).join('')}</div></div>`;
+}
+async function loadCareer(){
+  const host=document.getElementById('stats-career'); if(!host) return;
+  let d;
+  try{ d=await get('/api/stats/summary'); }
+  catch(e){ host.innerHTML=`<div class="card"><div class="stats-note" style="margin:0">Couldn't load career stats: ${esc(e.message||e)}</div></div>`; return; }
+  const trnBtn = d.trn_url
+    ? `<a href="${d.trn_url}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="text-decoration:none">View on Tracker Network ↗</a>` : '';
+  // Render the replay-derived card immediately so the section never waits on the
+  // (possibly slow) lifetime probe.
+  host.innerHTML=_careerRecentCard(d, trnBtn, false);
+  // Then try lifetime totals in the background; prepend the card if they resolve.
+  try{
+    const life=await get('/api/stats/lifetime');
+    if(life && life.available && life.stats){
+      host.innerHTML=_careerLifetimeCard(life.stats, d, trnBtn)+_careerRecentCard(d, trnBtn, true);
+    }
+  }catch(e){}
 }
 
 // ── skill progression (user-selectable metrics) ────────────────────────────
