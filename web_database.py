@@ -49,6 +49,32 @@ def _decrypt(ciphertext: str) -> str:
     except Exception:
         return ciphertext  # legacy unencrypted value — fall through
 
+
+def encrypt_state(value: str) -> str:
+    """Sign+encrypt a short-lived state string for OAuth/OpenID round-trips
+    (e.g. the session id carried through Steam's redirect). Falls back to
+    urlsafe base64 when no ENCRYPTION_KEY is set (dev only — not tamper-proof)."""
+    f = _fernet()
+    if f:
+        return f.encrypt(value.encode()).decode()
+    return base64.urlsafe_b64encode(value.encode()).decode()
+
+
+def decrypt_state(token: str, max_age_s: int = 600) -> Optional[str]:
+    """Reverse encrypt_state, enforcing a max age. None if invalid/expired."""
+    if not token:
+        return None
+    f = _fernet()
+    if f:
+        try:
+            return f.decrypt(token.encode(), ttl=max_age_s).decode()
+        except Exception:
+            return None
+    try:
+        return base64.urlsafe_b64decode(token.encode()).decode()
+    except Exception:
+        return None
+
 DB_PATH = Path("data/rlcoach.db")
 
 _SCHEMA = """

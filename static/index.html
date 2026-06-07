@@ -382,16 +382,20 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
       <div class="card">
         <h2>One last thing</h2>
         <p class="sub">Tell us which player is you, so we can find you in each replay.</p>
+        <div id="pid-quick" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+          <div id="pid-epic-suggest"></div>
+          <a href="/api/steam/login" id="steam-signin" class="btn btn-primary" style="width:100%;justify-content:center;text-decoration:none;background:#1b2838;border-color:#2a4760">
+            <span style="font-size:15px">🎮</span>&nbsp;Sign in through Steam
+          </a>
+          <div style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted)">or enter it manually</div>
+        </div>
         <div class="input-group">
           <label class="input-label">Your Player ID</label>
           <input class="input" id="pid-input" type="text" placeholder="steam:7656119XXXXXXXXXX"/>
-          <div id="pid-epic-suggest" style="margin-top:8px"></div>
           <div class="input-hint">
-            <b>PC / Steam (most players):</b> go to <b>steamid.io</b>, paste your Steam profile link,
-            and copy the <b>steamID64</b> (17 digits, starts <code>7656</code>). Enter it as
+            <b>Steam:</b> use the one-click <b>Sign in through Steam</b> button above — no copying needed.
+            Or paste your <code>steamcommunity.com/profiles/7656119…</code> number as
             <code>steam:&lt;that number&gt;</code>.<br>
-            <b>Already numeric?</b> If your Steam profile URL looks like
-            <code>steamcommunity.com/profiles/7656119…</code>, that number <em>is</em> your ID.<br>
             <b>Console:</b> use your platform username — <code>ps4:PSNname</code> ·
             <code>xbl:Gamertag</code> · <code>switch:Name</code>.
           </div>
@@ -597,7 +601,18 @@ function switchTab(tab) {
 function goHome() { switchTab('coaching'); showScreen('main-screen'); }
 
 // ── boot ─────────────────────────────────────────────────────────────────
+function _handleSteamReturn() {
+  const p = new URLSearchParams(location.search);
+  const s = p.get('steam');
+  if (!s) return;
+  history.replaceState(null, '', location.pathname);  // don't re-toast on refresh
+  if (s === 'ok') toast('Steam account linked ✓', 'success');
+  else if (s === 'invalid') toast('Steam sign-in could not be verified — please try again.', 'warn');
+  else toast('Steam sign-in failed — log in and try again.', 'warn');
+}
+
 async function init() {
+  _handleSteamReturn();
   get('/api/resources').then(r=>{_resources=r;}).catch(()=>{});
   try { _me = await get('/api/me'); } catch(e) { showScreen('landing-screen'); return; }
   if (!_me.logged_in) { showScreen('landing-screen'); return; }

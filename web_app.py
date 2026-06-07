@@ -11,6 +11,8 @@ Epic Games (connect after RLCoach login):
   POST /api/epic/start          Start Epic device auth
   GET  /api/epic/poll/{code}    Poll for Epic auth completion
   POST /api/epic/disconnect     Remove Epic connection (keeps RLCoach account)
+  GET  /api/steam/login         Begin "Sign in through Steam" (OpenID) — one-click Player ID
+  GET  /api/steam/callback      Steam OpenID return → sets player_id = steam:<id>
   POST /api/auth/player_id      Set tracked player ID
 
 Rank / stats:
@@ -47,7 +49,8 @@ from typing import Optional
 
 from fastapi import Cookie, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
+                               RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -377,6 +380,87 @@ async def epic_refresh_name(session_id: Optional[str] = Cookie(default=None)):
         return {"status": "unchanged", "display_name": session.get("display_name")}
     await db.update_display_name(session["session_id"], name)
     return {"status": "ok", "display_name": name}
+
+
+# ── Steam "Sign in through Steam" (OpenID 2.0) ────────────────────────────────
+# Lets Steam players fill their Player ID in one click instead of hunting down
+# their 17-digit steamID64. Steam's OpenID returns the id with no API key needed.
+# The session id is carried through the redirect as a signed `state` token (the
+# session cookie is SameSite=strict, so it would NOT survive the cross-site
+# return from steamcommunity.com).
+
+_STEAM_OPENID_URL = "https://steamcommunity.com/openid/login"
+_STEAM_CLAIMED_RE = re.compile(r"^https://steamcommunity\.com/openid/id/(\d{17})$")
+
+
+def _public_base_url(request: Request) -> str:
+    """Canonical public origin (https://whatasave.xyz) for OpenID realm/return_to."""
+    env = os.environ.get("PUBLIC_BASE_URL")
+    if env:
+        return env.rstrip("/")
+    if ALLOWED_ORIGINS:
+        return ALLOWED_ORIGINS[0].rstrip("/")
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = (request.headers.get("x-forwarded-host")
+            or request.headers.get("host") or request.url.netloc)
+    return f"{proto}://{host}"
+
+
+async def _verify_steam_openid(params: dict) -> Optional[str]:
+    """Validate the OpenID assertion directly with Steam and return the steamID64."""
+    if params.get("openid.mode") != "id_res":
+        return None
+    m = _STEAM_CLAIMED_RE.match(params.get("openid.claimed_id", ""))
+    if not m:
+        return None
+    steamid = m.group(1)
+    # Echo the assertion back with mode=check_authentication so Steam confirms the
+    # signature — this is what makes the returned id trustworthy (anti-forgery).
+    check = {k: v for k, v in params.items() if k.startswith("openid.")}
+    check["openid.mode"] = "check_authentication"
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=15.0) as c:
+            r = await c.post(_STEAM_OPENID_URL, data=check,
+                             headers={"Content-Type": "application/x-www-form-urlencoded"})
+        if r.status_code == 200 and any(
+                ln.strip() == "is_valid:true" for ln in r.text.splitlines()):
+            return steamid
+    except Exception as e:
+        log.warning("Steam OpenID verification failed: %s", e)
+    return None
+
+
+@app.get("/api/steam/login")
+async def steam_login(request: Request, session_id: Optional[str] = Cookie(default=None)):
+    from urllib.parse import urlencode, quote
+    from web_database import encrypt_state
+    session = await _require_session(session_id)
+    base = _public_base_url(request)
+    state = encrypt_state(session["session_id"])
+    return_to = f"{base}/api/steam/callback?state={quote(state, safe='')}"
+    params = {
+        "openid.ns": "http://specs.openid.net/auth/2.0",
+        "openid.mode": "checkid_setup",
+        "openid.return_to": return_to,
+        "openid.realm": base + "/",
+        "openid.identity": "http://specs.openid.net/auth/2.0/identifier_select",
+        "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
+    }
+    return RedirectResponse(f"{_STEAM_OPENID_URL}?{urlencode(params)}", status_code=303)
+
+
+@app.get("/api/steam/callback")
+async def steam_callback(request: Request, state: Optional[str] = None):
+    from web_database import decrypt_state
+    sid = decrypt_state(state or "", max_age_s=900)
+    if not sid or not await db.get_session(sid):
+        return RedirectResponse("/?steam=error", status_code=303)
+    steamid = await _verify_steam_openid(dict(request.query_params))
+    if not steamid:
+        return RedirectResponse("/?steam=invalid", status_code=303)
+    await db.update_player_id(sid, f"steam:{steamid}")
+    return RedirectResponse("/?steam=ok", status_code=303)
 
 
 @app.post("/api/auth/player_id")
