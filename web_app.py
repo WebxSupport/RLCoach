@@ -158,6 +158,11 @@ async def _startup():
     log.info("RLCoach started. API key=%s  secure_cookies=%s  allowed_origins=%s",
              "set" if ANTHROPIC_API_KEY else "MISSING",
              SECURE_COOKIES, ALLOWED_ORIGINS or "any (dev)")
+    # Background stats refresher (dormant until a service account is linked).
+    if os.environ.get("SERVICE_REFRESH_ENABLED", "true").lower() == "true":
+        from rlcoach.service_refresh import scheduler_loop
+        asyncio.create_task(scheduler_loop(db))
+        log.info("Background stats refresher scheduled (dormant until service account linked).")
 
 
 @app.on_event("shutdown")
@@ -644,6 +649,12 @@ async def stats_lifetime(force: bool = False, session_id: Optional[str] = Cookie
     eos = session.get("eos_account_id")
     if not eos:
         return {"available": False, "stats": {}}
+    # Prefer the background-refreshed snapshot (service account, no live call).
+    if not force:
+        bg = await db.get_account_stats(eos)
+        if bg and bg.get("lifetime"):
+            return {"available": True, "stats": bg["lifetime"],
+                    "source": "background", "updated_at": bg.get("updated_at")}
     now = time.time()
     cached = _LIFETIME_CACHE.get(eos)
     if cached and not force and now - cached[0] < _LIFETIME_TTL:

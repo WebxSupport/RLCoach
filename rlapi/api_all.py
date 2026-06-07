@@ -41,6 +41,13 @@ class SkillsAPI:
                 _log.info("Skills probe FAIL method=%r body=%r -> %s", method, body, e)
         _log.warning("All skills probes returned nothing — rank will fall back to self-reported")
         return None
+
+    async def get_player_skill(self, player_id: str, timeout: float = 8.0):
+        """Look up ANY player's skills by PlayerID ('Platform|id|0'). Locked from
+        the probe: Skills/GetPlayerSkill v1 returns {Skills:[...], RewardLevels:{}}.
+        Works cross-player, so a service account can read everyone's rank by ID."""
+        return await self.send_request_sync(
+            "Skills/GetPlayerSkill v1", {"PlayerID": player_id}, timeout)
 class StatsAPI:
     # Locked from server logs: this service + body works (returns {LeaderboardID,
     # bHasValue, Value}); the other variants are ServiceNotFound.

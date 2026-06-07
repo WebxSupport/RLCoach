@@ -200,6 +200,24 @@ CREATE TABLE IF NOT EXISTS plan_state (
     started_at   TEXT,
     updated_at   TEXT NOT NULL
 );
+
+-- Single dedicated "service" Epic account used to look up registered players'
+-- public rank/stats BY ID in the background (TRN-style), so we never use a real
+-- user's connection (= never risk disconnecting them mid-match). Tokens encrypted.
+CREATE TABLE IF NOT EXISTS service_account (
+    id          INTEGER PRIMARY KEY CHECK (id = 1),
+    tokens      TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+
+-- Background-refreshed rank/lifetime snapshots per account (read by the stats page
+-- so it doesn't need a live PsyNet call).
+CREATE TABLE IF NOT EXISTS account_stats (
+    eos_account_id TEXT PRIMARY KEY,
+    ranks_json     TEXT,
+    lifetime_json  TEXT,
+    updated_at     TEXT NOT NULL
+);
 """
 
 DAILY_LIMIT = 5
@@ -493,6 +511,63 @@ class Database:
         )
         await self._db.commit()
         return await self.get_plan_state(session_id)
+
+    # ── service account + background-refreshed stats ─────────────────────────────
+
+    async def save_service_tokens(self, tokens: dict) -> None:
+        await self._db.execute(
+            """INSERT INTO service_account (id, tokens, updated_at) VALUES (1, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET tokens=excluded.tokens, updated_at=excluded.updated_at""",
+            (_encrypt(json.dumps(tokens)), self._now()),
+        )
+        await self._db.commit()
+
+    async def get_service_tokens(self) -> Optional[dict]:
+        async with self._db.execute("SELECT tokens FROM service_account WHERE id=1") as cur:
+            row = await cur.fetchone()
+        if not row:
+            return None
+        try:
+            return json.loads(_decrypt(row["tokens"]))
+        except Exception:
+            return None
+
+    async def list_refresh_targets(self) -> list:
+        """Active users with an identity we can look up by ID, + their gamemode."""
+        async with self._db.execute(
+            """SELECT s.session_id, s.eos_account_id, s.player_id, p.gamemode
+               FROM sessions s LEFT JOIN profiles p ON p.session_id = s.session_id
+               WHERE s.eos_account_id IS NOT NULL AND s.eos_account_id <> ''"""
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def save_account_stats(self, eos_account_id: str, ranks, lifetime) -> None:
+        await self._db.execute(
+            """INSERT INTO account_stats (eos_account_id, ranks_json, lifetime_json, updated_at)
+               VALUES (?,?,?,?)
+               ON CONFLICT(eos_account_id) DO UPDATE SET
+                 ranks_json=excluded.ranks_json, lifetime_json=excluded.lifetime_json,
+                 updated_at=excluded.updated_at""",
+            (eos_account_id,
+             json.dumps(ranks) if ranks is not None else None,
+             json.dumps(lifetime) if lifetime is not None else None,
+             self._now()),
+        )
+        await self._db.commit()
+
+    async def get_account_stats(self, eos_account_id: str) -> Optional[dict]:
+        async with self._db.execute(
+            "SELECT ranks_json, lifetime_json, updated_at FROM account_stats WHERE eos_account_id=?",
+            (eos_account_id,),
+        ) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return None
+        return {
+            "ranks": json.loads(row["ranks_json"]) if row["ranks_json"] else None,
+            "lifetime": json.loads(row["lifetime_json"]) if row["lifetime_json"] else None,
+            "updated_at": row["updated_at"],
+        }
 
     # ── jobs ──────────────────────────────────────────────────────────────────
 
