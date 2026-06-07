@@ -37,6 +37,7 @@ Replays:
 Stats:
   GET  /api/metrics/history      Skill-progression snapshots + trackable-metric catalogue
   GET  /api/stats/summary        Career stats from tracked replays + peak MMR + Tracker Network link
+  GET  /api/stats/lifetime       Lifetime account totals from PsyNet (probe; cached 6h)
 
 Misc:
   GET  /api/resources
@@ -47,6 +48,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from datetime import date
 from pathlib import Path
@@ -586,6 +588,37 @@ async def stats_summary(session_id: Optional[str] = Cookie(default=None)):
         "peak_mmr": max(mmrs) if mmrs else None,
         "trn_url": _trn_profile_url(session.get("player_id") or "", session.get("display_name") or ""),
     }
+
+
+# Lifetime career totals are slow to change → cache per account for a few hours so
+# the stats page doesn't open a PsyNet connection on every load.
+_LIFETIME_CACHE: dict = {}
+_LIFETIME_TTL = 6 * 3600
+
+
+@app.get("/api/stats/lifetime")
+async def stats_lifetime(force: bool = False, session_id: Optional[str] = Cookie(default=None)):
+    """Lifetime account totals (wins/goals/saves/assists/shots/mvps) from PsyNet —
+    the 'over many games' view. Best-effort: returns available=false if the
+    (undocumented) PsyNet stats RPC didn't resolve."""
+    session = await _require_session(session_id)
+    eos = session.get("eos_account_id")
+    if not eos:
+        return {"available": False, "stats": {}}
+    now = time.time()
+    cached = _LIFETIME_CACHE.get(eos)
+    if cached and not force and now - cached[0] < _LIFETIME_TTL:
+        return {"available": bool(cached[1]), "stats": cached[1], "cached": True}
+
+    from rlcoach.web_pipeline import get_web_credentials
+    from rlcoach.stats_api import fetch_lifetime_stats
+    creds = await get_web_credentials(session, db)
+    if not creds:
+        return {"available": False, "stats": {}, "error": "Epic auth expired"}
+    access_token, account_id, display_name = creds
+    stats = await fetch_lifetime_stats(access_token, account_id, display_name)
+    _LIFETIME_CACHE[eos] = (now, stats)
+    return {"available": bool(stats), "stats": stats}
 
 
 # ── replay fetch ──────────────────────────────────────────────────────────────

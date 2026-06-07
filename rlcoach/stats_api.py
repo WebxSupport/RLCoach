@@ -173,6 +173,43 @@ async def fetch_all_ranks(
     return {}
 
 
+async def fetch_lifetime_stats(
+    access_token: str,
+    account_id: str,
+    display_name: str,
+) -> dict:
+    """
+    Fetch the player's lifetime career totals (wins/goals/saves/assists/shots/mvps)
+    from PsyNet — the TRN-style "over many games" view, not just downloaded replays.
+    Returns {} if the (undocumented) stats RPC didn't resolve.
+    """
+    try:
+        from rlapi.client import create_client
+        client = await create_client(access_token, account_id, display_name)
+        try:
+            raw = await client.get_lifetime_stats(timeout=8.0)
+        finally:
+            try:
+                await client.close()
+            except Exception:
+                pass
+        if not raw:
+            return {}
+        out = dict(raw)
+        games = raw.get("matchesplayed")
+        wins = raw.get("wins")
+        if games:
+            out["games"] = games
+            if wins is not None:
+                out["losses"] = max(0, games - wins)
+                out["win_pct"] = round(100 * wins / games) if games else None
+        log.info("Lifetime stats fetched for %s: %s", account_id[:8], out)
+        return out
+    except Exception as e:
+        log.info("fetch_lifetime_stats failed (%s)", e)
+        return {}
+
+
 async def fetch_player_stats(
     access_token: str,
     account_id: str,
