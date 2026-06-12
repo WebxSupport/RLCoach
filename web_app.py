@@ -159,6 +159,13 @@ def _clear_session_cookie(response: Response) -> None:
 async def _startup():
     await db.init()
     await db.ensure_admin_emails(sorted(ADMIN_EMAILS))
+    if os.environ.get("DEV_SEED", "").strip().lower() == "true":
+        if SECURE_COOKIES:
+            log.warning("DEV_SEED requested but SECURE_COOKIES=true (production) — refusing to seed.")
+        else:
+            from rlcoach.dev_seed import seed
+            await seed(db)
+            log.info("DEV_SEED fixtures ready: dev@rlcoach.local / devseed (session devseed-session).")
     log.info("RLCoach started. API key=%s  secure_cookies=%s  allowed_origins=%s",
              "set" if ANTHROPIC_API_KEY else "MISSING",
              SECURE_COOKIES, ALLOWED_ORIGINS or "any (dev)")

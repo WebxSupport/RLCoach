@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rlcoach",
+      "runtimeExecutable": "C:\\Users\\lukeb\\Desktop\\RLCoach\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "web_app:app", "--port", "8801"],
+      "port": 8801,
+      "env": {
+        "PYTHONIOENCODING": "utf-8",
+        "DEV_SEED": "true"
+      }
+    }
+  ]
+}
