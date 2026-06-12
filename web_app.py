@@ -77,6 +77,9 @@ MATCH_DAILY_LIMIT = int(os.environ.get("MATCH_DAILY_LIMIT", "1"))   # 1 match an
 SERIES_DAILY_LIMIT= int(os.environ.get("SERIES_DAILY_LIMIT", "1"))  # 1 series analysis / day
 PLAN_MAX_REGENS   = int(os.environ.get("PLAN_MAX_REGENS", "1"))     # regenerates per plan cycle
 SECURE_COOKIES    = os.environ.get("SECURE_COOKIES", "false").lower() == "true"
+# Comma-separated emails that are always admins (promoted on startup + at register).
+ADMIN_EMAILS      = {e.strip().lower() for e in
+                     os.environ.get("ADMIN_EMAILS", "luke.b98@outlook.com").split(",") if e.strip()}
 ALLOWED_ORIGINS   = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 # ── Rate limiter ──────────────────────────────────────────────────────────────
@@ -155,6 +158,7 @@ def _clear_session_cookie(response: Response) -> None:
 @app.on_event("startup")
 async def _startup():
     await db.init()
+    await db.ensure_admin_emails(sorted(ADMIN_EMAILS))
     log.info("RLCoach started. API key=%s  secure_cookies=%s  allowed_origins=%s",
              "set" if ANTHROPIC_API_KEY else "MISSING",
              SECURE_COOKIES, ALLOWED_ORIGINS or "any (dev)")
@@ -181,12 +185,25 @@ async def _require_session(session_id: Optional[str]) -> dict:
     session = await db.get_session(session_id)
     if not session:
         raise HTTPException(401, "Session expired — please log in again")
+    if session.get("is_banned"):
+        raise HTTPException(403, "This account has been suspended")
     return session
 
 
 async def _require_epic(session: dict) -> None:
     if not session.get("eos_account_id") or not session.get("auth_tokens"):
         raise HTTPException(400, "Connect your Epic Games account first")
+
+
+def _is_admin(session: dict) -> bool:
+    return session.get("role") == "admin"
+
+
+async def _require_admin(session_id: Optional[str]) -> dict:
+    session = await _require_session(session_id)
+    if not _is_admin(session):
+        raise HTTPException(403, "Admin access required")
+    return session
 
 
 # ── frontend ──────────────────────────────────────────────────────────────────
@@ -230,7 +247,8 @@ async def register(request: Request, response: Response):
 
     user_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
-    await db.create_user(user_id, email, password)
+    role = "admin" if email.lower() in ADMIN_EMAILS else "user"
+    await db.create_user(user_id, email, password, role=role)
     await db.create_session(session_id, user_id)
 
     _set_session_cookie(response, session_id)
@@ -249,6 +267,8 @@ async def login(request: Request, response: Response):
     valid = db.verify_password(password, user) if user else False
     if not user or not valid:
         raise HTTPException(401, "Incorrect email or password")
+    if user.get("is_banned"):
+        raise HTTPException(403, "This account has been suspended")
 
     session = await db.get_session_by_user_id(user["user_id"])
     if session:
@@ -291,6 +311,8 @@ async def me(session_id: Optional[str] = Cookie(default=None)):
     session = await db.get_session(session_id)
     if not session:
         return {"logged_in": False}
+    if session.get("is_banned"):
+        return {"logged_in": False, "banned": True}
     return {
         "logged_in": True,
         "session_id": session["session_id"],
@@ -298,6 +320,9 @@ async def me(session_id: Optional[str] = Cookie(default=None)):
         "eos_account_id": session.get("eos_account_id"),
         "display_name": session.get("display_name"),
         "player_id": session.get("player_id"),
+        "email": session.get("email"),
+        "role": session.get("role") or "user",
+        "is_admin": _is_admin(session),
     }
 
 
@@ -778,9 +803,10 @@ async def analyze_match(match_id: str, session_id: Optional[str] = Cookie(defaul
     if m.get("has_analysis"):
         return {"status": "already_done"}
 
-    # Daily cap check up-front (the job re-checks too) — 1 match analysis/day
+    # Daily cap check up-front (the job re-checks too) — 1 match analysis/day.
+    # Admins are exempt from all usage caps.
     today = date.today().isoformat()
-    if session.get("eos_account_id"):
+    if not _is_admin(session) and session.get("eos_account_id"):
         used = await db.get_usage_kind(session["eos_account_id"], today, "match")
         if used >= MATCH_DAILY_LIMIT:
             raise HTTPException(429, "You've used today's match analysis. Come back tomorrow for the next one.")
@@ -849,12 +875,14 @@ async def usage(session_id: Optional[str] = Cookie(default=None)):
     today = date.today().isoformat()
     match_used = await db.get_usage_kind(eos, today, "match") if eos else 0
     series_used = await db.get_usage_kind(eos, today, "series") if eos else 0
+    unlimited = _is_admin(session)
     return {
         "has_api_key": bool(ANTHROPIC_API_KEY),
+        "unlimited": unlimited,
         "match": {"used": match_used, "limit": MATCH_DAILY_LIMIT,
-                  "remaining": max(0, MATCH_DAILY_LIMIT - match_used)},
+                  "remaining": 999 if unlimited else max(0, MATCH_DAILY_LIMIT - match_used)},
         "series": {"used": series_used, "limit": SERIES_DAILY_LIMIT,
-                   "remaining": max(0, SERIES_DAILY_LIMIT - series_used)},
+                   "remaining": 999 if unlimited else max(0, SERIES_DAILY_LIMIT - series_used)},
     }
 
 
@@ -901,7 +929,7 @@ async def coaching_generate(session_id: Optional[str] = Cookie(default=None)):
     # Plan-cycle gating: a new cycle starts with a fresh Generate; within an active
     # cycle you get PLAN_MAX_REGENS regenerate(s), then must "Mark Plan Complete".
     pst = await db.get_plan_state(session["session_id"])
-    if pst["active"] and pst["regens_used"] >= PLAN_MAX_REGENS:
+    if not _is_admin(session) and pst["active"] and pst["regens_used"] >= PLAN_MAX_REGENS:
         raise HTTPException(429,
             "You've used your regenerate for this plan. Click 'Mark Plan Complete' "
             "once you've worked through it to unlock a fresh plan.")
@@ -936,7 +964,7 @@ def _plan_week_summary(content_md: str) -> list:
     return out
 
 
-async def _plan_cycle_view(session_id: str) -> dict:
+async def _plan_cycle_view(session_id: str, admin: bool = False) -> dict:
     pst = await db.get_plan_state(session_id)
     regens_left = max(0, PLAN_MAX_REGENS - pst["regens_used"])
     return {
@@ -944,8 +972,8 @@ async def _plan_cycle_view(session_id: str) -> dict:
         "active": bool(pst["active"]),
         "regens_used": pst["regens_used"],
         "regens_left": regens_left,
-        "can_regenerate": bool(pst["active"]) and regens_left > 0,
-        "can_generate": not pst["active"],
+        "can_regenerate": admin or (bool(pst["active"]) and regens_left > 0),
+        "can_generate": admin or not pst["active"],
         "can_complete": bool(pst["active"]),
     }
 
@@ -953,7 +981,7 @@ async def _plan_cycle_view(session_id: str) -> dict:
 @app.get("/api/coaching")
 async def get_coaching(session_id: Optional[str] = Cookie(default=None)):
     session = await _require_session(session_id)
-    cycle = await _plan_cycle_view(session["session_id"])
+    cycle = await _plan_cycle_view(session["session_id"], admin=_is_admin(session))
     plan = await db.get_latest_coaching_plan(session["session_id"])
     if not plan:
         return {"exists": False, "cycle": cycle}
@@ -1021,7 +1049,7 @@ async def series_generate(session_id: Optional[str] = Cookie(default=None)):
         raise HTTPException(400, "Complete your profile setup first")
 
     today = date.today().isoformat()
-    if session.get("eos_account_id"):
+    if not _is_admin(session) and session.get("eos_account_id"):
         used = await db.get_usage_kind(session["eos_account_id"], today, "series")
         if used >= SERIES_DAILY_LIMIT:
             raise HTTPException(429, "You've used today's series analysis. Come back tomorrow for the next one.")
@@ -1226,6 +1254,134 @@ async def resources():
         "playlists": PLAYLIST_OPTIONS,
         "platforms": PLATFORM_OPTIONS,
     }
+
+
+# ── admin ─────────────────────────────────────────────────────────────────────
+
+@app.get("/admin")
+async def admin_page(session_id: Optional[str] = Cookie(default=None)):
+    """Admin dashboard SPA — served only to admins, everyone else goes home."""
+    try:
+        await _require_admin(session_id)
+    except HTTPException:
+        return RedirectResponse("/", status_code=303)
+    page = Path("static/admin.html")
+    return HTMLResponse(
+        page.read_text(encoding="utf-8"),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@app.get("/api/admin/overview")
+async def admin_overview(session_id: Optional[str] = Cookie(default=None)):
+    await _require_admin(session_id)
+    return await db.admin_overview()
+
+
+@app.get("/api/admin/users")
+async def admin_users(search: str = "", limit: int = 50, offset: int = 0,
+                      session_id: Optional[str] = Cookie(default=None)):
+    await _require_admin(session_id)
+    return await db.admin_list_users(search[:100], min(max(limit, 1), 200), max(offset, 0))
+
+
+@app.get("/api/admin/users/{user_id}")
+async def admin_user_detail(user_id: str, session_id: Optional[str] = Cookie(default=None)):
+    await _require_admin(session_id)
+    detail = await db.admin_user_detail(user_id)
+    if not detail:
+        raise HTTPException(404, "User not found")
+    return detail
+
+
+@app.post("/api/admin/users/{user_id}/role")
+async def admin_set_role(user_id: str, request: Request,
+                         session_id: Optional[str] = Cookie(default=None)):
+    admin = await _require_admin(session_id)
+    body = await request.json()
+    role = (body.get("role") or "").strip()
+    if role not in ("user", "admin"):
+        raise HTTPException(400, "Role must be 'user' or 'admin'")
+    target = await db.get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+    if user_id == admin["user_id"] and role != "admin":
+        raise HTTPException(400, "You can't remove your own admin role")
+    await db.set_user_role(user_id, role)
+    await db.add_audit(admin["email"], "set_role", target["email"], f"role={role}")
+    return {"status": "ok", "role": role}
+
+
+@app.post("/api/admin/users/{user_id}/ban")
+async def admin_set_ban(user_id: str, request: Request,
+                        session_id: Optional[str] = Cookie(default=None)):
+    admin = await _require_admin(session_id)
+    body = await request.json()
+    banned = bool(body.get("banned"))
+    target = await db.get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+    if user_id == admin["user_id"]:
+        raise HTTPException(400, "You can't ban your own account")
+    await db.set_user_banned(user_id, banned)
+    await db.add_audit(admin["email"], "ban" if banned else "unban", target["email"], None)
+    return {"status": "ok", "banned": banned}
+
+
+@app.post("/api/admin/users/{user_id}/reset-usage")
+async def admin_reset_usage(user_id: str, session_id: Optional[str] = Cookie(default=None)):
+    admin = await _require_admin(session_id)
+    target = await db.get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+    target_session = await db.get_session_by_user_id(user_id)
+    await db.admin_reset_usage(
+        target_session.get("eos_account_id") if target_session else None,
+        target_session.get("session_id") if target_session else None,
+    )
+    await db.add_audit(admin["email"], "reset_usage", target["email"],
+                       "cleared today's AI usage + plan regenerate")
+    return {"status": "ok"}
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, session_id: Optional[str] = Cookie(default=None)):
+    admin = await _require_admin(session_id)
+    target = await db.get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+    if user_id == admin["user_id"]:
+        raise HTTPException(400, "You can't delete your own account from here")
+    sid = await db.admin_delete_user(user_id)
+    if sid:
+        import shutil
+        out = Path("data") / "output" / sid
+        if out.exists():
+            shutil.rmtree(out, ignore_errors=True)
+    await db.add_audit(admin["email"], "delete_user", target["email"], None)
+    return {"status": "deleted"}
+
+
+@app.get("/api/admin/scans")
+async def admin_scans(limit: int = 50, offset: int = 0,
+                      session_id: Optional[str] = Cookie(default=None)):
+    await _require_admin(session_id)
+    return await db.admin_recent_scans(min(max(limit, 1), 200), max(offset, 0))
+
+
+@app.get("/api/admin/revenue")
+async def admin_revenue(session_id: Optional[str] = Cookie(default=None)):
+    await _require_admin(session_id)
+    summary = await db.revenue_summary()
+    summary["payments"] = await db.list_payments(50, 0)
+    return summary
+
+
+@app.get("/api/admin/audit")
+async def admin_audit(limit: int = 100, offset: int = 0,
+                      session_id: Optional[str] = Cookie(default=None)):
+    await _require_admin(session_id)
+    return await db.list_audit(min(max(limit, 1), 500), max(offset, 0))
 
 
 # ── coaching background job ────────────────────────────────────────────────────

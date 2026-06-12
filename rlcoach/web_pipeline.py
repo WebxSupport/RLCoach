@@ -553,13 +553,14 @@ async def run_analysis_job(
         await progress.error("AI analysis is not configured on this server")
         return
 
-    # Daily cap — 1 match analysis per day
-    usage = await db.get_usage_kind(eos_account_id, today_str, "match")
-    if usage >= MATCH_DAILY_LIMIT:
-        await progress.error(
-            f"You've used today's match analysis ({usage}/{MATCH_DAILY_LIMIT}). "
-            f"Come back tomorrow for the next one.")
-        return
+    # Daily cap — 1 match analysis per day (admins are exempt)
+    if session.get("role") != "admin":
+        usage = await db.get_usage_kind(eos_account_id, today_str, "match")
+        if usage >= MATCH_DAILY_LIMIT:
+            await progress.error(
+                f"You've used today's match analysis ({usage}/{MATCH_DAILY_LIMIT}). "
+                f"Come back tomorrow for the next one.")
+            return
 
     folder_path = Path(match["folder_path"])
     match_json_path = folder_path / "match.json"

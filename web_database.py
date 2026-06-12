@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -86,7 +86,9 @@ CREATE TABLE IF NOT EXISTS users (
     user_id       TEXT PRIMARY KEY,
     email         TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL,
+    role          TEXT NOT NULL DEFAULT 'user',   -- 'user' | 'admin'
+    is_banned     INTEGER NOT NULL DEFAULT 0
 );
 
 -- One persistent session per user; is_active tracks logged-in state.
@@ -218,6 +220,32 @@ CREATE TABLE IF NOT EXISTS account_stats (
     lifetime_json  TEXT,
     updated_at     TEXT NOT NULL
 );
+
+-- Revenue ledger. No payment provider is wired up yet — when Stripe (or similar)
+-- lands, its webhook should insert rows here and the admin Revenue tab lights up.
+CREATE TABLE IF NOT EXISTS payments (
+    payment_id   TEXT PRIMARY KEY,
+    user_id      TEXT,
+    email        TEXT,
+    amount_cents INTEGER NOT NULL,
+    currency     TEXT NOT NULL DEFAULT 'usd',
+    kind         TEXT NOT NULL DEFAULT 'one_time',   -- 'one_time' | 'subscription' | 'refund'
+    description  TEXT,
+    status       TEXT NOT NULL DEFAULT 'succeeded',
+    external_id  TEXT,                                -- provider charge/invoice id
+    created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_payments_created ON payments(created_at);
+
+-- Every admin mutation (role change, ban, usage reset, delete) is recorded here.
+CREATE TABLE IF NOT EXISTS admin_audit (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_email TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    target      TEXT,
+    detail      TEXT,
+    created_at  TEXT NOT NULL
+);
 """
 
 DAILY_LIMIT = 5
@@ -252,6 +280,16 @@ class Database:
         self._db = await aiosqlite.connect(str(self.path))
         self._db.row_factory = aiosqlite.Row
         await self._db.executescript(_SCHEMA)
+        # Migrations for pre-existing databases (CREATE TABLE IF NOT EXISTS won't
+        # add new columns to tables that already exist).
+        for stmt in (
+            "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'",
+            "ALTER TABLE users ADD COLUMN is_banned INTEGER NOT NULL DEFAULT 0",
+        ):
+            try:
+                await self._db.execute(stmt)
+            except Exception:
+                pass  # column already exists
         await self._db.commit()
 
     async def close(self) -> None:
@@ -263,10 +301,12 @@ class Database:
 
     # ── users ─────────────────────────────────────────────────────────────────
 
-    async def create_user(self, user_id: str, email: str, password: str) -> None:
+    async def create_user(self, user_id: str, email: str, password: str,
+                          role: str = "user") -> None:
         await self._db.execute(
-            "INSERT INTO users VALUES (?,?,?,?)",
-            (user_id, email.lower().strip(), _hash_password(password), self._now()),
+            "INSERT INTO users (user_id, email, password_hash, created_at, role)"
+            " VALUES (?,?,?,?,?)",
+            (user_id, email.lower().strip(), _hash_password(password), self._now(), role),
         )
         await self._db.commit()
 
@@ -294,8 +334,12 @@ class Database:
         await self._db.commit()
 
     async def get_session(self, session_id: str) -> Optional[dict]:
+        # Joined with users so callers get email / role / is_banned for free
+        # (admin checks + immediate ban enforcement on the next request).
         async with self._db.execute(
-            "SELECT * FROM sessions WHERE session_id=? AND is_active=1", (session_id,)
+            """SELECT s.*, u.email AS email, u.role AS role, u.is_banned AS is_banned
+               FROM sessions s JOIN users u ON u.user_id = s.user_id
+               WHERE s.session_id=? AND s.is_active=1""", (session_id,)
         ) as cur:
             row = await cur.fetchone()
         if not row:
@@ -327,10 +371,11 @@ class Database:
         user_id = row["user_id"] if row else None
         eos = row["eos_account_id"] if row else None
         for tbl in ("matches", "jobs", "profiles", "coaching_plans", "trackers",
-                    "series_reports", "sessions"):
+                    "series_reports", "metric_history", "plan_state", "sessions"):
             await self._db.execute(f"DELETE FROM {tbl} WHERE session_id=?", (session_id,))
         if eos:
-            await self._db.execute("DELETE FROM analysis_usage WHERE eos_account_id=?", (eos,))
+            for tbl in ("analysis_usage", "usage_daily", "account_stats"):
+                await self._db.execute(f"DELETE FROM {tbl} WHERE eos_account_id=?", (eos,))
         if user_id:
             await self._db.execute("DELETE FROM users WHERE user_id=?", (user_id,))
         await self._db.commit()
@@ -806,3 +851,286 @@ class Database:
             "DELETE FROM series_reports WHERE report_id=? AND session_id=?", (report_id, session_id)
         )
         await self._db.commit()
+
+    # ── admin: roles & bans ───────────────────────────────────────────────────────
+
+    async def ensure_admin_emails(self, emails: list) -> None:
+        """Promote the configured admin emails (ADMIN_EMAILS env) on startup, so an
+        already-registered account becomes admin without manual SQL."""
+        for email in emails:
+            await self._db.execute(
+                "UPDATE users SET role='admin' WHERE email=? AND role<>'admin'",
+                (email.lower().strip(),),
+            )
+        await self._db.commit()
+
+    async def get_user_by_id(self, user_id: str) -> Optional[dict]:
+        async with self._db.execute(
+            "SELECT * FROM users WHERE user_id=?", (user_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        return dict(row) if row else None
+
+    async def set_user_role(self, user_id: str, role: str) -> None:
+        await self._db.execute("UPDATE users SET role=? WHERE user_id=?", (role, user_id))
+        await self._db.commit()
+
+    async def set_user_banned(self, user_id: str, banned: bool) -> None:
+        await self._db.execute(
+            "UPDATE users SET is_banned=? WHERE user_id=?", (1 if banned else 0, user_id)
+        )
+        await self._db.commit()
+
+    # ── admin: overview / users / scans ───────────────────────────────────────────
+
+    async def _scalar(self, sql: str, params: tuple = ()) -> int:
+        async with self._db.execute(sql, params) as cur:
+            row = await cur.fetchone()
+        return (row[0] if row and row[0] is not None else 0)
+
+    async def _timeseries(self, sql: str, params: tuple, days: int) -> list:
+        """Run a 'SELECT day, count' query and zero-fill missing days."""
+        async with self._db.execute(sql, params) as cur:
+            rows = await cur.fetchall()
+        by_day = {r[0]: r[1] for r in rows}
+        today = datetime.now(timezone.utc).date()
+        return [
+            {"date": (today - timedelta(days=i)).isoformat(),
+             "count": by_day.get((today - timedelta(days=i)).isoformat(), 0)}
+            for i in range(days - 1, -1, -1)
+        ]
+
+    async def admin_overview(self) -> dict:
+        now = datetime.now(timezone.utc)
+        today = now.date().isoformat()
+        cut7 = (now - timedelta(days=7)).isoformat()
+        cut30_date = (now.date() - timedelta(days=29)).isoformat()
+
+        users_total   = await self._scalar("SELECT COUNT(*) FROM users")
+        admins        = await self._scalar("SELECT COUNT(*) FROM users WHERE role='admin'")
+        banned        = await self._scalar("SELECT COUNT(*) FROM users WHERE is_banned=1")
+        new_today     = await self._scalar(
+            "SELECT COUNT(*) FROM users WHERE substr(created_at,1,10)=?", (today,))
+        new_7d        = await self._scalar(
+            "SELECT COUNT(*) FROM users WHERE created_at>=?", (cut7,))
+        active_today  = await self._scalar(
+            "SELECT COUNT(*) FROM sessions WHERE substr(last_seen,1,10)=?", (today,))
+        active_7d     = await self._scalar(
+            "SELECT COUNT(*) FROM sessions WHERE last_seen>=?", (cut7,))
+        epic_linked   = await self._scalar(
+            "SELECT COUNT(*) FROM sessions WHERE eos_account_id IS NOT NULL AND eos_account_id<>''")
+
+        scans_total    = await self._scalar("SELECT COUNT(*) FROM matches")
+        scans_today    = await self._scalar(
+            "SELECT COUNT(*) FROM matches WHERE substr(created_at,1,10)=?", (today,))
+        analyses_total = await self._scalar("SELECT COUNT(*) FROM matches WHERE has_analysis=1")
+        plans_total    = await self._scalar("SELECT COUNT(*) FROM coaching_plans")
+        series_total   = await self._scalar("SELECT COUNT(*) FROM series_reports")
+        ai_today       = await self._scalar(
+            "SELECT COALESCE(SUM(count),0) FROM usage_daily WHERE usage_date=?", (today,))
+
+        signups_30d = await self._timeseries(
+            """SELECT substr(created_at,1,10) AS d, COUNT(*) FROM users
+               WHERE substr(created_at,1,10)>=? GROUP BY d""", (cut30_date,), 30)
+        scans_30d = await self._timeseries(
+            """SELECT substr(created_at,1,10) AS d, COUNT(*) FROM matches
+               WHERE substr(created_at,1,10)>=? GROUP BY d""", (cut30_date,), 30)
+
+        return {
+            "users": {"total": users_total, "admins": admins, "banned": banned,
+                      "new_today": new_today, "new_7d": new_7d,
+                      "active_today": active_today, "active_7d": active_7d,
+                      "epic_linked": epic_linked},
+            "scans": {"total": scans_total, "today": scans_today,
+                      "analyses": analyses_total, "plans": plans_total,
+                      "series": series_total, "ai_runs_today": ai_today},
+            "timeseries": {"signups_30d": signups_30d, "scans_30d": scans_30d},
+        }
+
+    _ADMIN_USER_SELECT = """
+        SELECT u.user_id, u.email, u.role, u.is_banned, u.created_at,
+               s.session_id, s.display_name, s.player_id, s.eos_account_id,
+               s.last_seen, s.is_active,
+               p.gamemode, p.current_rank, p.target_rank,
+               (SELECT COUNT(*) FROM matches m WHERE m.session_id=s.session_id) AS match_count,
+               (SELECT COUNT(*) FROM matches m WHERE m.session_id=s.session_id AND m.has_analysis=1) AS analyzed_count,
+               (SELECT COUNT(*) FROM coaching_plans c WHERE c.session_id=s.session_id) AS plan_count,
+               (SELECT COUNT(*) FROM series_reports r WHERE r.session_id=s.session_id) AS series_count,
+               (SELECT COALESCE(SUM(count),0) FROM usage_daily ud
+                 WHERE ud.eos_account_id=s.eos_account_id AND ud.usage_date=?) AS usage_today
+        FROM users u
+        LEFT JOIN sessions s ON s.user_id = u.user_id
+        LEFT JOIN profiles p ON p.session_id = s.session_id
+    """
+
+    async def admin_list_users(self, search: str = "", limit: int = 50, offset: int = 0) -> dict:
+        today = datetime.now(timezone.utc).date().isoformat()
+        like = f"%{search.strip()}%"
+        where = ("WHERE (?='' OR u.email LIKE ? OR s.display_name LIKE ? OR s.player_id LIKE ?)")
+        total = await self._scalar(
+            f"""SELECT COUNT(*) FROM users u
+                LEFT JOIN sessions s ON s.user_id=u.user_id {where}""",
+            (search.strip(), like, like, like))
+        async with self._db.execute(
+            self._ADMIN_USER_SELECT + where + " ORDER BY u.created_at DESC LIMIT ? OFFSET ?",
+            (today, search.strip(), like, like, like, limit, offset),
+        ) as cur:
+            rows = await cur.fetchall()
+        return {"total": total, "users": [dict(r) for r in rows]}
+
+    async def admin_user_detail(self, user_id: str) -> Optional[dict]:
+        today = datetime.now(timezone.utc).date().isoformat()
+        async with self._db.execute(
+            self._ADMIN_USER_SELECT + " WHERE u.user_id=?", (today, user_id)
+        ) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        sid = d.get("session_id")
+        if sid:
+            d["plan_state"] = await self.get_plan_state(sid)
+            matches = await self.get_matches(sid)
+            d["recent_matches"] = [
+                {"match_id": m["match_id"], "created_at": m["created_at"],
+                 "has_analysis": m["has_analysis"],
+                 "mode": (m["summary"] or {}).get("mode"),
+                 "result": (m["summary"] or {}).get("result"),
+                 "map": (m["summary"] or {}).get("map_display") or (m["summary"] or {}).get("map")}
+                for m in matches[:15]
+            ]
+            async with self._db.execute(
+                """SELECT usage_date, kind, count FROM usage_daily
+                   WHERE eos_account_id=? ORDER BY usage_date DESC LIMIT 28""",
+                (d.get("eos_account_id") or "",),
+            ) as cur:
+                d["usage_recent"] = [dict(r) for r in await cur.fetchall()]
+        else:
+            d["plan_state"] = None
+            d["recent_matches"] = []
+            d["usage_recent"] = []
+        return d
+
+    async def admin_recent_scans(self, limit: int = 50, offset: int = 0) -> dict:
+        total = await self._scalar("SELECT COUNT(*) FROM matches")
+        async with self._db.execute(
+            """SELECT m.match_id, m.session_id, m.summary, m.has_analysis, m.created_at,
+                      u.email, u.user_id, s.display_name
+               FROM matches m
+               LEFT JOIN sessions s ON s.session_id = m.session_id
+               LEFT JOIN users u ON u.user_id = s.user_id
+               ORDER BY m.created_at DESC LIMIT ? OFFSET ?""",
+            (limit, offset),
+        ) as cur:
+            rows = await cur.fetchall()
+        scans = []
+        for r in rows:
+            d = dict(r)
+            try:
+                s = json.loads(d.pop("summary") or "{}")
+            except Exception:
+                s = {}
+            d.update({
+                "mode": s.get("mode"), "result": s.get("result"), "win": s.get("win"),
+                "map": s.get("map_display") or s.get("map"),
+                "played_at": s.get("played_at"),
+            })
+            scans.append(d)
+        return {"total": total, "scans": scans}
+
+    async def admin_reset_usage(self, eos_account_id: Optional[str], session_id: Optional[str]) -> None:
+        """Support action: clear today's AI usage + free the plan-cycle regenerate."""
+        today = datetime.now(timezone.utc).date().isoformat()
+        if eos_account_id:
+            await self._db.execute(
+                "DELETE FROM usage_daily WHERE eos_account_id=? AND usage_date=?",
+                (eos_account_id, today))
+            await self._db.execute(
+                "DELETE FROM analysis_usage WHERE eos_account_id=? AND usage_date=?",
+                (eos_account_id, today))
+        if session_id:
+            await self._db.execute(
+                "UPDATE plan_state SET regens_used=0, updated_at=? WHERE session_id=?",
+                (self._now(), session_id))
+        await self._db.commit()
+
+    async def admin_delete_user(self, user_id: str) -> Optional[str]:
+        """Delete a user and all their data; returns their session_id (for output
+        folder cleanup) or None if they had no session."""
+        session = await self.get_session_by_user_id(user_id)
+        if session:
+            await self.delete_account(session["session_id"])
+            return session["session_id"]
+        await self._db.execute("DELETE FROM users WHERE user_id=?", (user_id,))
+        await self._db.commit()
+        return None
+
+    # ── admin: revenue ────────────────────────────────────────────────────────────
+
+    async def record_payment(self, payment_id: str, amount_cents: int, *,
+                             user_id: Optional[str] = None, email: Optional[str] = None,
+                             currency: str = "usd", kind: str = "one_time",
+                             description: Optional[str] = None,
+                             status: str = "succeeded",
+                             external_id: Optional[str] = None) -> None:
+        await self._db.execute(
+            """INSERT INTO payments (payment_id, user_id, email, amount_cents, currency,
+                                     kind, description, status, external_id, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (payment_id, user_id, email, amount_cents, currency, kind,
+             description, status, external_id, self._now()),
+        )
+        await self._db.commit()
+
+    async def revenue_summary(self) -> dict:
+        now = datetime.now(timezone.utc)
+        month_start = now.date().replace(day=1).isoformat()
+        cut30_date = (now.date() - timedelta(days=29)).isoformat()
+        ok = "status='succeeded'"
+        total = await self._scalar(f"SELECT COALESCE(SUM(amount_cents),0) FROM payments WHERE {ok}")
+        month = await self._scalar(
+            f"SELECT COALESCE(SUM(amount_cents),0) FROM payments WHERE {ok} AND substr(created_at,1,10)>=?",
+            (month_start,))
+        count = await self._scalar(f"SELECT COUNT(*) FROM payments WHERE {ok}")
+        paying = await self._scalar(
+            f"SELECT COUNT(DISTINCT COALESCE(user_id,email)) FROM payments WHERE {ok}")
+        async with self._db.execute(
+            f"""SELECT substr(created_at,1,10) AS d, SUM(amount_cents) FROM payments
+                WHERE {ok} AND substr(created_at,1,10)>=? GROUP BY d""", (cut30_date,)
+        ) as cur:
+            rows = await cur.fetchall()
+        by_day = {r[0]: r[1] for r in rows}
+        today = now.date()
+        revenue_30d = [
+            {"date": (today - timedelta(days=i)).isoformat(),
+             "cents": by_day.get((today - timedelta(days=i)).isoformat(), 0)}
+            for i in range(29, -1, -1)
+        ]
+        return {"total_cents": total, "month_cents": month,
+                "payment_count": count, "paying_users": paying,
+                "revenue_30d": revenue_30d}
+
+    async def list_payments(self, limit: int = 50, offset: int = 0) -> list:
+        async with self._db.execute(
+            "SELECT * FROM payments ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    # ── admin: audit log ──────────────────────────────────────────────────────────
+
+    async def add_audit(self, admin_email: str, action: str,
+                        target: Optional[str] = None, detail: Optional[str] = None) -> None:
+        await self._db.execute(
+            "INSERT INTO admin_audit (admin_email, action, target, detail, created_at)"
+            " VALUES (?,?,?,?,?)",
+            (admin_email, action, target, detail, self._now()),
+        )
+        await self._db.commit()
+
+    async def list_audit(self, limit: int = 100, offset: int = 0) -> list:
+        async with self._db.execute(
+            "SELECT * FROM admin_audit ORDER BY id DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]

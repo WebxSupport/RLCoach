@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RLCoach — Admin</title>
+<link rel="icon" type="image/png" href="/static/favicon.png"/>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg:#070b11;--panel:#0d1521;--panel2:#101c2c;--line:#1b2a3e;--line2:#26384f;
+  --txt:#e7eff8;--muted:#8093a8;--dim:#6b7f96;
+  --cyan:#34d6f7;--blue:#3a8dff;--amber:#ffb347;--green:#34e0a0;--red:#ff5d73;--orange:#ff9e42;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Oxanium',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;background:var(--bg);color:var(--txt);font-family:var(--disp)}
+body{background:radial-gradient(900px 500px at 80% -10%,#0f2236 0%,transparent 60%),
+  radial-gradient(700px 400px at -10% 110%,#131b2e 0%,transparent 55%),var(--bg);
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1200px;margin:0 auto;padding:24px 20px;position:relative}
+
+.nav{display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.brand img{height:44px;width:auto;display:block}
+.brand .tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--amber);border:1px solid var(--amber);border-radius:999px;padding:4px 10px}
+.nav-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.nav-tab{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);background:none;border:0;padding:8px 12px;cursor:pointer;border-radius:6px;transition:color .15s}
+.nav-tab:hover{color:var(--txt)}
+.nav-tab.active{color:var(--cyan);background:rgba(52,214,247,.07)}
+.nav-right{display:flex;align-items:center;gap:10px}
+.nav-right a{color:var(--muted);font-family:var(--mono);font-size:12px;text-decoration:none;
+  border:1px solid var(--line2);border-radius:9px;padding:7px 13px}
+.nav-right a:hover{color:var(--txt);border-color:var(--line)}
+
+.card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:20px 22px;margin-bottom:16px}
+.card h2{font-size:16px;font-weight:800;margin-bottom:4px}
+.card .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px}
+
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.stat{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:14px 16px}
+.stat .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-size:26px;font-weight:800;margin-top:5px}
+.stat .v small{font-size:13px;color:var(--muted);font-weight:600}
+.stat.cyan .v{color:var(--cyan)}.stat.green .v{color:var(--green)}
+.stat.amber .v{color:var(--amber)}.stat.red .v{color:var(--red)}
+
+.chart{display:flex;align-items:flex-end;gap:3px;height:110px;padding-top:8px}
+.chart .bar{flex:1;background:linear-gradient(180deg,var(--cyan),#1a6f86);border-radius:3px 3px 0 0;min-height:2px;position:relative;opacity:.85}
+.chart .bar:hover{opacity:1}
+.chart.green .bar{background:linear-gradient(180deg,var(--green),#157a55)}
+.chart-x{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:6px}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  text-align:left;padding:8px 10px;border-bottom:1px solid var(--line2);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.click{cursor:pointer}tr.click:hover td{background:rgba(52,214,247,.04)}
+td .sub2{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.mono{font-family:var(--mono);font-size:12px}
+.muted{color:var(--muted)}
+.right{text-align:right}
+.nowrap{white-space:nowrap}
+
+.pill{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;padding:3px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--muted)}
+.pill.admin{color:var(--amber);border-color:var(--amber)}
+.pill.banned{color:var(--red);border-color:var(--red)}
+.pill.active{color:var(--green);border-color:var(--green)}
+.pill.win{color:var(--green);border-color:var(--green)}
+.pill.loss{color:var(--red);border-color:var(--red)}
+.pill.yes{color:var(--cyan);border-color:var(--cyan)}
+
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:9px;
+  font-size:12.5px;font-weight:600;border:1px solid transparent;cursor:pointer;font-family:var(--disp);transition:all .15s}
+.btn-primary{background:var(--cyan);color:#04121a;border-color:var(--cyan)}.btn-primary:hover{filter:brightness(1.12)}
+.btn-ghost{background:transparent;color:var(--muted);border-color:var(--line2)}.btn-ghost:hover{color:var(--txt);border-color:var(--line)}
+.btn-danger{background:transparent;color:var(--red);border-color:var(--red)}.btn-danger:hover{background:#1a0d12}
+.btn-warn{background:transparent;color:var(--amber);border-color:var(--amber)}.btn-warn:hover{background:#1a1408}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-sm{padding:5px 10px;font-size:11.5px}
+
+.input{padding:10px 14px;background:#0c1623;border:1px solid var(--line2);
+  border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:13px;outline:none;width:100%;max-width:340px}
+.input:focus{border-color:var(--cyan)}
+
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.pager{display:flex;align-items:center;gap:10px;margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.empty{font-family:var(--mono);font-size:12.5px;color:var(--muted);padding:26px 0;text-align:center;line-height:1.7}
+
+.modal-bg{position:fixed;inset:0;background:rgba(3,7,12,.78);display:none;z-index:50;overflow-y:auto;padding:40px 16px}
+.modal-bg.open{display:block}
+.modal{max-width:760px;margin:0 auto;border:1px solid var(--line2);border-radius:16px;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));padding:24px 26px;position:relative}
+.modal .close{position:absolute;top:14px;right:16px;background:none;border:0;color:var(--muted);font-size:20px;cursor:pointer}
+.modal .close:hover{color:var(--txt)}
+.modal h3{font-size:18px;font-weight:800;margin-bottom:2px}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin:16px 0}
+.dfield .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.dfield .v{font-family:var(--mono);font-size:13px;margin-top:3px;word-break:break-all}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 6px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0d2233;border:1px solid var(--cyan);
+  color:var(--txt);font-family:var(--mono);font-size:12.5px;padding:11px 20px;border-radius:10px;z-index:99;display:none}
+.toast.err{border-color:var(--red)}
+.section-h{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.split{grid-template-columns:1fr}}
+.spinner{width:18px;height:18px;border:2px solid var(--line2);border-top-color:var(--cyan);
+  border-radius:50%;animation:spin .75s linear infinite;display:inline-block;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading{padding:30px;text-align:center}
+</style>
+<body>
+<div class="wrap">
+  <nav class="nav">
+    <div class="brand">
+      <img src="/static/logo.png" alt="RLCoach"/>
+      <span class="tag">🛡️ Admin</span>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+      <button class="nav-tab" data-tab="users" onclick="switchTab('users')">Users</button>
+      <button class="nav-tab" data-tab="scans" onclick="switchTab('scans')">Scans</button>
+      <button class="nav-tab" data-tab="revenue" onclick="switchTab('revenue')">Revenue</button>
+      <button class="nav-tab" data-tab="audit" onclick="switchTab('audit')">Audit Log</button>
+    </div>
+    <div class="nav-right">
+      <span class="mono muted" id="admin-email"></span>
+      <a href="/">← Back to app</a>
+    </div>
+  </nav>
+
+  <!-- OVERVIEW -->
+  <div id="tab-overview">
+    <div class="loading" id="ov-loading"><span class="spinner"></span></div>
+    <div id="ov-body" style="display:none">
+      <div class="stat-grid" id="ov-stats"></div>
+      <div class="split">
+        <div class="card">
+          <h2>Signups — last 30 days</h2>
+          <div class="sub" id="signups-sub"></div>
+          <div class="chart" id="chart-signups"></div>
+          <div class="chart-x" id="chart-signups-x"></div>
+        </div>
+        <div class="card">
+          <h2>Scans — last 30 days</h2>
+          <div class="sub" id="scans-sub"></div>
+          <div class="chart green" id="chart-scans"></div>
+          <div class="chart-x" id="chart-scans-x"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- USERS -->
+  <div id="tab-users" style="display:none">
+    <div class="card">
+      <h2>Users</h2>
+      <div class="sub" id="users-count"></div>
+      <div class="toolbar">
+        <input class="input" id="user-search" placeholder="Search email / name / player id…"
+               oninput="debounceUsers()"/>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Rank</th>
+            <th class="right">Scans</th><th class="right">Analyses</th><th class="right">Plans</th>
+            <th class="right">AI today</th><th>Joined</th><th>Last seen</th>
+          </tr></thead>
+          <tbody id="users-rows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="users-empty" style="display:none">No users found.</div>
+      <div class="pager">
+        <button class="btn btn-ghost btn-sm" id="users-prev" onclick="usersPage(-1)">← Prev</button>
+        <span id="users-page"></span>
+        <button class="btn btn-ghost btn-sm" id="users-next" onclick="usersPage(1)">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCANS -->
+  <div id="tab-scans" style="display:none">
+    <div class="card">
+      <h2>Recent scans</h2>
+      <div class="sub" id="scans-count"></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>When</th><th>User</th><th>Mode</th><th>Map</th><th>Result</th><th>AI analysed</th>
+          </tr></thead>
+          <tbody id="scans-rows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="scans-empty" style="display:none">No scans yet.</div>
+      <div class="pager">
+        <button class="btn btn-ghost btn-sm" id="scans-prev" onclick="scansPage(-1)">← Prev</button>
+        <span id="scans-page"></span>
+        <button class="btn btn-ghost btn-sm" id="scans-next" onclick="scansPage(1)">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVENUE -->
+  <div id="tab-revenue" style="display:none">
+    <div class="stat-grid" id="rev-stats"></div>
+    <div class="card">
+      <h2>Revenue — last 30 days</h2>
+      <div class="sub" id="rev-sub"></div>
+      <div class="chart" id="chart-rev"></div>
+      <div class="chart-x" id="chart-rev-x"></div>
+    </div>
+    <div class="card">
+      <h2>Payments</h2>
+      <div class="sub">Most recent 50</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>When</th><th>Email</th><th>Amount</th><th>Type</th><th>Status</th><th>Description</th></tr></thead>
+          <tbody id="rev-rows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="rev-empty" style="display:none">
+        No payments recorded yet.<br/>
+        The <span class="mono">payments</span> ledger is live — once a payment provider
+        (e.g. Stripe) is wired up, revenue appears here automatically.
+      </div>
+    </div>
+  </div>
+
+  <!-- AUDIT -->
+  <div id="tab-audit" style="display:none">
+    <div class="card">
+      <h2>Admin audit log</h2>
+      <div class="sub">Every admin action is recorded</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+          <tbody id="audit-rows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="audit-empty" style="display:none">No admin actions yet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- USER DETAIL MODAL -->
+<div class="modal-bg" id="user-modal" onclick="if(event.target===this)closeUser()">
+  <div class="modal">
+    <button class="close" onclick="closeUser()">✕</button>
+    <h3 id="um-email"></h3>
+    <div class="sub mono muted" id="um-id"></div>
+    <div id="um-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(method, url, body){
+  const opts = {method, headers:{}};
+  if (body !== undefined){ opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
+  const r = await fetch(url, opts);
+  if (r.status === 401 || r.status === 403){ location.href='/'; throw new Error('not admin'); }
+  if (!r.ok){
+    let msg = 'Request failed';
+    try{ msg = (await r.json()).detail || msg; }catch(e){}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+const get = url => api('GET', url);
+
+let _toastTimer = null;
+function toast(msg, err){
+  const t = $('toast');
+  t.textContent = msg; t.className = 'toast'+(err?' err':''); t.style.display='block';
+  clearTimeout(_toastTimer); _toastTimer = setTimeout(()=>{ t.style.display='none'; }, 3500);
+}
+
+function fmtDate(iso){
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso.slice(0,10);
+  return d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
+}
+function fmtWhen(iso){
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString(undefined,{day:'numeric',month:'short'}) + ' ' +
+         d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+}
+function ago(iso){
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (isNaN(ms)) return iso;
+  const m = Math.floor(ms/60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m+'m ago';
+  const h = Math.floor(m/60);
+  if (h < 24) return h+'h ago';
+  const dd = Math.floor(h/24);
+  return dd+'d ago';
+}
+const money = cents => '$'+(cents/100).toFixed(2);
+
+// ── tabs ──────────────────────────────────────────────────────────────────────
+const TABS = ['overview','users','scans','revenue','audit'];
+const _loaded = {};
+function switchTab(tab){
+  TABS.forEach(t=>{
+    $('tab-'+t).style.display = (t===tab)?'':'none';
+    document.querySelector(`.nav-tab[data-tab="${t}"]`).classList.toggle('active', t===tab);
+  });
+  if (!_loaded[tab]){ _loaded[tab]=true; LOADERS[tab](); }
+}
+
+// ── overview ──────────────────────────────────────────────────────────────────
+function statCard(k, v, cls, sub){
+  return `<div class="stat ${cls||''}"><div class="k">${esc(k)}</div>
+    <div class="v">${v}${sub?` <small>${esc(sub)}</small>`:''}</div></div>`;
+}
+function renderChart(elId, xId, points, valueKey, fmt){
+  const el = $(elId), max = Math.max(1, ...points.map(p=>p[valueKey]));
+  el.innerHTML = points.map(p=>
+    `<div class="bar" style="height:${Math.max(2, Math.round(100*p[valueKey]/max))}%"
+       title="${esc(p.date)}: ${esc(fmt?fmt(p[valueKey]):p[valueKey])}"></div>`).join('');
+  if (xId && points.length)
+    $(xId).innerHTML = `<span>${esc(fmtDate(points[0].date))}</span><span>${esc(fmtDate(points[points.length-1].date))}</span>`;
+}
+async function loadOverview(){
+  try{
+    const [ov, rev] = await Promise.all([get('/api/admin/overview'), get('/api/admin/revenue')]);
+    const u = ov.users, s = ov.scans;
+    $('ov-stats').innerHTML =
+      statCard('Total users', u.total, 'cyan') +
+      statCard('Active today', u.active_today, 'green') +
+      statCard('Active 7d', u.active_7d) +
+      statCard('New today', u.new_today) +
+      statCard('New 7d', u.new_7d) +
+      statCard('Epic linked', u.epic_linked) +
+      statCard('Total scans', s.total, 'cyan') +
+      statCard('Scans today', s.today, 'green') +
+      statCard('AI analyses', s.analyses) +
+      statCard('AI runs today', s.ai_runs_today) +
+      statCard('Coaching plans', s.plans) +
+      statCard('Series reports', s.series) +
+      statCard('Revenue (all time)', money(rev.total_cents), 'amber') +
+      statCard('Revenue (month)', money(rev.month_cents), 'amber') +
+      (u.banned ? statCard('Banned', u.banned, 'red') : '') +
+      statCard('Admins', u.admins);
+    const sg = ov.timeseries.signups_30d, sc = ov.timeseries.scans_30d;
+    $('signups-sub').textContent = sg.reduce((a,p)=>a+p.count,0) + ' signups in the last 30 days';
+    $('scans-sub').textContent = sc.reduce((a,p)=>a+p.count,0) + ' scans in the last 30 days';
+    renderChart('chart-signups','chart-signups-x', sg, 'count');
+    renderChart('chart-scans','chart-scans-x', sc, 'count');
+    $('ov-loading').style.display='none'; $('ov-body').style.display='';
+  }catch(e){ toast(e.message, true); }
+}
+
+// ── users ─────────────────────────────────────────────────────────────────────
+const USERS_PAGE = 50;
+let _usersOffset = 0, _usersTotal = 0, _searchTimer = null;
+function debounceUsers(){ clearTimeout(_searchTimer); _searchTimer=setTimeout(()=>{ _usersOffset=0; loadUsers(); }, 350); }
+function usersPage(dir){
+  const next = _usersOffset + dir*USERS_PAGE;
+  if (next < 0 || next >= _usersTotal) return;
+  _usersOffset = next; loadUsers();
+}
+async function loadUsers(){
+  try{
+    const q = encodeURIComponent($('user-search').value.trim());
+    const data = await get(`/api/admin/users?search=${q}&limit=${USERS_PAGE}&offset=${_usersOffset}`);
+    _usersTotal = data.total;
+    $('users-count').textContent = data.total + ' account' + (data.total===1?'':'s');
+    const rows = data.users.map(u=>{
+      const status = u.is_banned ? '<span class="pill banned">banned</span>'
+        : (u.is_active ? '<span class="pill active">active</span>' : '<span class="pill">logged out</span>');
+      const role = u.role==='admin' ? '<span class="pill admin">admin</span>' : '<span class="pill">user</span>';
+      return `<tr class="click" onclick="openUser('${esc(u.user_id)}')">
+        <td class="mono">${esc(u.email)}</td>
+        <td>${esc(u.display_name||'—')}<div class="sub2">${esc(u.player_id||'')}</div></td>
+        <td>${role}</td><td>${status}</td>
+        <td class="mono">${esc(u.current_rank||'—')}</td>
+        <td class="right mono">${u.match_count||0}</td>
+        <td class="right mono">${u.analyzed_count||0}</td>
+        <td class="right mono">${u.plan_count||0}</td>
+        <td class="right mono">${u.usage_today||0}</td>
+        <td class="nowrap mono">${esc(fmtDate(u.created_at))}</td>
+        <td class="nowrap mono">${esc(ago(u.last_seen))}</td>
+      </tr>`;
+    }).join('');
+    $('users-rows').innerHTML = rows;
+    $('users-empty').style.display = rows ? 'none' : '';
+    const page = Math.floor(_usersOffset/USERS_PAGE)+1, pages = Math.max(1, Math.ceil(_usersTotal/USERS_PAGE));
+    $('users-page').textContent = `Page ${page} / ${pages}`;
+    $('users-prev').disabled = _usersOffset<=0;
+    $('users-next').disabled = _usersOffset+USERS_PAGE>=_usersTotal;
+  }catch(e){ toast(e.message, true); }
+}
+
+// ── user detail modal ─────────────────────────────────────────────────────────
+let _curUser = null;
+function closeUser(){ $('user-modal').classList.remove('open'); _curUser=null; }
+async function openUser(userId){
+  try{
+    const u = await get('/api/admin/users/'+userId);
+    _curUser = u;
+    $('um-email').textContent = u.email;
+    $('um-id').textContent = u.user_id;
+    const banBtn = u.is_banned
+      ? `<button class="btn btn-warn btn-sm" onclick="userAction('ban',{banned:false})">♻️ Unban</button>`
+      : `<button class="btn btn-warn btn-sm" onclick="userAction('ban',{banned:true})">🚫 Ban</button>`;
+    const roleBtn = u.role==='admin'
+      ? `<button class="btn btn-ghost btn-sm" onclick="userAction('role',{role:'user'})">⬇️ Remove admin</button>`
+      : `<button class="btn btn-ghost btn-sm" onclick="userAction('role',{role:'admin'})">🛡️ Make admin</button>`;
+    const matches = (u.recent_matches||[]).map(m=>
+      `<tr><td class="nowrap mono">${esc(fmtWhen(m.created_at))}</td>
+       <td class="mono">${esc(m.mode||'?')}</td><td>${esc(m.map||'—')}</td>
+       <td>${m.result?`<span class="pill ${m.result==='Win'?'win':'loss'}">${esc(m.result)}</span>`:'—'}</td>
+       <td>${m.has_analysis?'<span class="pill yes">yes</span>':'<span class="pill">no</span>'}</td></tr>`).join('');
+    const usage = (u.usage_recent||[]).map(x=>
+      `<tr><td class="mono">${esc(x.usage_date)}</td><td class="mono">${esc(x.kind)}</td>
+       <td class="right mono">${x.count}</td></tr>`).join('');
+    const ps = u.plan_state;
+    $('um-body').innerHTML = `
+      <div class="detail-grid">
+        <div class="dfield"><div class="k">Role</div><div class="v">${u.role==='admin'?'<span class="pill admin">admin</span>':'<span class="pill">user</span>'}</div></div>
+        <div class="dfield"><div class="k">Status</div><div class="v">${u.is_banned?'<span class="pill banned">banned</span>':'<span class="pill active">ok</span>'}</div></div>
+        <div class="dfield"><div class="k">Joined</div><div class="v">${esc(fmtWhen(u.created_at))}</div></div>
+        <div class="dfield"><div class="k">Last seen</div><div class="v">${esc(ago(u.last_seen))}</div></div>
+        <div class="dfield"><div class="k">Epic</div><div class="v">${esc(u.display_name||'not linked')}</div></div>
+        <div class="dfield"><div class="k">Player ID</div><div class="v">${esc(u.player_id||'—')}</div></div>
+        <div class="dfield"><div class="k">Gamemode</div><div class="v">${esc(u.gamemode||'—')}</div></div>
+        <div class="dfield"><div class="k">Rank → target</div><div class="v">${esc(u.current_rank||'?')} → ${esc(u.target_rank||'?')}</div></div>
+        <div class="dfield"><div class="k">Scans / analysed</div><div class="v">${u.match_count||0} / ${u.analyzed_count||0}</div></div>
+        <div class="dfield"><div class="k">Plans / series</div><div class="v">${u.plan_count||0} / ${u.series_count||0}</div></div>
+        <div class="dfield"><div class="k">Plan cycle</div><div class="v">${ps?`#${ps.cycle_no} · ${ps.active?'active':'complete'} · ${ps.regens_used} regen used`:'—'}</div></div>
+        <div class="dfield"><div class="k">AI usage today</div><div class="v">${u.usage_today||0}</div></div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-ghost btn-sm" onclick="userAction('reset-usage')">🔄 Reset today's usage</button>
+        ${banBtn}${roleBtn}
+        <button class="btn btn-danger btn-sm" onclick="deleteUser()">🗑️ Delete account</button>
+      </div>
+      ${matches?`<div class="section-h">Recent scans</div>
+        <div style="overflow-x:auto"><table><thead><tr><th>When</th><th>Mode</th><th>Map</th><th>Result</th><th>AI</th></tr></thead>
+        <tbody>${matches}</tbody></table></div>`:''}
+      ${usage?`<div class="section-h">AI usage (recent days)</div>
+        <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Kind</th><th class="right">Count</th></tr></thead>
+        <tbody>${usage}</tbody></table></div>`:''}
+    `;
+    $('user-modal').classList.add('open');
+  }catch(e){ toast(e.message, true); }
+}
+async function userAction(action, body){
+  if (!_curUser) return;
+  try{
+    await api('POST', `/api/admin/users/${_curUser.user_id}/${action}`, body||{});
+    toast('Done ✓');
+    await loadUsers();
+    openUser(_curUser.user_id);   // refresh modal
+  }catch(e){ toast(e.message, true); }
+}
+async function deleteUser(){
+  if (!_curUser) return;
+  if (!confirm(`Permanently delete ${_curUser.email} and ALL their data?\nThis cannot be undone.`)) return;
+  try{
+    await api('DELETE', `/api/admin/users/${_curUser.user_id}`);
+    toast('Account deleted');
+    closeUser(); loadUsers();
+  }catch(e){ toast(e.message, true); }
+}
+
+// ── scans ─────────────────────────────────────────────────────────────────────
+const SCANS_PAGE = 50;
+let _scansOffset = 0, _scansTotal = 0;
+function scansPage(dir){
+  const next = _scansOffset + dir*SCANS_PAGE;
+  if (next < 0 || next >= _scansTotal) return;
+  _scansOffset = next; loadScans();
+}
+async function loadScans(){
+  try{
+    const data = await get(`/api/admin/scans?limit=${SCANS_PAGE}&offset=${_scansOffset}`);
+    _scansTotal = data.total;
+    $('scans-count').textContent = data.total + ' scan' + (data.total===1?'':'s') + ' total';
+    const rows = data.scans.map(s=>`<tr>
+      <td class="nowrap mono">${esc(fmtWhen(s.created_at))}</td>
+      <td class="mono">${esc(s.email||'(deleted)')}<div class="sub2">${esc(s.display_name||'')}</div></td>
+      <td class="mono">${esc(s.mode||'?')}</td>
+      <td>${esc(s.map||'—')}</td>
+      <td>${s.result?`<span class="pill ${s.result==='Win'?'win':'loss'}">${esc(s.result)}</span>`:'—'}</td>
+      <td>${s.has_analysis?'<span class="pill yes">yes</span>':'<span class="pill">no</span>'}</td>
+    </tr>`).join('');
+    $('scans-rows').innerHTML = rows;
+    $('scans-empty').style.display = rows ? 'none' : '';
+    const page = Math.floor(_scansOffset/SCANS_PAGE)+1, pages = Math.max(1, Math.ceil(_scansTotal/SCANS_PAGE));
+    $('scans-page').textContent = `Page ${page} / ${pages}`;
+    $('scans-prev').disabled = _scansOffset<=0;
+    $('scans-next').disabled = _scansOffset+SCANS_PAGE>=_scansTotal;
+  }catch(e){ toast(e.message, true); }
+}
+
+// ── revenue ───────────────────────────────────────────────────────────────────
+async function loadRevenue(){
+  try{
+    const r = await get('/api/admin/revenue');
+    $('rev-stats').innerHTML =
+      statCard('All-time revenue', money(r.total_cents), 'amber') +
+      statCard('This month', money(r.month_cents), 'amber') +
+      statCard('Payments', r.payment_count) +
+      statCard('Paying users', r.paying_users);
+    const last30 = r.revenue_30d.reduce((a,p)=>a+p.cents,0);
+    $('rev-sub').textContent = money(last30) + ' in the last 30 days';
+    renderChart('chart-rev','chart-rev-x', r.revenue_30d, 'cents', money);
+    const rows = (r.payments||[]).map(p=>`<tr>
+      <td class="nowrap mono">${esc(fmtWhen(p.created_at))}</td>
+      <td class="mono">${esc(p.email||'—')}</td>
+      <td class="mono">${money(p.amount_cents)} ${esc((p.currency||'usd').toUpperCase())}</td>
+      <td class="mono">${esc(p.kind)}</td>
+      <td><span class="pill ${p.status==='succeeded'?'active':''}">${esc(p.status)}</span></td>
+      <td>${esc(p.description||'')}</td>
+    </tr>`).join('');
+    $('rev-rows').innerHTML = rows;
+    $('rev-empty').style.display = rows ? 'none' : '';
+  }catch(e){ toast(e.message, true); }
+}
+
+// ── audit ─────────────────────────────────────────────────────────────────────
+async function loadAudit(){
+  try{
+    const rows = (await get('/api/admin/audit?limit=200')).map(a=>`<tr>
+      <td class="nowrap mono">${esc(fmtWhen(a.created_at))}</td>
+      <td class="mono">${esc(a.admin_email)}</td>
+      <td><span class="pill">${esc(a.action)}</span></td>
+      <td class="mono">${esc(a.target||'—')}</td>
+      <td class="mono muted">${esc(a.detail||'')}</td>
+    </tr>`).join('');
+    $('audit-rows').innerHTML = rows;
+    $('audit-empty').style.display = rows ? 'none' : '';
+  }catch(e){ toast(e.message, true); }
+}
+
+const LOADERS = {overview:loadOverview, users:loadUsers, scans:loadScans,
+                 revenue:loadRevenue, audit:loadAudit};
+
+// ── boot ──────────────────────────────────────────────────────────────────────
+(async function init(){
+  try{
+    const me = await get('/api/me');
+    if (!me.logged_in || !me.is_admin){ location.href='/'; return; }
+    $('admin-email').textContent = me.email || '';
+  }catch(e){ location.href='/'; return; }
+  _loaded.overview = true;
+  loadOverview();
+})();
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeUser(); });
+</script>
+</body>
+</html>
