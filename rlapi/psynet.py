@@ -12,9 +12,9 @@ from .requestid import RequestIDCounter
 
 
 BASE_URL = "https://api.rlpp.psynet.gg/rpc"
-GAME_VERSION = "260506.26700.517210"
-FEATURE_SET = "PrimeUpdate58_1"
-PSY_BUILD_ID = "-1652286008"
+GAME_VERSION = "260602.75104.519749"
+FEATURE_SET = "PrimeUpdate59"
+PSY_BUILD_ID = "939334844"
 PSY_SIG_KEY = "c338bd36fb8c42b1a431d30add939fc7"
 PING_INTERVAL = 20.0
 PONG_TIMEOUT = 10.0
