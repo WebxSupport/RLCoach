@@ -12,6 +12,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from web_database import _hash_password
+
 USER_ID = "devseed-user"
 SESSION_ID = "devseed-session"
 EMAIL = "dev@rlcoach.local"
@@ -550,14 +552,29 @@ async def seed(db) -> None:
         user_id = USER_ID
     else:
         user_id = user["user_id"]
+        await db._db.execute(
+            "UPDATE users SET password_hash=? WHERE user_id=?",
+            (_hash_password(PASSWORD), user_id),
+        )
 
-    session = await db.get_session_by_user_id(user_id)
-    if not session:
-        await db.create_session(SESSION_ID, user_id)
-        session_id = SESSION_ID
-    else:
-        session_id = session["session_id"]
-        await db.activate_session(session_id)
+    session_id = SESSION_ID
+    now_s = db._now()
+    await db._db.execute(
+        "DELETE FROM sessions WHERE user_id=? AND session_id<>?",
+        (user_id, session_id),
+    )
+    await db._db.execute(
+        """INSERT INTO sessions
+           (session_id, user_id, eos_account_id, display_name, player_id,
+            auth_tokens, is_active, created_at, last_seen)
+           VALUES (?,?,NULL,NULL,NULL,NULL,1,?,?)
+           ON CONFLICT(session_id) DO UPDATE SET
+             user_id=excluded.user_id,
+             is_active=1,
+             last_seen=excluded.last_seen""",
+        (session_id, user_id, now_s, now_s),
+    )
+    await db._db.commit()
 
     # Epic "connection" — token dict shaped like web_app.epic_poll builds it,
     # with fake values and future expiries (no PsyNet call will succeed; the UI
