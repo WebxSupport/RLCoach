@@ -14,46 +14,64 @@
   --cyan:#34d6f7;--blue:#3a8dff;--amber:#ffb347;--green:#34e0a0;--red:#ff5d73;--orange:#ff9e42;
   --bronze:#cd7f32;--silver:#c0c0c0;--gold:#ffd700;--plat:#00cfcf;
   --diamond:#5cb3ff;--champ:#a855f7;--gc:#ff6b6b;
+  --glow:#34d6f755;--shadow:0 18px 48px #0009;--shadow-soft:0 8px 24px #0007;
+  --r12:12px;--r16:16px;--r20:20px;--ease:cubic-bezier(.2,.8,.2,1);
   --mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Oxanium',system-ui,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100%;background:var(--bg);color:var(--txt);font-family:var(--disp)}
-body{background:radial-gradient(900px 500px at 80% -10%,#0f2236 0%,transparent 60%),
-  radial-gradient(700px 400px at -10% 110%,#131b2e 0%,transparent 55%),var(--bg);
+body{background:radial-gradient(1000px 520px at 78% -8%,#12314d 0%,transparent 58%),
+  radial-gradient(820px 460px at -12% 108%,#132848 0%,transparent 56%),
+  linear-gradient(180deg,#08101b 0%,#05080d 72%),var(--bg);
   -webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
   background-image:linear-gradient(#13202f 1px,transparent 1px),linear-gradient(90deg,#13202f 1px,transparent 1px);
   background-size:42px 42px;mask:radial-gradient(circle at 50% 30%,#000 0%,transparent 80%)}
-.wrap{max-width:1100px;margin:0 auto;padding:24px 20px;position:relative}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
+  background:linear-gradient(115deg,transparent 0 35%,#34d6f70e 48%,transparent 62% 100%);
+  mix-blend-mode:screen}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 22px 44px;position:relative}
+
+/* motion system */
+@keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 #34d6f733}50%{box-shadow:0 0 0 8px #34d6f700}}
+@keyframes ringDraw{from{stroke-dashoffset:var(--dash)}to{stroke-dashoffset:var(--offset)}}
+.anim-rise{animation:riseIn .22s var(--ease) both}
+.tab-panel.active{animation:riseIn .22s var(--ease) both}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}
+}
 
 /* ── nav ── */
-.nav{display:flex;align-items:center;justify-content:space-between;
-  border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:28px;gap:12px;flex-wrap:wrap}
+.nav{display:grid;grid-template-columns:auto 1fr;align-items:center;
+  border-bottom:1px solid #26384f99;padding-bottom:18px;margin-bottom:32px;gap:18px}
 .brand{font-size:22px;font-weight:800;letter-spacing:.04em;cursor:pointer}
 .brand span{color:var(--cyan)}
-.nav-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.nav-right{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 .chip{font-family:var(--mono);font-size:11px;padding:5px 10px;border:1px solid var(--line2);border-radius:999px;color:var(--muted)}
 .chip.warn{color:var(--amber);border-color:var(--amber)}.chip.full{color:var(--red);border-color:var(--red)}
-.nav-tabs{display:flex;gap:4px}
+.nav-tabs{display:flex;justify-content:flex-start;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.nav-tabs::-webkit-scrollbar{display:none}
 .nav-tab{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--muted);background:none;border:0;padding:8px 12px;cursor:pointer;position:relative;transition:color .15s}
-.nav-tab:hover{color:var(--txt)}.nav-tab.active{color:var(--cyan);background:rgba(52,214,247,.07);border-radius:6px}
-.nav-tab.active::after{content:"";position:absolute;left:6px;right:6px;bottom:-17px;height:2px;background:var(--cyan);box-shadow:0 0 8px #34d6f755}
+  color:var(--muted);background:none;border:0;padding:11px 14px;cursor:pointer;position:relative;transition:color .18s var(--ease),background .18s var(--ease),transform .18s var(--ease);white-space:nowrap}
+.nav-tab:hover{color:var(--txt);transform:translateY(-1px)}.nav-tab.active{color:var(--cyan);background:rgba(52,214,247,.09);border-radius:10px}
+.nav-tab.active::after{content:"";position:absolute;left:10px;right:10px;bottom:-19px;height:2px;background:var(--cyan);box-shadow:0 0 14px var(--glow)}
 
 /* ── buttons ── */
-.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:9px;
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:10px;
   font-size:13px;font-weight:600;letter-spacing:.03em;border:1px solid transparent;
-  cursor:pointer;font-family:var(--disp);transition:all .15s;outline:none}
-.btn-primary{background:var(--cyan);color:#04121a;border-color:var(--cyan);box-shadow:0 2px 12px #34d6f725}.btn-primary:hover{filter:brightness(1.12);box-shadow:0 4px 20px #34d6f748}
-.btn-ghost{background:transparent;color:var(--muted);border-color:var(--line2)}.btn-ghost:hover{color:var(--txt);border-color:var(--line)}
+  cursor:pointer;font-family:var(--disp);transition:transform .16s var(--ease),box-shadow .16s var(--ease),border-color .16s var(--ease),filter .16s var(--ease);outline:none}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(135deg,var(--cyan),#47b8ff);color:#04121a;border-color:var(--cyan);box-shadow:0 8px 26px #34d6f733}.btn-primary:hover{filter:brightness(1.08);box-shadow:0 12px 32px #34d6f755;transform:translateY(-1px)}
+.btn-ghost{background:#0b1522aa;color:var(--muted);border-color:var(--line2)}.btn-ghost:hover{color:var(--txt);border-color:#3d5574;box-shadow:var(--shadow-soft)}
 .btn-danger{background:transparent;color:var(--red);border-color:var(--red)}.btn-danger:hover{background:#1a0d12}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn-sm{padding:6px 12px;font-size:12px}
 .btn-link{background:none;border:none;color:var(--cyan);cursor:pointer;font-family:var(--mono);font-size:12px;padding:0;text-decoration:underline}
 
 /* ── forms ── */
-.input{width:100%;padding:11px 14px;background:#0c1623;border:1px solid var(--line2);
-  border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:13px;outline:none;appearance:none}
+.input{width:100%;padding:12px 14px;background:#0c1623;border:1px solid var(--line2);
+  border-radius:10px;color:var(--txt);font-family:var(--mono);font-size:13px;outline:none;appearance:none}
 .input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px #34d6f715}.input option{background:#0c1623}
 /* past plans / reports — compact stacked cards */
 .hist-h{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:24px 0 10px}
@@ -71,7 +89,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 .field-error{font-family:var(--mono);font-size:11px;color:var(--red);margin-top:4px;display:none}
 
 /* ── card ── */
-.card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:20px 22px;margin-bottom:16px}
+.card{border:1px solid #22364f;border-radius:var(--r16);background:linear-gradient(180deg,#122033,#0c1624);padding:20px 22px;margin-bottom:16px;box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
 .card h2{font-size:16px;font-weight:800;margin-bottom:4px}
 .card .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:16px}
 
@@ -80,12 +98,27 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
   border-radius:50%;animation:spin .75s linear infinite;display:inline-block;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* ── guided gates / landing ── */
+.journey-rail{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 22px}
+.journey-step{border:1px solid var(--line);border-radius:12px;background:#081321cc;padding:9px 10px;position:relative;overflow:hidden}
+.journey-step::before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,#34d6f715,transparent 55%);opacity:0;transition:opacity .2s var(--ease)}
+.journey-step.on{border-color:var(--cyan);box-shadow:0 0 0 1px #34d6f722}
+.journey-step.on::before{opacity:1}
+.journey-step.done{border-color:#34e0a066;background:#081c16cc}
+.journey-num{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--cyan);position:relative}
+.journey-label{font-size:12px;font-weight:800;margin-top:3px;position:relative}
+.gate-card{max-width:520px;width:100%;position:relative;overflow:hidden}
+.gate-card::before,.landing-card::before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.7}
+.gate-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);margin-bottom:8px}
+.gate-title{font-size:24px;font-weight:800;margin-bottom:8px;line-height:1.05}
+.gate-copy{font-family:var(--mono);font-size:12px;line-height:1.65;color:var(--muted);margin-bottom:18px}
+
 /* ── landing screen — full-viewport centred modal ── */
 #landing-screen{
   position:fixed;inset:0;z-index:100;
   display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(900px 500px at 80% -10%,#0f2236,transparent 60%),
-             radial-gradient(700px 400px at -10% 110%,#131b2e,transparent 55%),
+  background:radial-gradient(900px 500px at 80% -10%,#12314d,transparent 60%),
+             radial-gradient(700px 400px at -10% 110%,#132848,transparent 55%),
              var(--bg);
 }
 #landing-screen::before{
@@ -95,16 +128,20 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 }
 .landing-card{
   position:relative;z-index:1;
-  width:min(480px,calc(100vw - 32px));
+  width:min(560px,calc(100vw - 32px));
   border:1px solid var(--line2);border-radius:18px;
   background:linear-gradient(160deg,#0d1521e8,#070b11f0);
-  padding:36px 36px 28px;
-  box-shadow:0 0 0 1px #34d6f720,0 24px 60px #00000080,0 0 120px #34d6f710;
+  padding:36px 36px 30px;
+  box-shadow:0 0 0 1px #34d6f720,var(--shadow),0 0 140px #34d6f716;
   backdrop-filter:blur(12px);
+  animation:riseIn .26s var(--ease) both;
 }
 .auth-logo{font-size:52px;font-weight:800;margin-bottom:4px;text-align:center;letter-spacing:.02em}
 .auth-logo span{color:var(--cyan);text-shadow:0 0 32px #34d6f755}
 .auth-tagline{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;margin-bottom:28px;letter-spacing:.04em}
+.auth-promise{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 22px}
+.auth-promise div{border:1px solid var(--line);background:#081321cc;border-radius:12px;padding:10px;font-family:var(--mono);font-size:10.5px;color:var(--muted);line-height:1.35}
+.auth-promise b{display:block;color:var(--txt);font-family:var(--disp);font-size:13px;margin-bottom:2px}
 .auth-tabs{display:flex;border-bottom:1px solid var(--line2);margin-bottom:22px;gap:2px}
 .auth-tab{flex:1;padding:11px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--muted);cursor:pointer;border:none;background:none;
@@ -117,7 +154,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 
 /* ── Epic connect screen ── */
 #epic-screen{display:flex;align-items:center;justify-content:center;min-height:72vh}
-.epic-card{max-width:440px;width:100%;text-align:center}
+.epic-card{max-width:520px;width:100%;text-align:left}
 .code-box{background:#0c1623;border:1px solid var(--cyan);border-radius:12px;padding:22px;margin:16px 0}
 .user-code{font-family:var(--mono);font-size:34px;font-weight:600;letter-spacing:.28em;color:var(--cyan);margin:10px 0}
 .code-hint{font-family:var(--mono);font-size:11px;color:var(--muted)}
@@ -202,7 +239,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 .coaching-empty{text-align:center;padding:60px 20px;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
 .coaching-empty .icon{font-size:48px;margin-bottom:12px}
 .coaching-empty p{font-family:var(--mono);font-size:13px;margin-top:6px;line-height:1.6}
-.coaching-card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:22px;margin-bottom:16px}
+.coaching-card{border:1px solid #22364f;border-radius:var(--r16);background:linear-gradient(180deg,#122033,#0c1624);padding:22px;margin-bottom:16px;box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
 .coaching-meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap}
 .fetch-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px}
 .fetch-bar h1{font-size:24px;font-weight:800;flex:1}
@@ -224,6 +261,26 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
 .no-analysis{font-family:var(--mono);font-size:10px;color:var(--dim)}
 .empty-state{text-align:center;padding:60px 20px;color:var(--muted);grid-column:1/-1}
 .empty-state p{font-family:var(--mono);font-size:13px;margin-top:8px}
+
+/* Today mission proof surface */
+.today-mission{position:relative;overflow:hidden;border:1px solid #2b4565;border-radius:22px;padding:24px;margin-bottom:18px;
+  background:radial-gradient(520px 220px at 86% 12%,#34d6f724,transparent 62%),
+             linear-gradient(145deg,#132237,#0b1421 62%,#08101a);
+  box-shadow:inset 0 1px 0 #ffffff0a,var(--shadow)}
+.today-mission::after{content:"";position:absolute;right:-80px;top:-90px;width:260px;height:260px;border-radius:50%;border:1px solid #34d6f730;box-shadow:0 0 80px #34d6f724}
+.tm-grid{display:grid;grid-template-columns:170px 1fr auto;gap:22px;align-items:center;position:relative;z-index:1}
+.tm-ring{width:150px;height:150px;display:grid;place-items:center;position:relative}
+.tm-ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.tm-ring .ring-bg{stroke:#1c3148}.tm-ring .ring-fg{stroke:var(--cyan);stroke-linecap:round;filter:drop-shadow(0 0 8px #34d6f777);stroke-dasharray:var(--dash);stroke-dashoffset:var(--offset);animation:ringDraw .8s var(--ease) both}
+.tm-ring-core{text-align:center}
+.tm-ring-core b{display:block;font-size:40px;line-height:1;color:var(--txt)}
+.tm-ring-core span{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.tm-kicker{font-family:var(--mono);font-size:11px;color:var(--cyan);letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px}
+.tm-title{font-size:30px;font-weight:800;line-height:1.05;margin-bottom:8px}
+.tm-copy{font-family:var(--mono);font-size:12px;line-height:1.65;color:var(--muted);max-width:640px}
+.tm-focus{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tm-focus span{font-family:var(--mono);font-size:11px;color:var(--txt);border:1px solid #2d4663;background:#0b1726;border-radius:999px;padding:6px 9px}
+.tm-actions{display:flex;flex-direction:column;gap:10px;align-items:stretch;min-width:190px}
 
 /* ── match toolbar ── */
 .match-toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
@@ -304,19 +361,30 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 /* ── responsive ─────────────────────────────────────────────────── */
 @media(max-width:600px){
   .wrap{padding:16px 14px}
-  .nav{margin-bottom:20px;padding-bottom:12px}
+  .nav{grid-template-columns:1fr;align-items:start;margin-bottom:20px;padding-bottom:12px;gap:12px}
+  .nav-right{width:100%;justify-content:flex-start}
   .brand{font-size:19px}
+  .brand img{height:76px!important;max-width:100%}
   /* nav tabs become a single swipeable row instead of wrapping/overflowing */
-  .nav-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}
+  .nav-tabs{width:100%;grid-template-columns:1fr 1fr;justify-content:stretch;overflow:visible;max-width:100%;padding-bottom:4px}
   .nav-tabs::-webkit-scrollbar{display:none}
-  .nav-tab{white-space:nowrap;padding:8px 10px}
-  .nav-tab.active::after{bottom:-13px}
+  .nav-tab{white-space:nowrap;padding:10px 12px;text-align:center}
+  .nav-tab.active::after{bottom:4px}
+  .journey-rail{grid-template-columns:1fr 1fr;gap:7px}
+  .journey-step{padding:8px}
   .choices.cols-3{grid-template-columns:1fr 1fr}
-  .landing-card{padding:28px 22px 22px}
+  .landing-card{padding:26px 18px 22px}
+  .auth-promise{grid-template-columns:1fr}
   .auth-logo{font-size:42px}
   .user-code{font-size:26px;letter-spacing:.18em}
   .coaching-header h1,.fetch-bar h1{font-size:20px}
   .card{padding:16px 16px}.coaching-card,.prog-card,.stat-card{padding:18px}
+  .gate-title{font-size:22px}
+  .today-mission{padding:18px;border-radius:18px}
+  .tm-grid{grid-template-columns:1fr;gap:14px}
+  .tm-ring{width:128px;height:128px;margin:0 auto}
+  .tm-title{font-size:25px}
+  .tm-actions{min-width:0}
   .btn{padding:10px 14px}
   .toast{left:14px;right:14px;max-width:none}
 }
@@ -331,7 +399,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   <nav class="nav" id="nav" style="display:none">
     <div class="brand" onclick="goHome()" style="cursor:pointer"><img src="/static/logo.png" alt="RLCoach" style="height:58px;width:auto;display:block"/></div>
     <div class="nav-tabs" id="nav-tabs" style="display:none">
-      <button class="nav-tab active" data-tab="coaching" onclick="switchTab('coaching')">Coaching Plan</button>
+      <button class="nav-tab active" data-tab="coaching" onclick="switchTab('coaching')">Today</button>
       <button class="nav-tab" data-tab="series" onclick="switchTab('series')">Series Report</button>
       <button class="nav-tab" data-tab="history" onclick="switchTab('history')">Match History</button>
       <button class="nav-tab" data-tab="stats" onclick="switchTab('stats')">My Stats</button>
@@ -358,7 +426,12 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   <div id="landing-screen">
     <div class="landing-card">
       <div class="auth-logo"><img src="/static/logo.png" alt="RLCoach" style="height:54px;width:auto"/></div>
-      <p class="auth-tagline">AI-powered Rocket League coaching for every rank</p>
+      <p class="auth-tagline">Daily rank-up missions from your real Rocket League replays</p>
+      <div class="auth-promise">
+        <div><b>Train today</b>One clear mission, no dashboard maze.</div>
+        <div><b>Check the series</b>Spot what carried across games.</div>
+        <div><b>Tune the plan</b>Keep what lands. Fix what leaks.</div>
+      </div>
       <div class="auth-tabs">
         <button class="auth-tab active" onclick="authTab('login')">Log In</button>
         <button class="auth-tab" onclick="authTab('register')">Create Account</button>
@@ -394,9 +467,16 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 
   <!-- EPIC CONNECT SCREEN -->
   <div id="epic-screen" style="display:none">
-    <div class="epic-card card">
-      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">Connect Epic Games</h2>
-      <p class="sub">Link your Rocket League account so we can fetch your replays and rank data.</p>
+    <div class="epic-card card gate-card anim-rise">
+      <div class="journey-rail">
+        <div class="journey-step on"><div class="journey-num">01</div><div class="journey-label">Connect</div></div>
+        <div class="journey-step"><div class="journey-num">02</div><div class="journey-label">Identify</div></div>
+        <div class="journey-step"><div class="journey-num">03</div><div class="journey-label">Profile</div></div>
+        <div class="journey-step"><div class="journey-num">04</div><div class="journey-label">Plan</div></div>
+      </div>
+      <div class="gate-kicker">Step 1 of 4</div>
+      <h2 class="gate-title">Connect Epic Games</h2>
+      <p class="gate-copy">Link your Rocket League account so RLCoach can read your rank, find your replays, and build the first plan from real games.</p>
       <div id="epic-start">
         <button class="btn btn-primary" id="connect-btn" style="width:100%;justify-content:center">
           Connect Epic Games Account
@@ -417,9 +497,16 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   <!-- PLAYER ID SCREEN -->
   <div id="pid-screen" style="display:none">
     <div style="max-width:480px;width:100%">
-      <div class="card">
-        <h2>One last thing</h2>
-        <p class="sub">Tell us which player is you, so we can find you in each replay.</p>
+      <div class="card gate-card anim-rise">
+        <div class="journey-rail">
+          <div class="journey-step done"><div class="journey-num">01</div><div class="journey-label">Connect</div></div>
+          <div class="journey-step on"><div class="journey-num">02</div><div class="journey-label">Identify</div></div>
+          <div class="journey-step"><div class="journey-num">03</div><div class="journey-label">Profile</div></div>
+          <div class="journey-step"><div class="journey-num">04</div><div class="journey-label">Plan</div></div>
+        </div>
+        <div class="gate-kicker">Step 2 of 4</div>
+        <h2 class="gate-title">Tell us which car is yours</h2>
+        <p class="gate-copy">This lets the analysis follow your touches, rotations, boosts, and decisions instead of grading the whole lobby.</p>
         <div id="pid-quick" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
           <div id="pid-epic-suggest"></div>
           <a href="/api/steam/login" id="steam-signin" class="btn btn-primary" style="width:100%;justify-content:center;text-decoration:none;background:#1b2838;border-color:#2a4760">
@@ -445,7 +532,15 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 
   <!-- WIZARD SCREEN -->
   <div id="wizard-screen" style="display:none">
-    <div class="wizard-wrap" id="wizard-body"></div>
+    <div class="wizard-wrap gate-card card anim-rise">
+      <div class="journey-rail">
+        <div class="journey-step done"><div class="journey-num">01</div><div class="journey-label">Connect</div></div>
+        <div class="journey-step done"><div class="journey-num">02</div><div class="journey-label">Identify</div></div>
+        <div class="journey-step on"><div class="journey-num">03</div><div class="journey-label">Profile</div></div>
+        <div class="journey-step"><div class="journey-num">04</div><div class="journey-label">Plan</div></div>
+      </div>
+      <div id="wizard-body"></div>
+    </div>
   </div>
 
   <!-- MAIN SCREEN -->
@@ -455,13 +550,14 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     </div>
     <div class="tab-panel active" id="tab-coaching">
       <div class="coaching-header">
-        <h1>Your Coaching Plan</h1>
+        <h1>Today</h1>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" id="view-plan-btn" style="display:none" onclick="openCoachingPlan()">View Full Plan ↗</button>
           <button class="btn btn-ghost btn-sm" id="complete-plan-btn" style="display:none;color:var(--green);border-color:var(--green)" onclick="completePlan()">✓ Mark Plan Complete</button>
           <button class="btn btn-primary btn-sm" id="regen-btn" onclick="triggerCoaching()">↻ Regenerate Plan</button>
         </div>
       </div>
+      <div id="today-mission"></div>
       <div id="accountability"></div>
       <div id="coaching-progress" style="display:none">
         <div class="prog-card">
@@ -633,14 +729,14 @@ function showScreen(id) {
     if (s !== id) { el.style.display = 'none'; return; }
     if (_FLEX_SCREENS[s]) {
       el.style.display = 'flex';
-      el.style.alignItems = 'center';
+      el.style.alignItems = (s==='landing-screen') ? 'center' : 'flex-start';
       el.style.justifyContent = 'center';
-      el.style.minHeight = '82vh';
+      el.style.minHeight = (s==='landing-screen') ? '82vh' : '72vh';
     } else {
       el.style.display = 'block';
     }
   });
-  document.getElementById('nav').style.display = (id==='landing-screen') ? 'none' : 'flex';
+  document.getElementById('nav').style.display = (id==='landing-screen') ? 'none' : 'grid';
 }
 
 function switchTab(tab) {
@@ -669,7 +765,7 @@ async function init() {
   try { _me = await get('/api/me'); } catch(e) { showScreen('landing-screen'); return; }
   if (!_me.logged_in) { showScreen('landing-screen'); return; }
 
-  document.getElementById('nav').style.display='flex';
+  document.getElementById('nav').style.display='grid';
   document.getElementById('logout-btn').onclick = doLogout;
 
   if (!_me.epic_connected) { showEpicConnect(); return; }
@@ -722,7 +818,7 @@ document.getElementById('reg-btn').onclick = async () => {
 };
 
 async function afterLogin() {
-  document.getElementById('nav').style.display='flex';
+  document.getElementById('nav').style.display='grid';
   document.getElementById('logout-btn').onclick = doLogout;
   if (!_me.epic_connected) { showEpicConnect(); return; }
   if (!_me.player_id) { showPidScreen(); return; }
@@ -1095,7 +1191,7 @@ async function wizFinish() {
 // ── main + coaching ───────────────────────────────────────────────────────
 function showMain() {
   showScreen('main-screen');
-  document.getElementById('nav-tabs').style.display='flex';
+  document.getElementById('nav-tabs').style.display=window.matchMedia('(max-width:600px)').matches?'grid':'flex';
   const adm=document.getElementById('admin-link');
   if (adm) adm.style.display=(_me&&_me.is_admin)?'':'none';
   updateEpicLabel();
@@ -1149,8 +1245,63 @@ async function loadCoachingStatus() {
       comp.style.display=cyc.can_complete?'':'none';
     }
     renderAccountability(plan);
+    renderTodayMission(plan);
     loadPlanHistory();
   } catch(e) {}
+}
+
+async function renderTodayMission(plan) {
+  const host=document.getElementById('today-mission'); if(!host) return;
+  if (!plan || !plan.exists) { host.innerHTML=''; return; }
+  const target=Math.max(2, Math.min(7, Math.round(((_profile&&_profile.mins_per_day)||60)/12)));
+  let played=0, wins=0;
+  try{
+    const matches=await get('/api/matches');
+    const today=new Date().toISOString().slice(0,10);
+    matches.forEach(m=>{
+      const s=m.summary||{};
+      const d=s.played_at?new Date(s.played_at*1000).toISOString().slice(0,10):(s.date||'').slice(0,10);
+      if(d===today){ played++; if((s.result||'').startsWith('W')) wins++; }
+    });
+  }catch(e){}
+  const clamped=Math.min(played,target);
+  const pct=target?Math.round(100*clamped/target):0;
+  const dash=339.292, offset=dash*(1-pct/100);
+  const ready=played>=target;
+  const week=(plan.week||[]).find(d=>!d.rest) || {};
+  const theme=week.theme || 'Run today\'s training block';
+  const title=ready ? 'Series Check is ready' : `${clamped} of ${target} games banked`;
+  const copy=ready
+    ? 'You hit the daily games target. Run a Series Report while the patterns are fresh, then tune the plan from what actually happened.'
+    : 'Start with ranked games, then come back for the series check. Keep the target small enough to finish and visible enough to chase.';
+  const primary=ready
+    ? `<button class="btn btn-primary" onclick="switchTab('series')">Run Series Check</button>`
+    : `<button class="btn btn-primary" onclick="switchTab('history')">Fetch / review games</button>`;
+  host.innerHTML=`<section class="today-mission anim-rise">
+    <div class="tm-grid">
+      <div class="tm-ring" style="--dash:${dash};--offset:${offset}">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ring-bg" cx="60" cy="60" r="54" fill="none" stroke-width="10"/>
+          <circle class="ring-fg" cx="60" cy="60" r="54" fill="none" stroke-width="10"/>
+        </svg>
+        <div class="tm-ring-core"><b>${pct}%</b><span>today</span></div>
+      </div>
+      <div>
+        <div class="tm-kicker">Mission control</div>
+        <div class="tm-title">${esc(title)}</div>
+        <div class="tm-copy">${esc(copy)}</div>
+        <div class="tm-focus">
+          <span>${esc(theme)}</span>
+          <span>${wins} win${wins===1?'':'s'} today</span>
+          <span>${(_profile&&_profile.target_rank)||'Target rank'} climb</span>
+        </div>
+      </div>
+      <div class="tm-actions">
+        ${primary}
+        <button class="btn btn-ghost" onclick="openCoachingPlan()">Open full plan</button>
+      </div>
+    </div>
+  </section>`;
 }
 
 // ── accountability tracker (home tab) ──────────────────────────────────────
