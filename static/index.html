@@ -36,6 +36,9 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 @keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 #34d6f733}50%{box-shadow:0 0 0 8px #34d6f700}}
 @keyframes ringDraw{from{stroke-dashoffset:var(--dash)}to{stroke-dashoffset:var(--offset)}}
+@keyframes arenaScan{from{transform:translateX(-18%) skewX(-16deg);opacity:0}20%,70%{opacity:.55}to{transform:translateX(118%) skewX(-16deg);opacity:0}}
+@keyframes corePulse{0%,100%{filter:drop-shadow(0 0 16px #34d6f744)}50%{filter:drop-shadow(0 0 34px #34d6f788)}}
+@keyframes boostSweep{from{background-position:0% 50%}to{background-position:200% 50%}}
 .anim-rise{animation:riseIn .22s var(--ease) both}
 .tab-panel.active{animation:riseIn .22s var(--ease) both}
 @media(prefers-reduced-motion:reduce){
@@ -263,6 +266,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 .empty-state p{font-family:var(--mono);font-size:13px;margin-top:8px}
 
 /* Today mission proof surface */
+#tab-coaching>.coaching-header,#tab-coaching>#coaching-info{display:none!important}
 .today-mission{position:relative;overflow:hidden;border:1px solid #2b4565;border-radius:22px;padding:24px;margin-bottom:18px;
   background:radial-gradient(520px 220px at 86% 12%,#34d6f724,transparent 62%),
              linear-gradient(145deg,#132237,#0b1421 62%,#08101a);
@@ -281,6 +285,56 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 .tm-focus{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .tm-focus span{font-family:var(--mono);font-size:11px;color:var(--txt);border:1px solid #2d4663;background:#0b1726;border-radius:999px;padding:6px 9px}
 .tm-actions{display:flex;flex-direction:column;gap:10px;align-items:stretch;min-width:190px}
+
+/* Phoenix Protocol: Today becomes an arena cockpit, not a dashboard */
+.phoenix-cockpit{position:relative;overflow:hidden;border:1px solid #2f5474;border-radius:30px;padding:28px;margin-bottom:18px;
+  background:
+    radial-gradient(680px 360px at 48% 48%,#34d6f72a,transparent 56%),
+    radial-gradient(560px 320px at 92% 8%,#3a8dff24,transparent 66%),
+    linear-gradient(145deg,#10253d 0%,#08131f 48%,#05090f 100%);
+  box-shadow:inset 0 1px 0 #ffffff12,0 28px 90px #000c,0 0 160px #34d6f716}
+.phoenix-cockpit::before{content:"";position:absolute;left:-18%;right:-18%;bottom:-34%;height:56%;opacity:.5;
+  background:
+    linear-gradient(#34d6f718 1px,transparent 1px),
+    linear-gradient(90deg,#34d6f714 1px,transparent 1px);
+  background-size:54px 28px;transform:perspective(560px) rotateX(62deg);transform-origin:bottom center}
+.phoenix-cockpit::after{content:"";position:absolute;top:0;bottom:0;width:22%;left:-26%;
+  background:linear-gradient(90deg,transparent,#34d6f72f,transparent);animation:arenaScan 4.8s var(--ease) infinite;pointer-events:none}
+.phoenix-grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(310px,440px) minmax(220px,.8fr);gap:24px;align-items:center;position:relative;z-index:1}
+.phoenix-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px}
+.phoenix-title{font-size:clamp(36px,5vw,64px);line-height:.92;font-weight:800;letter-spacing:.01em;max-width:520px;text-shadow:0 0 32px #34d6f726}
+.phoenix-copy{font-family:var(--mono);font-size:12px;line-height:1.72;color:#a2b3c7;margin-top:16px;max-width:540px}
+.phoenix-loop{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.phoenix-step{display:flex;align-items:center;gap:8px;border:1px solid #2b4565;background:#06111dcc;border-radius:999px;padding:7px 10px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.phoenix-step b{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#11243a;color:var(--cyan);font-size:10px}
+.phoenix-step.on{border-color:var(--cyan);color:var(--txt);box-shadow:0 0 24px #34d6f71c}
+.phoenix-step.done{border-color:#34e0a066;color:#d9fff0;background:#071b16cc}
+.phoenix-core-wrap{position:relative;min-height:380px;display:grid;place-items:center}
+.phoenix-core-wrap::before,.phoenix-core-wrap::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+.phoenix-core-wrap::before{width:360px;height:360px;border:1px solid #34d6f72d;box-shadow:inset 0 0 60px #34d6f70d,0 0 90px #34d6f710}
+.phoenix-core-wrap::after{width:280px;height:280px;border:1px dashed #34d6f755;animation:corePulse 2.8s var(--ease) infinite}
+.phoenix-ring{position:absolute;width:330px;height:330px;display:grid;place-items:center}
+.phoenix-ring svg{position:absolute;inset:0;transform:rotate(-90deg);overflow:visible}
+.phoenix-ring .ring-bg{stroke:#1b3148}.phoenix-ring .ring-fg{stroke:var(--cyan);stroke-linecap:round;filter:drop-shadow(0 0 12px #34d6f799);stroke-dasharray:var(--dash);stroke-dashoffset:var(--offset);animation:ringDraw .9s var(--ease) both}
+.phoenix-core{position:relative;z-index:1;width:220px;height:220px;border-radius:50%;display:grid;place-items:center;text-align:center;padding:24px;
+  background:radial-gradient(circle at 50% 40%,#102d47,#07111d 68%);border:1px solid #3d6a8e;
+  box-shadow:inset 0 1px 0 #ffffff14,inset 0 -26px 55px #0009,0 0 70px #34d6f722}
+.phoenix-core .pc-label{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan)}
+.phoenix-core .pc-value{font-size:62px;line-height:.95;font-weight:800;margin:8px 0 4px}
+.phoenix-core .pc-sub{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.phoenix-primary{position:absolute;z-index:3;bottom:18px;left:50%;transform:translateX(-50%);min-width:250px;justify-content:center;padding:15px 24px;border-radius:999px;
+  background:linear-gradient(90deg,var(--cyan),#7be7ff,var(--cyan));background-size:200% 100%;animation:boostSweep 3.2s linear infinite;box-shadow:0 16px 48px #34d6f744}
+.phoenix-primary:hover{transform:translateX(-50%) translateY(-2px)}
+.phoenix-telemetry{display:flex;flex-direction:column;gap:12px}
+.phoenix-tile{position:relative;overflow:hidden;border:1px solid #223d58;border-radius:18px;background:linear-gradient(180deg,#102033d9,#07111dcc);padding:15px;box-shadow:inset 0 1px 0 #ffffff0a,0 14px 38px #0007}
+.phoenix-tile::before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,#34d6f7aa,transparent)}
+.phoenix-tile .pt-label{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+.phoenix-tile .pt-value{font-size:26px;font-weight:800;line-height:1.05}
+.phoenix-tile .pt-note{font-family:var(--mono);font-size:11px;line-height:1.45;color:var(--muted);margin-top:5px}
+.phoenix-boost{height:10px;border:1px solid #203954;border-radius:999px;overflow:hidden;margin-top:10px;background:#06111d}
+.phoenix-boost span{display:block;height:100%;width:var(--boost);border-radius:999px;background:linear-gradient(90deg,var(--cyan),var(--green));box-shadow:0 0 18px #34d6f766}
+.phoenix-actions-row{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+.phoenix-actions-row .btn{flex:1;justify-content:center;min-width:120px}
 
 /* Secondary tab heroes */
 .screen-hero{position:relative;overflow:hidden;border:1px solid #2b4565;border-radius:20px;padding:22px 24px;margin-bottom:20px;
@@ -402,6 +456,19 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   .tm-ring{width:128px;height:128px;margin:0 auto}
   .tm-title{font-size:25px}
   .tm-actions{min-width:0}
+  .phoenix-cockpit{padding:18px;border-radius:22px}
+  .phoenix-grid{grid-template-columns:1fr;gap:18px}
+  .phoenix-title{font-size:39px;max-width:none}
+  .phoenix-copy{font-size:11.5px}
+  .phoenix-core-wrap{min-height:340px;order:-1}
+  .phoenix-core-wrap::before{width:300px;height:300px}
+  .phoenix-core-wrap::after{width:236px;height:236px}
+  .phoenix-ring{width:286px;height:286px}
+  .phoenix-core{width:190px;height:190px}
+  .phoenix-core .pc-value{font-size:52px}
+  .phoenix-primary{min-width:220px;width:calc(100% - 44px);bottom:14px}
+  .phoenix-loop{display:grid;grid-template-columns:1fr;gap:8px}
+  .phoenix-telemetry{display:grid;grid-template-columns:1fr;gap:10px}
   .screen-hero{padding:18px;border-radius:18px}
   .screen-hero-grid{grid-template-columns:1fr;gap:14px}
   .screen-title{font-size:24px}
@@ -1320,9 +1387,9 @@ async function renderTodayMission(plan) {
   const host=document.getElementById('today-mission'); if(!host) return;
   if (!plan || !plan.exists) { host.innerHTML=''; return; }
   const target=Math.max(2, Math.min(7, Math.round(((_profile&&_profile.mins_per_day)||60)/12)));
-  let played=0, wins=0;
+  let played=0, wins=0, allMatches=[];
   try{
-    const matches=await get('/api/matches');
+    const matches=await get('/api/matches'); allMatches=matches||[];
     const today=new Date().toISOString().slice(0,10);
     matches.forEach(m=>{
       const s=m.summary||{};
@@ -1334,37 +1401,75 @@ async function renderTodayMission(plan) {
   const pct=target?Math.round(100*clamped/target):0;
   const dash=339.292, offset=dash*(1-pct/100);
   const ready=played>=target;
+  const matchDays=new Set(allMatches.map(m=>{
+    const s=m.summary||{};
+    return s.played_at?new Date(s.played_at*1000).toISOString().slice(0,10):(s.date||'').slice(0,10);
+  }).filter(Boolean));
+  const dayKey=(ago)=>{
+    const d=new Date(); d.setDate(d.getDate()-ago); return d.toISOString().slice(0,10);
+  };
+  let streak=0; for(let i=0;i<14;i++){ if(matchDays.has(dayKey(i))) streak++; else break; }
+  const analysed=allMatches.filter(m=>m.has_analysis).length;
   const week=(plan.week||[]).find(d=>!d.rest) || {};
   const theme=week.theme || 'Run today\'s training block';
-  const title=ready ? 'Series Check is ready' : `${clamped} of ${target} games banked`;
+  const title=ready ? 'Series Check is armed' : 'Launch today\'s rank-up run';
   const copy=ready
-    ? 'You hit the daily games target. Run a Series Report while the patterns are fresh, then tune the plan from what actually happened.'
-    : 'Start with ranked games, then come back for the series check. Keep the target small enough to finish and visible enough to chase.';
+    ? 'You hit the daily target. Run the series read while the patterns are fresh, then tune the plan from what actually happened.'
+    : 'One clean loop: play the target games, check the series, tune the plan. No wandering through tabs, no guessing what matters next.';
   const primary=ready
-    ? `<button class="btn btn-primary" onclick="switchTab('series')">Run Series Check</button>`
-    : `<button class="btn btn-primary" onclick="switchTab('history')">Fetch / review games</button>`;
-  host.innerHTML=`<section class="today-mission anim-rise">
-    <div class="tm-grid">
-      <div class="tm-ring" style="--dash:${dash};--offset:${offset}">
-        <svg viewBox="0 0 120 120" aria-hidden="true">
-          <circle class="ring-bg" cx="60" cy="60" r="54" fill="none" stroke-width="10"/>
-          <circle class="ring-fg" cx="60" cy="60" r="54" fill="none" stroke-width="10"/>
-        </svg>
-        <div class="tm-ring-core"><b>${pct}%</b><span>today</span></div>
-      </div>
-      <div>
-        <div class="tm-kicker">Mission control</div>
-        <div class="tm-title">${esc(title)}</div>
-        <div class="tm-copy">${esc(copy)}</div>
-        <div class="tm-focus">
-          <span>${esc(theme)}</span>
-          <span>${wins} win${wins===1?'':'s'} today</span>
-          <span>${(_profile&&_profile.target_rank)||'Target rank'} climb</span>
+    ? `<button class="btn btn-primary phoenix-primary" onclick="switchTab('series')">Run Series Check</button>`
+    : `<button class="btn btn-primary phoenix-primary" onclick="switchTab('history')">Start by reviewing games</button>`;
+  const loopState=ready?'check':(played>0?'train':'launch');
+  const boost=Math.max(8, Math.min(100,pct));
+  host.innerHTML=`<section class="phoenix-cockpit anim-rise ${ready?'ready':''}">
+    <div class="phoenix-grid">
+      <div class="phoenix-brief">
+        <div class="phoenix-kicker">Phoenix Protocol / Today</div>
+        <div class="phoenix-title">${esc(title)}</div>
+        <div class="phoenix-copy">${esc(copy)}</div>
+        <div class="phoenix-loop" aria-label="Daily training loop">
+          <div class="phoenix-step ${loopState==='launch'||loopState==='train'?'on':'done'}"><b>1</b><span>Train ${played}/${target}</span></div>
+          <div class="phoenix-step ${loopState==='check'?'on':''}"><b>2</b><span>Series check</span></div>
+          <div class="phoenix-step"><b>3</b><span>Tune plan</span></div>
+        </div>
+        <div class="phoenix-actions-row">
+          <button class="btn btn-ghost" onclick="openCoachingPlan()">Open plan</button>
+          <button class="btn btn-ghost" onclick="switchTab('stats')">See momentum</button>
         </div>
       </div>
-      <div class="tm-actions">
+      <div class="phoenix-core-wrap">
+        <div class="phoenix-ring" style="--dash:${dash};--offset:${offset}">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="ring-bg" cx="60" cy="60" r="54" fill="none" stroke-width="8"/>
+            <circle class="ring-fg" cx="60" cy="60" r="54" fill="none" stroke-width="8"/>
+          </svg>
+        </div>
+        <div class="phoenix-core">
+          <div>
+            <div class="pc-label">${ready?'Series ready':'Games today'}</div>
+            <div class="pc-value">${clamped}/${target}</div>
+            <div class="pc-sub">${pct}% mission charge</div>
+          </div>
+        </div>
         ${primary}
-        <button class="btn btn-ghost" onclick="openCoachingPlan()">Open full plan</button>
+      </div>
+      <div class="phoenix-telemetry">
+        <div class="phoenix-tile">
+          <div class="pt-label">Momentum</div>
+          <div class="pt-value">${streak || (played?1:0)} day streak</div>
+          <div class="pt-note">${wins} win${wins===1?'':'s'} today · ${analysed}/${allMatches.length||0} replays analysed</div>
+          <div class="phoenix-boost" style="--boost:${boost}%"><span></span></div>
+        </div>
+        <div class="phoenix-tile">
+          <div class="pt-label">Focus vector</div>
+          <div class="pt-value">${esc(theme)}</div>
+          <div class="pt-note">Keep this as the only thing you actively chase during the next block.</div>
+        </div>
+        <div class="phoenix-tile">
+          <div class="pt-label">Rank target</div>
+          <div class="pt-value">${esc((_profile&&_profile.target_rank)||'Next rank')}</div>
+          <div class="pt-note">${esc((_profile&&_profile.gamemode)||'Playlist')} · ${(_profile&&_profile.mins_per_day)||60} min/day</div>
+        </div>
       </div>
     </div>
   </section>`;
