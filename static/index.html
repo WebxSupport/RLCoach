@@ -349,7 +349,34 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 .screen-metrics{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .screen-metrics span{font-family:var(--mono);font-size:11px;color:var(--txt);border:1px solid #2d4663;background:#0b1726;border-radius:999px;padding:6px 9px}
 .screen-actions{display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
-#tab-series>.coaching-header,#tab-history>.fetch-bar,#tab-stats>.fetch-bar{display:none}
+#tab-series>.coaching-header,#tab-history>.fetch-bar,#tab-stats>.fetch-bar,#tab-series .screen-actions{display:none}
+
+/* Phoenix intel boards: dense data translated into one coach read */
+.intel-board{position:relative;overflow:hidden;border:1px solid #2b4b68;border-radius:22px;padding:20px;margin:0 0 18px;
+  background:
+    radial-gradient(520px 220px at 90% 8%,#34d6f71c,transparent 64%),
+    linear-gradient(145deg,#102139,#08131f 72%,#060b12);
+  box-shadow:inset 0 1px 0 #ffffff0a,var(--shadow-soft)}
+.intel-board::before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.65}
+.intel-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(270px,.92fr);gap:16px;align-items:stretch;position:relative;z-index:1}
+.intel-primary{border:1px solid #203954;border-radius:18px;background:#06111dcc;padding:18px;display:flex;flex-direction:column;justify-content:space-between;min-height:210px}
+.intel-kicker{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);margin-bottom:8px}
+.intel-title{font-size:clamp(26px,3vw,40px);font-weight:800;line-height:.98;letter-spacing:.01em;max-width:660px}
+.intel-copy{font-family:var(--mono);font-size:12px;line-height:1.65;color:#a1b3c7;margin-top:12px;max-width:720px}
+.intel-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}
+.intel-actions .btn-primary{border-radius:999px;padding:12px 20px}
+.intel-side{display:grid;gap:10px}
+.intel-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.intel-metric{border:1px solid #223d58;border-radius:14px;background:linear-gradient(180deg,#102033,#07111d);padding:13px;min-height:86px}
+.intel-metric b{display:block;font-size:24px;line-height:1;color:var(--cyan);margin-bottom:7px}
+.intel-metric span{display:block;font-family:var(--mono);font-size:10.5px;line-height:1.35;color:var(--muted)}
+.intel-path{display:grid;gap:8px}
+.intel-step{display:grid;grid-template-columns:28px 1fr;gap:9px;align-items:start;border:1px solid #213a54;border-radius:13px;background:#081522cc;padding:10px 12px}
+.intel-step b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#12304a;color:var(--cyan);font-family:var(--mono);font-size:11px}
+.intel-step strong{display:block;font-size:13px;line-height:1.15}
+.intel-step span{display:block;font-family:var(--mono);font-size:10.5px;line-height:1.4;color:var(--muted);margin-top:3px}
+.match-card.priority{border-color:var(--cyan);box-shadow:inset 4px 0 0 var(--cyan),inset 0 1px 0 #ffffff08,0 0 42px #34d6f716}
+.mc-coach-note{font-family:var(--mono);font-size:10.5px;line-height:1.45;color:#bfefff;border:1px solid #244c68;background:#061522;border-radius:9px;padding:8px 9px;margin-top:10px}
 
 /* ── match toolbar ── */
 .match-toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
@@ -460,7 +487,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   .phoenix-grid{grid-template-columns:1fr;gap:18px}
   .phoenix-title{font-size:39px;max-width:none}
   .phoenix-copy{font-size:11.5px}
-  .phoenix-core-wrap{min-height:340px;order:-1}
+  .phoenix-core-wrap{min-height:340px}
   .phoenix-core-wrap::before{width:300px;height:300px}
   .phoenix-core-wrap::after{width:236px;height:236px}
   .phoenix-ring{width:286px;height:286px}
@@ -474,6 +501,10 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   .screen-title{font-size:24px}
   .screen-actions{justify-content:stretch}
   .screen-actions .btn{width:100%;justify-content:center}
+  .intel-grid{grid-template-columns:1fr}
+  .intel-primary{min-height:0}
+  .intel-metrics{grid-template-columns:1fr 1fr}
+  .intel-actions .btn{width:100%;justify-content:center}
   .match-grid{grid-template-columns:1fr}
   .match-toolbar .input{max-width:none!important;width:100%}
   .career-table{display:block;overflow-x:auto}
@@ -492,10 +523,10 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   <nav class="nav" id="nav" style="display:none">
     <div class="brand" onclick="goHome()" style="cursor:pointer"><img src="/static/logo.png" alt="RLCoach" style="height:58px;width:auto;display:block"/></div>
     <div class="nav-tabs" id="nav-tabs" style="display:none">
-      <button class="nav-tab active" data-tab="coaching" onclick="switchTab('coaching')">Today</button>
-      <button class="nav-tab" data-tab="series" onclick="switchTab('series')">Series Report</button>
-      <button class="nav-tab" data-tab="history" onclick="switchTab('history')">Match History</button>
-      <button class="nav-tab" data-tab="stats" onclick="switchTab('stats')">My Stats</button>
+      <button class="nav-tab active" data-tab="coaching" onclick="switchTab('coaching')">Train Today</button>
+      <button class="nav-tab" data-tab="series" onclick="switchTab('series')">Check Series</button>
+      <button class="nav-tab" data-tab="history" onclick="switchTab('history')">Match Tape</button>
+      <button class="nav-tab" data-tab="stats" onclick="switchTab('stats')">Momentum</button>
     </div>
     <div class="nav-right">
       <span class="chip" id="usage-chip" style="display:none"></span>
@@ -707,6 +738,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
           <div class="prog-note">⚠ Keep Rocket League closed until this finishes — it shares your single Epic/PsyNet connection.</div>
         </div>
       </div>
+      <div id="series-intel"></div>
       <div id="series-info" style="display:none">
         <div class="coaching-card">
           <h2 id="series-title">Series Report</h2>
@@ -753,6 +785,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
         <div class="prog-msgs" id="fp-msgs"></div>
         <div class="prog-note">⚠ Keep Rocket League closed until this finishes — it shares your single Epic/PsyNet connection.</div>
       </div>
+      <div id="history-intel"></div>
       <!-- search + sort -->
       <div class="match-toolbar" id="match-toolbar" style="display:none">
         <input class="input" id="match-search" type="text" placeholder="Search map, mode or result…" oninput="renderMatches()" style="flex:1;min-width:160px"/>
@@ -786,6 +819,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
         <h1>My Stats</h1>
         <button class="btn btn-ghost btn-sm" onclick="loadStats(true)">↻ Refresh</button>
       </div>
+      <div id="stats-intel"></div>
       <div id="stats-body"></div>
     </div>
   </div>
@@ -845,6 +879,40 @@ function getT(path, ms=15000){
     return r.json();
   }).catch(e=>{ if(e.name==='AbortError') throw new Error('timed out'); throw e; })
     .finally(()=>clearTimeout(to));
+}
+
+function matchTimeMs(m){
+  const s=m?.summary||{};
+  if (s.played_at) return s.played_at*1000;
+  if (s.date) { const t=Date.parse(s.date); if(!isNaN(t)) return t; }
+  const c=Date.parse(m?.created_at||'');
+  return isNaN(c)?0:c;
+}
+function matchDateLabel(m){
+  const t=matchTimeMs(m);
+  return t?new Date(t).toISOString().slice(0,10):'Date unknown';
+}
+function matchMapLabel(m){ const s=m?.summary||{}; return s.map_display||s.map||'Unknown arena'; }
+function matchModeLabel(m){ return (m?.summary&&m.summary.mode)||(_profile&&_profile.gamemode)||'Ranked'; }
+function matchIsWin(m){ return (((m?.summary||{}).result)||'').startsWith('W'); }
+function matchIsLoss(m){ return (((m?.summary||{}).result)||'').startsWith('L'); }
+function matchScoreLine(m){
+  const s=m?.summary||{}, team=s.my_team||'blue';
+  const mine=team==='orange'?s.orange_score:s.blue_score;
+  const opp=team==='orange'?s.blue_score:s.orange_score;
+  return `${mine??'?'}-${opp??'?'}`;
+}
+function sortedMatches(list){ return (list||[]).slice().sort((a,b)=>matchTimeMs(b)-matchTimeMs(a)); }
+function activePlanFocus(){
+  const week=(_coachingPlan&&_coachingPlan.week)||[];
+  const today=week.find(d=>!d.rest);
+  return (today&&today.theme)||'Play one clean, focused block';
+}
+function activePlanTarget(){
+  return (_profile&&_profile.target_rank)||'next rank';
+}
+function dailyGamesTarget(){
+  return Math.max(2, Math.min(7, Math.round(((_profile&&_profile.mins_per_day)||60)/12)));
 }
 
 function toast(msg, type='error') {
@@ -1418,7 +1486,7 @@ async function renderTodayMission(plan) {
     : 'One clean loop: play the target games, check the series, tune the plan. No wandering through tabs, no guessing what matters next.';
   const primary=ready
     ? `<button class="btn btn-primary phoenix-primary" onclick="switchTab('series')">Run Series Check</button>`
-    : `<button class="btn btn-primary phoenix-primary" onclick="switchTab('history')">Start by reviewing games</button>`;
+    : `<button class="btn btn-primary phoenix-primary" onclick="switchTab('history')">Open match tape</button>`;
   const loopState=ready?'check':(played>0?'train':'launch');
   const boost=Math.max(8, Math.min(100,pct));
   host.innerHTML=`<section class="phoenix-cockpit anim-rise ${ready?'ready':''}">
@@ -1428,7 +1496,7 @@ async function renderTodayMission(plan) {
         <div class="phoenix-title">${esc(title)}</div>
         <div class="phoenix-copy">${esc(copy)}</div>
         <div class="phoenix-loop" aria-label="Daily training loop">
-          <div class="phoenix-step ${loopState==='launch'||loopState==='train'?'on':'done'}"><b>1</b><span>Train ${played}/${target}</span></div>
+          <div class="phoenix-step ${loopState==='launch'||loopState==='train'?'on':'done'}"><b>1</b><span>Games logged ${played}/${target}</span></div>
           <div class="phoenix-step ${loopState==='check'?'on':''}"><b>2</b><span>Series check</span></div>
           <div class="phoenix-step"><b>3</b><span>Tune plan</span></div>
         </div>
@@ -1616,9 +1684,66 @@ function onProg(p, type) {
 function openCoachingPlan() { window.open('/api/coaching/view','_blank'); }
 
 // ── series report ──────────────────────────────────────────────────────────
+async function renderSeriesIntel(status){
+  const host=document.getElementById('series-intel'); if(!host) return;
+  let matches=[];
+  try{ matches=sortedMatches(await get('/api/matches')); }catch(e){}
+  const total=matches.length;
+  const analysed=matches.filter(m=>m.has_analysis).length;
+  const recent=matches.slice(0, Math.max(3, status?.games||6));
+  const wins=recent.filter(matchIsWin).length;
+  const losses=recent.filter(matchIsLoss).length;
+  const hasReport=!!(status&&status.exists);
+  const enough=total>=3;
+  const focus=activePlanFocus();
+  const d=hasReport?new Date(status.generated_at).toLocaleDateString():null;
+  const title=hasReport?'Apply the latest series read':(enough?'Run the first real series read':'Build enough tape for a series read');
+  const copy=hasReport
+    ? `You have a ${status.games}-game report ready. Use it to check whether "${focus}" is showing up under pressure, then carry one adjustment back into today's training.`
+    : enough
+      ? 'You have enough recent games. Analyse them as one run so RLCoach can separate one-off mistakes from the pattern that should tune your plan.'
+      : `Series checks need at least three recent games in ${_profile.gamemode||'your playlist'}. Fetch replays first, then this becomes the Check step of the loop.`;
+  const primary=hasReport
+    ? `<button class="btn btn-primary" onclick="openSeries()">Apply report to today</button>`
+    : enough
+      ? `<button class="btn btn-primary" onclick="triggerSeries()">Analyse recent games</button>`
+      : `<button class="btn btn-primary" onclick="switchTab('history')">Fetch match tape first</button>`;
+  const secondary=hasReport
+    ? `<button class="btn btn-ghost" onclick="triggerSeries()">Run fresh check</button>`
+    : `<button class="btn btn-ghost" onclick="switchTab('history')">Open match tape</button>`;
+  const record=recent.length?`${wins}-${losses}`:'0-0';
+  const rate=recent.length?Math.round((wins/recent.length)*100):0;
+  const generated=hasReport?`Generated ${d}`:'No report yet';
+  host.innerHTML=`<section class="intel-board anim-rise">
+    <div class="intel-grid">
+      <div class="intel-primary">
+        <div>
+          <div class="intel-kicker">Check step / coach read</div>
+          <div class="intel-title">${esc(title)}</div>
+          <div class="intel-copy">${esc(copy)}</div>
+        </div>
+        <div class="intel-actions">${primary}${secondary}</div>
+      </div>
+      <div class="intel-side">
+        <div class="intel-metrics">
+          <div class="intel-metric"><b>${record}</b><span>Recent record across the games this check will care about.</span></div>
+          <div class="intel-metric"><b>${rate}%</b><span>Recent win rate. Useful only when tied back to the plan focus.</span></div>
+          <div class="intel-metric"><b>${analysed}/${total}</b><span>Replay tape with full match analysis available.</span></div>
+        </div>
+        <div class="intel-path">
+          <div class="intel-step"><b>1</b><div><strong>Plan focus</strong><span>${esc(focus)}</span></div></div>
+          <div class="intel-step"><b>2</b><div><strong>Series evidence</strong><span>${esc(generated)}${hasReport?` · ${status.games} games`:''}</span></div></div>
+          <div class="intel-step"><b>3</b><div><strong>Next tune</strong><span>Lock in what is landing. Shift drills toward what still leaks.</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
 function showSeriesProgress(){
   document.getElementById('series-empty').style.display='none';
   document.getElementById('series-info').style.display='none';
+  const intel=document.getElementById('series-intel'); if(intel) intel.innerHTML='';
   document.getElementById('series-progress').style.display='block';
   document.getElementById('gen-series-btn').disabled=true;
 }
@@ -1636,19 +1761,22 @@ async function triggerSeries(){
 async function loadSeriesStatus(){
   try{
     const s=await get('/api/series');
-    const empty=document.getElementById('series-empty'),info=document.getElementById('series-info'),vb=document.getElementById('view-series-btn');
+    const empty=document.getElementById('series-empty'),info=document.getElementById('series-info'),vb=document.getElementById('view-series-btn'),gb=document.getElementById('gen-series-btn');
     const hero=document.getElementById('series-hero-metrics');
+    if(vb) vb.style.display='none';
+    if(gb) gb.style.display='none';
     if(!s.exists){
-      empty.style.display='block'; info.style.display='none'; vb.style.display='none';
+      empty.style.display='none'; info.style.display='none';
       if(hero) hero.innerHTML='<span>Needs 3+ games</span><span>Plan-aware report</span>';
     }
     else{
-      empty.style.display='none'; info.style.display='block'; vb.style.display='';
+      empty.style.display='none'; info.style.display='none';
       document.getElementById('series-title').textContent=`${(_profile.display_name||'Your')} session — ${s.games} games`;
       const d=new Date(s.generated_at).toLocaleDateString();
       document.getElementById('series-meta').innerHTML=`<span>${_profile.gamemode||''}</span><span>${s.games} games</span><span>Generated: ${d}</span>`;
       if(hero) hero.innerHTML=`<span>${s.games} games analysed</span><span>${_profile.gamemode||'Active playlist'}</span><span>Generated ${d}</span>`;
     }
+    await renderSeriesIntel(s);
     loadSeriesHistory();
   }catch(e){}
 }
@@ -1674,7 +1802,91 @@ async function deleteSeriesId(id){
   catch(e){ toast('Delete failed: '+e.message); }
 }
 
+let _historyPriorityMatchId = null;
 let _allMatches = [];
+
+function historyPriorityReason(m){
+  if(!m) return '';
+  if(!m.has_analysis && matchIsLoss(m)) return 'Analyse this loss first - it is the fastest route to the leak your plan should fix.';
+  if(!m.has_analysis) return 'Fresh tape without analysis. Run it once so the next plan has better evidence.';
+  if(matchIsLoss(m)) return 'Latest analysed loss. Open it when you need the clearest coaching verdict.';
+  return 'Latest analysed tape. Use it to connect match evidence back to today.';
+}
+
+function pickHistoryPriority(list){
+  const sorted=sortedMatches(list);
+  return sorted.find(m=>!m.has_analysis&&matchIsLoss(m))
+    || sorted.find(m=>!m.has_analysis)
+    || sorted.find(m=>m.has_analysis&&matchIsLoss(m))
+    || sorted.find(m=>m.has_analysis)
+    || sorted[0]
+    || null;
+}
+
+function renderHistoryIntel(){
+  const host=document.getElementById('history-intel'); if(!host) return;
+  const matches=sortedMatches(_allMatches);
+  if(!matches.length){
+    _historyPriorityMatchId=null;
+    host.innerHTML=`<section class="intel-board anim-rise">
+      <div class="intel-grid">
+        <div class="intel-primary">
+          <div><div class="intel-kicker">Tape step / empty state</div>
+          <div class="intel-title">Fetch the first replay batch</div>
+          <div class="intel-copy">RLCoach needs real match tape before it can coach. Start here once, then every future visit can point to the next best replay automatically.</div></div>
+          <div class="intel-actions"><button class="btn btn-primary" onclick="triggerFetch()">Fetch latest replays</button></div>
+        </div>
+        <div class="intel-side"><div class="intel-path">
+          <div class="intel-step"><b>1</b><div><strong>Fetch</strong><span>Pull ranked games from your connected account.</span></div></div>
+          <div class="intel-step"><b>2</b><div><strong>Analyse</strong><span>Open one match for the coach verdict.</span></div></div>
+          <div class="intel-step"><b>3</b><div><strong>Train</strong><span>Carry that verdict back into Today.</span></div></div>
+        </div></div>
+      </div>
+    </section>`;
+    return;
+  }
+  const priority=pickHistoryPriority(matches);
+  _historyPriorityMatchId=priority?.match_id||null;
+  const wins=matches.filter(matchIsWin).length;
+  const losses=matches.filter(matchIsLoss).length;
+  const analysed=matches.filter(m=>m.has_analysis).length;
+  const winRate=Math.round((wins/matches.length)*100);
+  const reason=historyPriorityReason(priority);
+  const primary=priority
+    ? priority.has_analysis
+      ? `<button class="btn btn-primary" onclick="window.open('/api/matches/${priority.match_id}/dashboard','_blank')">Open coach verdict</button>`
+      : `<button class="btn btn-primary" onclick="runAnalysis('${priority.match_id}')">Analyse this match first</button>`
+    : `<button class="btn btn-primary" onclick="triggerFetch()">Fetch latest replays</button>`;
+  const title=priority
+    ? `${priority.has_analysis?'Open':'Analyse'} ${matchMapLabel(priority)} ${matchScoreLine(priority)}`
+    : 'Fetch the next batch';
+  const result=priority?(matchIsWin(priority)?'win':matchIsLoss(priority)?'loss':'match'):'none';
+  host.innerHTML=`<section class="intel-board anim-rise">
+    <div class="intel-grid">
+      <div class="intel-primary">
+        <div>
+          <div class="intel-kicker">Coach pick / match tape</div>
+          <div class="intel-title">${esc(title)}</div>
+          <div class="intel-copy">${esc(reason)} Current plan focus: ${esc(activePlanFocus())}.</div>
+        </div>
+        <div class="intel-actions">${primary}<button class="btn btn-ghost" onclick="triggerFetch()">Sync latest tape</button></div>
+      </div>
+      <div class="intel-side">
+        <div class="intel-metrics">
+          <div class="intel-metric"><b>${matches.length}</b><span>Total ranked matches tracked for this account.</span></div>
+          <div class="intel-metric"><b>${analysed}</b><span>Matches with a generated coach verdict.</span></div>
+          <div class="intel-metric"><b>${winRate}%</b><span>Tracked win rate (${wins}-${losses}) across stored tape.</span></div>
+        </div>
+        <div class="intel-path">
+          <div class="intel-step"><b>1</b><div><strong>Best evidence</strong><span>${esc(matchDateLabel(priority))} · ${esc(matchModeLabel(priority))} · ${esc(result)}</span></div></div>
+          <div class="intel-step"><b>2</b><div><strong>Coach verdict</strong><span>${priority?.has_analysis?'Already generated and ready to open.':'Run analysis before reading stats.'}</span></div></div>
+          <div class="intel-step"><b>3</b><div><strong>Return to loop</strong><span>Use one takeaway, then go back to Train Today.</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
 async function loadMatches() {
   const grid=document.getElementById('match-grid');
   const toolbar=document.getElementById('match-toolbar');
@@ -1682,6 +1894,7 @@ async function loadMatches() {
     _allMatches = await get('/api/matches');
     if (!_allMatches.length){
       if (toolbar) toolbar.style.display='none';
+      renderHistoryIntel();
       const hero=document.getElementById('history-hero-metrics');
       if(hero) hero.innerHTML='<span>No replays yet</span><span>Fetch to begin</span>';
       grid.innerHTML=`<div class="empty-state"><div style="font-size:36px">🏎</div><p>No replays yet — click Fetch Latest Replays.</p></div>`;
@@ -1694,6 +1907,7 @@ async function loadMatches() {
       const wins=_allMatches.filter(m=>((m.summary&&m.summary.result)||'').startsWith('W')).length;
       hero.innerHTML=`<span>${_allMatches.length} matches tracked</span><span>${analysed} analysed</span><span>${wins} wins logged</span>`;
     }
+    renderHistoryIntel();
     renderMatches();
   } catch(e){grid.innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
@@ -1702,25 +1916,16 @@ function renderMatches() {
   const grid=document.getElementById('match-grid');
   const q=(document.getElementById('match-search')?.value||'').toLowerCase().trim();
   const sort=document.getElementById('match-sort')?.value||'date_desc';
-  // Sort key: actual match-played time (epoch) is the source of truth.
-  // Fall back to the date string, then created_at, so older records still order sanely.
-  const tkey=m=>{
-    const s=m.summary||{};
-    if (s.played_at) return s.played_at*1000;
-    if (s.date) { const t=Date.parse(s.date); if(!isNaN(t)) return t; }
-    const c=Date.parse(m.created_at||''); return isNaN(c)?0:c;
-  };
-  const isWin=m=>((m.summary&&m.summary.result)||'').startsWith('W');
   let list=_allMatches.slice();
   if (q) list=list.filter(m=>{
     const s=m.summary||{};
     return [s.map_display,s.map,s.mode,s.result].filter(Boolean).join(' ').toLowerCase().includes(q);
   });
   list.sort((a,b)=>{
-    if (sort==='date_asc')  return tkey(a)-tkey(b);
-    if (sort==='result_win')  return (isWin(b)-isWin(a)) || (tkey(b)-tkey(a));
-    if (sort==='result_loss') return (isWin(a)-isWin(b)) || (tkey(b)-tkey(a));
-    return tkey(b)-tkey(a);   // date_desc (default) — newest played first
+    if (sort==='date_asc')  return matchTimeMs(a)-matchTimeMs(b);
+    if (sort==='result_win')  return (matchIsWin(b)-matchIsWin(a)) || (matchTimeMs(b)-matchTimeMs(a));
+    if (sort==='result_loss') return (matchIsWin(a)-matchIsWin(b)) || (matchTimeMs(b)-matchTimeMs(a));
+    return matchTimeMs(b)-matchTimeMs(a);   // date_desc (default) — newest played first
   });
   if (!list.length){grid.innerHTML=`<div class="empty-state"><p>No matches match your search.</p></div>`;return;}
   grid.innerHTML=list.map(renderCard).join('');
@@ -1739,13 +1944,15 @@ function renderCard(m) {
   const mid=m.match_id;
   const blue=(s.players_blue||[]).map(p=>`<span style="color:var(--cyan)">${p.name}${p.is_me?' ★':''}</span>`).join(' · ');
   const orange=(s.players_orange||[]).map(p=>`<span style="color:var(--orange)">${p.name}${p.is_me?' ★':''}</span>`).join(' · ');
+  const priority=mid===_historyPriorityMatchId;
   const footer = m.has_analysis
     ? `<button class="btn btn-primary btn-sm" onclick="window.open('/api/matches/${mid}/dashboard','_blank')">View Match Analysis ↗</button>`
     : `<button class="btn btn-ghost btn-sm" onclick="runAnalysis('${mid}')">Run Match Analysis</button>`;
-  return `<div class="match-card ${cls}" id="card-${mid}">
+  return `<div class="match-card ${cls} ${priority?'priority':''}" id="card-${mid}">
     <div class="mc-top"><div><div class="mc-map">${map}</div><div class="mc-mode">${mode} · ${date}</div></div><span class="mc-badge ${badgeCls}">${win?'WIN':loss?'LOSS':'DRAW'}</span></div>
     <div class="mc-score"><span class="mine">${myScore??'?'}</span> – ${oppScore??'?'}</div>
     <div style="font-size:11px;color:var(--dim);margin-bottom:10px;font-family:var(--mono)">🔵 ${blue||'—'}<br>🟠 ${orange||'—'}</div>
+    ${priority?`<div class="mc-coach-note">Coach pick: ${esc(historyPriorityReason(m))}</div>`:''}
     <div class="mc-footer" id="footer-${mid}">${footer}</div>
   </div>`;
 }
@@ -1796,10 +2003,79 @@ function stopAnalysis(jobId, mid){
 }
 
 // ── stats page ─────────────────────────────────────────────────────────────
+async function renderStatsIntel(){
+  const host=document.getElementById('stats-intel'); if(!host) return;
+  host.innerHTML=`<section class="intel-board anim-rise"><div class="intel-primary"><div class="intel-kicker">Momentum read</div><div class="intel-copy"><span class="spinner"></span> Translating your stats into the next action...</div></div></section>`;
+  let matches=[], tracker={}, metrics={};
+  try{
+    const res=await Promise.allSettled([get('/api/matches'), get('/api/tracker'), get('/api/metrics/history')]);
+    if(res[0].status==='fulfilled') matches=sortedMatches(res[0].value||[]);
+    if(res[1].status==='fulfilled') tracker=res[1].value||{};
+    if(res[2].status==='fulfilled') metrics=res[2].value||{};
+  }catch(e){}
+  const recent=matches.slice(0,6);
+  const wins=recent.filter(matchIsWin).length;
+  const losses=recent.filter(matchIsLoss).length;
+  const analysed=matches.filter(m=>m.has_analysis).length;
+  const log=tracker.mmrLog||[];
+  const last=log.length?log[log.length-1].mmr:null;
+  const prev=log.length>1?log[log.length-2].mmr:null;
+  const delta=(last!=null&&prev!=null)?last-prev:null;
+  const mmrText=last==null?'No MMR yet':(delta==null?`${last}`:`${last} (${delta>=0?'+':''}${delta})`);
+  let metricRead='Run analyses to reveal a skill trend.';
+  const hist=metrics.history||[], cat=metrics.catalogue||[];
+  if(hist.length>=2){
+    const latest=hist[hist.length-1].metrics||{}, before=hist[hist.length-2].metrics||{};
+    let best=null;
+    Object.keys(latest).forEach(k=>{
+      if(before[k]==null || latest[k]==null) return;
+      const meta=cat.find(m=>m.key===k)||{label:k,better:'high'};
+      const move=(+latest[k])-(+before[k]);
+      if(!best || Math.abs(move)>Math.abs(best.move)) best={key:k,label:meta.label||k,better:meta.better||'high',move};
+    });
+    if(best){
+      const improving=best.better==='low'?best.move<=0:best.move>=0;
+      metricRead=`${best.label}: ${improving?'improving':'needs attention'} (${best.move>=0?'+':''}${Math.round(best.move*10)/10}).`;
+    }
+  }
+  const title=!matches.length?'Start the signal':(delta!=null&&delta>0?'Momentum is climbing':(delta!=null&&delta<0?'Momentum needs protecting':'Stats need a coach filter'));
+  const copy=!matches.length
+    ? 'Stats become useful after real tape is fetched. Start with Match Tape, then Momentum will explain what changed and what to do next.'
+    : `Recent form is ${wins}-${losses} across the latest ${recent.length} games. The next action is not more numbers - it is one focused block on "${activePlanFocus()}".`;
+  const primary=!matches.length
+    ? `<button class="btn btn-primary" onclick="switchTab('history')">Fetch match tape</button>`
+    : `<button class="btn btn-primary" onclick="switchTab('coaching')">Train today's focus</button>`;
+  host.innerHTML=`<section class="intel-board anim-rise">
+    <div class="intel-grid">
+      <div class="intel-primary">
+        <div>
+          <div class="intel-kicker">Momentum / coach read</div>
+          <div class="intel-title">${esc(title)}</div>
+          <div class="intel-copy">${esc(copy)}</div>
+        </div>
+        <div class="intel-actions">${primary}<button class="btn btn-ghost" onclick="loadStats(true)">Refresh signal</button></div>
+      </div>
+      <div class="intel-side">
+        <div class="intel-metrics">
+          <div class="intel-metric"><b>${mmrText}</b><span>Latest logged MMR and movement from the previous sync.</span></div>
+          <div class="intel-metric"><b>${recent.length?`${wins}-${losses}`:'0-0'}</b><span>Recent tracked record. Use as context, not a verdict.</span></div>
+          <div class="intel-metric"><b>${analysed}/${matches.length}</b><span>Analysed tape feeding plans, reports, and skill charts.</span></div>
+        </div>
+        <div class="intel-path">
+          <div class="intel-step"><b>1</b><div><strong>What moved</strong><span>${esc(metricRead)}</span></div></div>
+          <div class="intel-step"><b>2</b><div><strong>Why it matters</strong><span>Stats only matter when they change today's reps.</span></div></div>
+          <div class="intel-step"><b>3</b><div><strong>Do next</strong><span>${esc(activePlanFocus())} toward ${esc(activePlanTarget())}.</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
 let _statsLoaded=false;
 async function loadStats(force) {
   const body=document.getElementById('stats-body');
   if (_statsLoaded && !force) return;
+  await renderStatsIntel();
   body.innerHTML=`<div class="prog-card"><div class="prog-head"><span class="spinner"></span><span class="prog-title">Loading your ranks…</span></div></div>`;
   // Live ranks are best-effort — if PsyNet doesn't answer we still show career,
   // MMR and skill-progression (they don't depend on the rank fetch).
