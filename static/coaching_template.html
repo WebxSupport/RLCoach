@@ -193,13 +193,92 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.3;
 .savechip.show{opacity:1}
 .empty{color:var(--muted);font-family:var(--mono);font-size:12px;padding:10px 0}
 .foot{font-family:var(--mono);font-size:11px;color:var(--dim);text-align:center;margin:26px 0}
+
+/* M3 visual rollout: align standalone plan with the elevated RLCoach system */
+:root{
+  --glow:#34d6f755;--shadow:0 18px 48px #0009;--shadow-soft:0 8px 24px #0007;
+  --r12:12px;--r16:16px;--r20:20px;--ease:cubic-bezier(.2,.8,.2,1);
+}
+html,body{min-height:100%}
+body{background:radial-gradient(1000px 520px at 78% -8%,#12314d 0%,transparent 58%),
+  radial-gradient(820px 460px at -12% 108%,#132848 0%,transparent 56%),
+  linear-gradient(180deg,#08101b 0%,#05080d 72%),var(--bg)}
+body::before{opacity:.35;mask:radial-gradient(circle at 50% 30%,#000 0%,transparent 80%)}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
+  background:linear-gradient(115deg,transparent 0 35%,#34d6f70e 48%,transparent 62% 100%);
+  mix-blend-mode:screen}
+.wrap{padding:28px 22px 44px}
+@keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes boostPulse{0%,100%{box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}45%{box-shadow:0 0 0 2px #34d6f755,0 0 38px #34d6f733}}
+.topbar{padding:13px 22px;background:#07101bea;border-bottom:1px solid #26384f99;box-shadow:0 10px 28px #0006}
+.topbar a.home{transition:transform .16s var(--ease),filter .16s var(--ease)}
+.topbar a.home:hover{transform:translateY(-1px);filter:drop-shadow(0 0 12px var(--glow))}
+.top-actions{display:flex;align-items:center;gap:8px;margin-left:10px}
+.top-cta{box-shadow:0 8px 26px #34d6f722}
+.danger-action{color:#ff8a9a!important;border-color:#ff5d7355!important;background:#120b12aa!important;box-shadow:none!important}
+.danger-action:hover{border-color:#ff5d73aa!important;color:#ffd1d8!important}
+.hero,.focus{position:relative;overflow:hidden;border-color:#2b4565;border-radius:var(--r20);
+  background:linear-gradient(135deg,#122033 0%,#0b1522 58%,#07101b 100%);
+  box-shadow:inset 0 1px 0 #ffffff08,var(--shadow),0 0 120px #34d6f713;animation:riseIn .22s var(--ease) both}
+.hero::before,.focus::before,.card::before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.5}
+.hero::after{content:"";position:absolute;right:-80px;top:-90px;width:260px;height:260px;border-radius:50%;border:1px solid #34d6f730;box-shadow:0 0 80px #34d6f724}
+.hero .info,.journey{position:relative;z-index:1}
+.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.journey .rk{border:1px solid var(--line2);border-radius:14px;background:#081321cc;padding:10px;min-width:92px;box-shadow:inset 0 1px 0 #ffffff08}
+.journey .arrow{text-shadow:0 0 24px var(--glow)}
+.hero h1{font-size:clamp(24px,3vw,34px)}
+.hero .sub span{border:1px solid #2d4663;background:#0b1726;border-radius:999px;padding:5px 9px}
+.tabs{gap:6px;border-bottom-color:#26384f99;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border-radius:10px 10px 0 0;transition:color .18s var(--ease),background .18s var(--ease),transform .18s var(--ease);white-space:nowrap}
+.tab:hover{background:#ffffff08;transform:translateY(-1px)}
+.tab.active{background:#34d6f717}
+.panel.active{animation:riseIn .22s var(--ease) both}
+.card,.pattern,.vid,.day,.drill,.kpi,.tt,.wl,.item,.goal,.res,.xgcard,.blk,.habit,.fix{
+  border-color:#22364f;background:linear-gradient(180deg,#122033,#0c1624);
+  box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.card{position:relative;border-radius:var(--r16);padding:22px;margin-bottom:18px;overflow:hidden}
+.card h2{font-size:16px}
+.pattern,.vid,.day,.drill,.kpi,.tt,.wl,.item,.blk,.res{transition:transform .16s var(--ease),border-color .16s var(--ease),box-shadow .16s var(--ease)}
+.pattern:hover,.vid:hover,.day:hover,.drill:hover,.kpi:hover,.tt:hover{transform:translateY(-2px);border-color:#2b4565;box-shadow:inset 0 1px 0 #ffffff08,0 12px 32px #0008}
+.btn,.blk .cpbtn,.blk .moreBtn,.res button{transition:transform .16s var(--ease),box-shadow .16s var(--ease),border-color .16s var(--ease),color .16s var(--ease),filter .16s var(--ease)}
+.btn{border-radius:10px;box-shadow:0 8px 26px #34d6f722}
+.btn:active,.blk .cpbtn:active,.res button:active{transform:scale(.97)}
+.btn:not(.ghost){background:linear-gradient(135deg,var(--cyan),#47b8ff);border-color:var(--cyan);color:#04121a}
+.btn:not(.ghost):hover{filter:brightness(1.08);box-shadow:0 12px 32px #34d6f755;transform:translateY(-1px)}
+.btn.ghost{background:#0b1522aa;color:var(--muted);border-color:var(--line2);box-shadow:none}
+.btn.ghost:hover{color:var(--txt);border-color:#3d5574;box-shadow:var(--shadow-soft)}
+.blk .cpbtn,.res button{border-radius:7px;background:#0b1522aa}
+.blk .cpbtn:hover,.res button:hover{box-shadow:0 0 18px #34d6f722}
+.focus{border-color:var(--cyan);padding:22px 24px}
+.focus .t{font-size:clamp(20px,3vw,30px)}
+.mmrbar,.tbar,.wvl-bar .track{background:#081321;border-color:#22364f}
+.mmrbar>div,.tbar>div{background:linear-gradient(90deg,var(--cyan),var(--green));box-shadow:0 0 18px #34d6f733}
+.drill.flash{animation:boostPulse 1.4s var(--ease)}
+.savechip{box-shadow:0 10px 28px #34e0a033}
+@media(max-width:760px){
+  .topbar{flex-wrap:wrap;padding:11px 14px}.topbar .who{order:3;width:100%;margin-left:0}.top-actions{order:4;width:100%;margin-left:0}.top-actions .btn{flex:1;justify-content:center}.topbar button{margin-left:0!important}
+  .wrap{padding:18px 14px 34px}.hero{padding:18px}.journey{width:100%;justify-content:space-between;gap:10px}
+  .journey .rk{flex:1;min-width:0}.journey .rk img{width:52px;height:52px}
+  .tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;border-bottom:0;overflow:visible;padding-bottom:4px}
+  .tab{border:1px solid var(--line2);border-radius:12px;background:#0b1522aa;padding:11px 8px;white-space:normal;line-height:1.2;min-height:42px}
+  .tab.active::after{left:12px;right:12px;bottom:5px}
+  .hero-actions .btn{width:100%;justify-content:center}
+  .card{padding:17px 15px}.week{grid-template-columns:1fr}.kpis{grid-template-columns:1fr}.swcols,.grid2{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}
+}
 </style>
 
 <div class="topbar">
   <a class="home" href="/" style="display:inline-flex;align-items:center;gap:8px">&larr; <img src="/static/logo.png" alt="RLCoach" style="height:22px;width:auto"/></a>
   <span class="kick">TRAINING PLAN</span>
   <span class="who" id="who"></span>
-  <button class="btn ghost" onclick="deletePlan()" style="color:var(--red);border-color:var(--red);padding:6px 12px;font-size:12px;margin-left:10px">🗑 Delete plan</button>
+  <div class="top-actions">
+    <a class="btn top-cta" href="/">Back to Today</a>
+    <button class="btn ghost danger-action" onclick="deletePlan()" style="padding:6px 12px;font-size:12px">Delete plan</button>
+  </div>
 </div>
 
 <div class="wrap">
@@ -244,6 +323,10 @@ $("#hero").innerHTML=`
       <span><b>${M.minsPerDay||0}</b> min/day</span>
       <span><b>${M.daysPerWeek||0}</b> days/week</span>
       <span>${esc(M.platformLabel||'')}</span>
+    </div>
+    <div class="hero-actions">
+      <a class="btn" href="/">Start today's session</a>
+      <button class="btn ghost" onclick="document.querySelector('[data-t=week]').click()">Open weekly plan</button>
     </div>
   </div>`;
 

@@ -64,13 +64,86 @@ body{background:radial-gradient(900px 500px at 80% -10%,#0f2236 0%,transparent 6
 .gpill .mp{font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:2px}
 .foot{font-family:var(--mono);font-size:11px;color:var(--dim);text-align:center;margin:24px 0}
 .empty{color:var(--muted);font-family:var(--mono);font-size:12px}
+
+/* M3 visual rollout: elevated RLCoach standalone report */
+:root{
+  --glow:#34d6f755;--shadow:0 18px 48px #0009;--shadow-soft:0 8px 24px #0007;
+  --r12:12px;--r16:16px;--r20:20px;--ease:cubic-bezier(.2,.8,.2,1);
+}
+html,body{min-height:100%}
+body{background:radial-gradient(1000px 520px at 78% -8%,#12314d 0%,transparent 58%),
+  radial-gradient(820px 460px at -12% 108%,#132848 0%,transparent 56%),
+  linear-gradient(180deg,#08101b 0%,#05080d 72%),var(--bg)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;
+  background-image:linear-gradient(#13202f 1px,transparent 1px),linear-gradient(90deg,#13202f 1px,transparent 1px);
+  background-size:42px 42px;mask:radial-gradient(circle at 50% 30%,#000 0%,transparent 80%)}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
+  background:linear-gradient(115deg,transparent 0 35%,#34d6f70e 48%,transparent 62% 100%);
+  mix-blend-mode:screen}
+.wrap{position:relative;padding:28px 22px 44px}
+@keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.topbar{padding:13px 22px;background:#07101bea;border-bottom:1px solid #26384f99;box-shadow:0 10px 28px #0006}
+.topbar a.home{transition:transform .16s var(--ease),filter .16s var(--ease)}
+.topbar a.home:hover{transform:translateY(-1px);filter:drop-shadow(0 0 12px var(--glow))}
+.top-actions{display:flex;align-items:center;gap:8px;margin-left:10px}
+.top-cta{box-shadow:0 8px 26px #34d6f722}
+.danger-action{color:#ff8a9a!important;border-color:#ff5d7355!important;background:#120b12aa!important;box-shadow:none!important}
+.danger-action:hover{border-color:#ff5d73aa!important;color:#ffd1d8!important}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:10px;
+  font-size:13px;font-weight:600;letter-spacing:.03em;border:1px solid transparent;
+  cursor:pointer;font-family:var(--disp);transition:transform .16s var(--ease),box-shadow .16s var(--ease),border-color .16s var(--ease),filter .16s var(--ease),color .16s var(--ease);outline:none}
+.btn:active{transform:scale(.97)}
+.btn:not(.ghost){background:linear-gradient(135deg,var(--cyan),#47b8ff);color:#04121a;border-color:var(--cyan);box-shadow:0 8px 26px #34d6f733}
+.btn:not(.ghost):hover{filter:brightness(1.08);box-shadow:0 12px 32px #34d6f755;transform:translateY(-1px)}
+.btn.ghost{background:#0b1522aa;color:var(--muted);border-color:var(--line2)}
+.btn.ghost:hover{color:var(--txt);border-color:#3d5574;box-shadow:var(--shadow-soft)}
+.hero{position:relative;overflow:hidden;border-color:#2b4565;border-radius:var(--r20);padding:26px 28px;
+  background:linear-gradient(135deg,#122033 0%,#0b1522 58%,#07101b 100%);
+  box-shadow:inset 0 1px 0 #ffffff08,var(--shadow),0 0 120px #34d6f713;animation:riseIn .22s var(--ease) both}
+.hero::before,.card::before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.5}
+.hero::after{content:"";position:absolute;right:-80px;top:-90px;width:260px;height:260px;border-radius:50%;border:1px solid #34d6f730;box-shadow:0 0 80px #34d6f724}
+.hero>*{position:relative;z-index:1}.hero h1{font-size:clamp(26px,3vw,38px);line-height:1.08}.hero .summary{max-width:760px}
+.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.kpis{animation:riseIn .22s var(--ease) .04s both}
+.kpi,.card,.item,.habit,.fix,.gpill{
+  border-color:#22364f;background:linear-gradient(180deg,#122033,#0c1624);
+  box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.kpi,.item,.fix,.gpill{transition:transform .16s var(--ease),border-color .16s var(--ease),box-shadow .16s var(--ease)}
+.kpi:hover,.item:hover,.fix:hover,.gpill:hover{transform:translateY(-2px);border-color:#2b4565;box-shadow:inset 0 1px 0 #ffffff08,0 12px 32px #0008}
+.kpi{position:relative;overflow:hidden;border-radius:var(--r16);padding:16px 18px}
+.kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(var(--cyan),var(--blue));opacity:.9}
+.kpi .v{font-size:clamp(26px,3vw,34px)}
+.card{position:relative;border-radius:var(--r16);padding:22px;margin-bottom:18px;overflow:hidden}
+.card h2{font-size:16px}.games{gap:9px}
+.gpill{border-radius:11px;padding:10px 12px;min-width:86px}
+.wvl-row{border:1px solid #22364f;border-radius:12px;background:#08132199;padding:12px;box-shadow:inset 0 1px 0 #ffffff06}
+.wvl-bar .track{background:#081321;border-color:#22364f;box-shadow:inset 0 1px 0 #0008}
+.wvl-bar.win .track>div{background:linear-gradient(90deg,var(--green),#76ffd0);box-shadow:0 0 16px #34e0a033}
+.wvl-bar.loss .track>div{background:linear-gradient(90deg,var(--red),#ff8a9a);box-shadow:0 0 16px #ff5d7333}
+.habit{border-color:#ff5d7366;background:linear-gradient(180deg,#24111a,#120b12);box-shadow:inset 3px 0 0 var(--red),inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.fix{border-left-color:var(--amber)}
+@media(max-width:760px){
+  .topbar{flex-wrap:wrap;padding:11px 14px}.topbar .who{order:3;width:100%;margin-left:0}.top-actions{order:4;width:100%;margin-left:0}.top-actions .btn{flex:1;justify-content:center}.topbar button{margin-left:0!important}
+  .wrap{padding:18px 14px 34px}.hero{padding:20px 18px}.kpis{grid-template-columns:1fr}
+  .hero-actions .btn{width:100%;justify-content:center}
+  .card{padding:17px 15px}.games{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .gpill{min-width:0}.wvl-row{grid-template-columns:1fr;gap:9px}.wvl-row .insight{grid-column:1}
+  .wvl-bar{grid-template-columns:34px minmax(0,1fr) 42px}.wvl-bar .track{min-width:0}
+}
+@media(max-width:420px){.games{grid-template-columns:1fr}.hero h1{font-size:24px}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}
+}
 </style>
 
 <div class="topbar">
   <a class="home" href="/">&larr; <img src="/static/logo.png" alt="RLCoach" style="height:22px;width:auto"/></a>
   <span class="kick">SERIES REPORT</span>
   <span class="who" id="who"></span>
-  <button class="btn ghost" onclick="deleteReport()" style="color:var(--red);border-color:var(--red);padding:6px 12px;font-size:12px;margin-left:10px">🗑 Delete report</button>
+  <div class="top-actions">
+    <a class="btn top-cta" href="/">Back to Today</a>
+    <button class="btn ghost danger-action" onclick="deleteReport()" style="padding:6px 12px;font-size:12px">Delete report</button>
+  </div>
 </div>
 
 <div class="wrap">
@@ -104,7 +177,11 @@ $("#foot").textContent='Series of '+(R.games||0)+' games · '+(M.gamemode||'')+'
 
 $("#hero").innerHTML=`<div class="k">Session read · ${esc(M.gamemode||'')}</div>
   <h1>${esc(SERIES.headline||'Series analysis')}</h1>
-  <div class="summary">${esc(SERIES.summary||'')}</div>`;
+  <div class="summary">${esc(SERIES.summary||'')}</div>
+  <div class="hero-actions">
+    <a class="btn" href="/">Apply these fixes today</a>
+    <a class="btn ghost" href="/#series">Back to series loop</a>
+  </div>`;
 
 const wr = R.games? Math.round(100*R.wins/R.games):0;
 const trendTxt=(SERIES.trend||'');

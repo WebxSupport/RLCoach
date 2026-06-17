@@ -194,6 +194,84 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
   .statgrid{grid-template-columns:1fr}
   table{font-size:12px} th,td{padding:8px 8px}
 }
+
+/* M3 visual rollout: elevated RLCoach match dashboard */
+:root{
+  --glow:#34d6f755;--shadow:0 18px 48px #0009;--shadow-soft:0 8px 24px #0007;
+  --r12:12px;--r16:16px;--r20:20px;--ease:cubic-bezier(.2,.8,.2,1);
+}
+body{background:radial-gradient(1000px 520px at 78% -8%,#12314d 0%,transparent 58%),
+  radial-gradient(820px 460px at -12% 108%,#132848 0%,transparent 56%),
+  linear-gradient(180deg,#08101b 0%,#05080d 72%),var(--bg)}
+body::before{opacity:.35;mask:radial-gradient(circle at 50% 30%,#000 0%,transparent 80%)}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
+  background:linear-gradient(115deg,transparent 0 35%,#34d6f70e 48%,transparent 62% 100%);
+  mix-blend-mode:screen}
+@keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.wrap{max-width:1180px;position:relative}
+.top{position:relative;overflow:hidden;align-items:center;border:1px solid #2b4565;border-radius:var(--r20);padding:22px 24px;margin-bottom:18px;
+  background:linear-gradient(135deg,#122033 0%,#0b1522 58%,#07101b 100%);
+  box-shadow:inset 0 1px 0 #ffffff08,var(--shadow),0 0 120px #34d6f713;animation:riseIn .22s var(--ease) both}
+.top::before,.card::before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.5}
+.top::after{content:"";position:absolute;right:-80px;top:-90px;width:260px;height:260px;border-radius:50%;border:1px solid #34d6f730;box-shadow:0 0 80px #34d6f724}
+.brand,.result{position:relative;z-index:1}.brand h1{font-size:clamp(26px,3vw,38px)}
+.top-actions{display:flex;align-items:center;gap:8px;position:relative;z-index:1}
+.top-cta{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:10px;
+  font-size:13px;font-weight:700;letter-spacing:.03em;border:1px solid var(--cyan);background:linear-gradient(135deg,var(--cyan),#47b8ff);
+  color:#04121a;text-decoration:none;box-shadow:0 8px 26px #34d6f733;transition:transform .16s var(--ease),box-shadow .16s var(--ease),filter .16s var(--ease)}
+.top-cta:hover{filter:brightness(1.08);box-shadow:0 12px 32px #34d6f755;transform:translateY(-1px)}
+.top-cta:active{transform:scale(.97)}
+.meta span{border:1px solid #2d4663;background:#0b1726;border-radius:999px;padding:5px 9px}
+.result{border-color:#2b4565;border-radius:var(--r16);background:linear-gradient(180deg,#122033,#0c1624);box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.result.win{box-shadow:inset 3px 0 0 var(--green),inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.result.loss{box-shadow:inset 3px 0 0 var(--red),inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.score{font-size:clamp(30px,4vw,42px)}
+.kpis{animation:riseIn .22s var(--ease) .04s both}
+.kpi,.card,.player,.goal,.pattern,.fix,.xgcard,.rating-badge,.habit{
+  border-color:#22364f;background:linear-gradient(180deg,#122033,#0c1624);
+  box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.kpi,.player,.goal,.pattern,.fix,.xgcard,.rating-badge{transition:transform .16s var(--ease),border-color .16s var(--ease),box-shadow .16s var(--ease)}
+.kpi:hover,.player:hover,.goal:hover,.pattern:hover,.fix:hover,.xgcard:hover{transform:translateY(-2px);border-color:#2b4565;box-shadow:inset 0 1px 0 #ffffff08,0 12px 32px #0008}
+.kpi{border-radius:var(--r16);padding:16px 18px}.kpi .v{font-size:clamp(24px,3vw,34px)}
+.tabs{gap:6px;border-bottom-color:#26384f99;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border-radius:10px 10px 0 0;transition:color .18s var(--ease),background .18s var(--ease),transform .18s var(--ease);white-space:nowrap}
+.tab:hover{background:#ffffff08;transform:translateY(-1px)}
+.tab.active{background:#34d6f717}
+.panel.active{animation:riseIn .22s var(--ease) both}
+.card{position:relative;border-radius:var(--r16);padding:22px;margin-bottom:18px;overflow:hidden}
+.card h3{font-size:15px}
+.lbar,.rcomp .cb,.wvl-bar .track,.xgcard,.feed .dot,svg[viewBox]{filter:drop-shadow(0 0 10px #0006)}
+.lbar,.rcomp .cb{background:#081321;border-color:#22364f;box-shadow:inset 0 1px 0 #0008}
+.lbar>div,.rcomp .cb>div{box-shadow:0 0 16px currentColor}
+.player{border-radius:var(--r16);padding:20px}
+.player.A{box-shadow:inset 4px 0 0 var(--teamA),inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.player.B{box-shadow:inset 4px 0 0 var(--teamB),inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.badge,.rating-badge{box-shadow:inset 0 1px 0 #ffffff08}
+.stat{border-bottom-color:#22364f}
+.goal,.pattern,.fix{border-radius:var(--r12)}
+table{min-width:640px}
+th,td{border-bottom-color:#22364f} tr:hover td{background:#122033}
+.feed li{border-bottom-color:#22364f}
+@media(max-width:860px){
+  .top{padding:20px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .result{width:100%;justify-content:space-between}.pgrid,.grid2{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  body{padding:13px}.top{padding:18px 15px;border-radius:18px}.brand h1{font-size:24px}
+  .meta{gap:7px}.meta span{font-size:10.5px}.result{padding:12px 14px}.kpis{grid-template-columns:1fr}
+  .top-actions{width:100%}.top-cta{width:100%}
+  .tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;border-bottom:0;overflow:visible;padding-bottom:4px}
+  .tab{border:1px solid var(--line2);border-radius:12px;background:#0b1522aa;padding:11px 8px;white-space:normal;line-height:1.2;min-height:42px}
+  .tab.active::after{left:12px;right:12px;bottom:5px}
+  .card{padding:17px 15px}
+  .ptop{grid-template-columns:1fr;justify-items:center;text-align:center}.ptop .rcomp{width:100%;max-width:340px}
+  .feed li{grid-template-columns:54px 18px 1fr;gap:8px}.xgteam{grid-template-columns:1fr}
+  [style*="overflow:auto"]{max-width:100%;overflow:auto}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}
+}
 </style>
 
 <div class="wrap">
@@ -201,6 +279,7 @@ td.num,th.num{text-align:right; font-family:var(--mono)} tr:hover td{background:
     <div class="brand"><span class="kicker">Match Telemetry · Replay Breakdown</span>
       <h1 id="title">Match Dashboard</h1><div class="meta" id="meta"></div></div>
     <div class="result" id="result"></div>
+    <div class="top-actions"><a class="top-cta" href="/">Back to Today</a></div>
   </div>
   <div class="kpis" id="kpis"></div>
   <div class="tabs" id="tabs"></div>

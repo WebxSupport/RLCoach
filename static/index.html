@@ -219,7 +219,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 .wiz-footer{display:flex;gap:10px;margin-top:24px;align-items:center}
 
 /* ── progress card ── */
-.prog-card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:22px;margin-bottom:16px}
+.prog-card{border:1px solid #22364f;border-radius:var(--r16);background:linear-gradient(180deg,#122033,#0c1624);padding:22px;margin-bottom:16px;box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
 .psynet-warn{position:sticky;top:8px;z-index:60;background:#2a1a05;border:1px solid var(--amber);color:#ffe0b0;border-radius:10px;padding:11px 15px;margin-bottom:18px;font-size:12.5px;line-height:1.5}
 .psynet-warn b{color:var(--amber)}
 .prog-note{font-family:var(--mono);font-size:11px;color:var(--amber);margin-top:10px;opacity:.9}
@@ -244,9 +244,9 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 .fetch-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px}
 .fetch-bar h1{font-size:24px;font-weight:800;flex:1}
 .match-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
-.match-card{border:1px solid var(--line);border-radius:13px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:16px 18px;transition:transform .12s,box-shadow .12s}
-.match-card.win{box-shadow:inset 3px 0 0 var(--green)}.match-card.loss{box-shadow:inset 3px 0 0 var(--red)}.match-card.draw{box-shadow:inset 3px 0 0 var(--amber)}
-.match-card:hover{transform:translateY(-2px)}
+.match-card{border:1px solid #22364f;border-radius:16px;background:linear-gradient(180deg,#122033,#0c1624);padding:17px 18px;transition:transform .16s var(--ease),box-shadow .16s var(--ease),border-color .16s var(--ease);box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.match-card.win{box-shadow:inset 4px 0 0 var(--green),inset 0 1px 0 #ffffff08,var(--shadow-soft)}.match-card.loss{box-shadow:inset 4px 0 0 var(--red),inset 0 1px 0 #ffffff08,var(--shadow-soft)}.match-card.draw{box-shadow:inset 4px 0 0 var(--amber),inset 0 1px 0 #ffffff08,var(--shadow-soft)}
+.match-card:hover{transform:translateY(-2px);border-color:#2b4565}
 .match-card.win:hover{box-shadow:inset 3px 0 0 var(--green),0 6px 18px #34e0a018}
 .match-card.loss:hover{box-shadow:inset 3px 0 0 var(--red),0 6px 18px #ff5d7318}
 .match-card.draw:hover{box-shadow:inset 3px 0 0 var(--amber),0 6px 18px #ffb34718}
@@ -259,7 +259,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 .mc-score{font-family:var(--mono);font-size:22px;font-weight:700;margin-bottom:6px}.mc-score .mine{color:var(--cyan)}
 .mc-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
 .no-analysis{font-family:var(--mono);font-size:10px;color:var(--dim)}
-.empty-state{text-align:center;padding:60px 20px;color:var(--muted);grid-column:1/-1}
+.empty-state{text-align:center;padding:46px 20px;color:var(--muted);grid-column:1/-1;border:1px solid #22364f;border-radius:16px;background:linear-gradient(180deg,#102033,#0b1421);box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
 .empty-state p{font-family:var(--mono);font-size:13px;margin-top:8px}
 
 /* Today mission proof surface */
@@ -282,6 +282,21 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 .tm-focus span{font-family:var(--mono);font-size:11px;color:var(--txt);border:1px solid #2d4663;background:#0b1726;border-radius:999px;padding:6px 9px}
 .tm-actions{display:flex;flex-direction:column;gap:10px;align-items:stretch;min-width:190px}
 
+/* Secondary tab heroes */
+.screen-hero{position:relative;overflow:hidden;border:1px solid #2b4565;border-radius:20px;padding:22px 24px;margin-bottom:20px;
+  background:radial-gradient(460px 220px at 86% 10%,#34d6f71b,transparent 62%),
+             linear-gradient(145deg,#122033,#0b1421 68%,#080f19);
+  box-shadow:inset 0 1px 0 #ffffff0a,var(--shadow-soft)}
+.screen-hero::after{content:"";position:absolute;right:-100px;top:-120px;width:260px;height:260px;border-radius:50%;border:1px solid #34d6f725}
+.screen-hero-grid{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;position:relative;z-index:1}
+.screen-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);margin-bottom:7px}
+.screen-title{font-size:28px;font-weight:800;line-height:1.08;margin-bottom:8px}
+.screen-copy{font-family:var(--mono);font-size:12px;line-height:1.65;color:var(--muted);max-width:720px}
+.screen-metrics{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.screen-metrics span{font-family:var(--mono);font-size:11px;color:var(--txt);border:1px solid #2d4663;background:#0b1726;border-radius:999px;padding:6px 9px}
+.screen-actions{display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+#tab-series>.coaching-header,#tab-history>.fetch-bar,#tab-stats>.fetch-bar{display:none}
+
 /* ── match toolbar ── */
 .match-toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 
@@ -290,14 +305,14 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 
 /* ── stats page ── */
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:20px}
-.stat-card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:18px 20px;display:flex;align-items:center;gap:16px}
+.stat-card{border:1px solid #22364f;border-radius:16px;background:linear-gradient(180deg,#122033,#0c1624);padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:inset 0 1px 0 #ffffff08,var(--shadow-soft)}
 .stat-card img{width:60px;height:60px;flex-shrink:0}
 .stat-card .pl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .stat-card .rk{font-size:18px;font-weight:800;margin-top:3px}
 .stat-card .mmr{font-family:var(--mono);font-size:12px;color:var(--cyan);margin-top:4px}
 .stat-card .div{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:2px}
 .stats-note{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:16px;line-height:1.5}
-.stats-empty{text-align:center;padding:60px 20px;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
+.stats-empty{text-align:center;padding:46px 20px;color:var(--muted);border:1px solid #22364f;border-radius:16px;background:linear-gradient(180deg,#102033,#0b1421)}
 
 /* accountability tracker (home) */
 .acc-card{margin-bottom:16px}
@@ -322,13 +337,15 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;
 .mchip:hover{color:var(--txt);border-color:var(--muted)}
 .mchip.on{color:#04121a;background:var(--cyan);border-color:var(--cyan);font-weight:600}
 .mcharts{display:flex;flex-direction:column;gap:16px}
-.mchart-card{border:1px solid var(--line);border-radius:10px;background:#0c1623;padding:12px 14px}
+.mchart-card{border:1px solid #22364f;border-radius:14px;background:#0c1623;padding:12px 14px;box-shadow:inset 0 1px 0 #ffffff06}
 .mchart-h{font-size:13px;font-weight:700;margin-bottom:6px}
 .mchart-h span{font-family:var(--mono);font-size:10px;color:var(--dim);font-weight:400}
+.stats-chart-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:2px}
+.stats-chart-scroll svg{display:block}
 
 /* career stats (My Stats) */
 .career-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:14px}
-.ctile{border:1px solid var(--line);border-radius:10px;background:#0c1623;padding:11px 13px;text-align:center}
+.ctile{border:1px solid #22364f;border-radius:12px;background:#0c1623;padding:11px 13px;text-align:center}
 .ctile .cv{font-size:20px;font-weight:800;color:var(--cyan)}
 .ctile .cl{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:3px}
 .career-table{width:100%;border-collapse:collapse;font-size:13px}
@@ -385,6 +402,15 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   .tm-ring{width:128px;height:128px;margin:0 auto}
   .tm-title{font-size:25px}
   .tm-actions{min-width:0}
+  .screen-hero{padding:18px;border-radius:18px}
+  .screen-hero-grid{grid-template-columns:1fr;gap:14px}
+  .screen-title{font-size:24px}
+  .screen-actions{justify-content:stretch}
+  .screen-actions .btn{width:100%;justify-content:center}
+  .match-grid{grid-template-columns:1fr}
+  .match-toolbar .input{max-width:none!important;width:100%}
+  .career-table{display:block;overflow-x:auto}
+  .stats-chart-scroll svg{min-height:210px}
   .btn{padding:10px 14px}
   .toast{left:14px;right:14px;max-width:none}
 }
@@ -585,11 +611,25 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
       </div>
     </div>
     <div class="tab-panel" id="tab-series">
+      <div class="screen-hero">
+        <div class="screen-hero-grid">
+          <div>
+            <div class="screen-kicker">Series check</div>
+            <div class="screen-title">Read the run, not one replay</div>
+            <div class="screen-copy">Compare recent games as one session, then carry the pattern back into tomorrow's plan.</div>
+            <div class="screen-metrics" id="series-hero-metrics"><span>Plan-aware report</span><span>3+ games</span></div>
+          </div>
+          <div class="screen-actions">
+            <button class="btn btn-ghost btn-sm" id="view-series-btn" style="display:none" onclick="openSeries()">View Report</button>
+            <button class="btn btn-primary btn-sm" id="gen-series-btn" onclick="triggerSeries()">Analyse Recent Games</button>
+          </div>
+        </div>
+      </div>
       <div class="coaching-header">
         <h1>Series Report</h1>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost btn-sm" id="view-series-btn" style="display:none" onclick="openSeries()">View Report ↗</button>
-          <button class="btn btn-primary btn-sm" id="gen-series-btn" onclick="triggerSeries()">↻ Analyse Recent Games</button>
+          <button class="btn btn-ghost btn-sm" style="display:none" onclick="openSeries()">View Report ↗</button>
+          <button class="btn btn-primary btn-sm" onclick="triggerSeries()">↻ Analyse Recent Games</button>
         </div>
       </div>
       <div id="series-progress" style="display:none">
@@ -620,9 +660,22 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     </div>
 
     <div class="tab-panel" id="tab-history">
+      <div class="screen-hero">
+        <div class="screen-hero-grid">
+          <div>
+            <div class="screen-kicker">Replay intake</div>
+            <div class="screen-title">Your match tape, sorted</div>
+            <div class="screen-copy">Fetch ranked replays, open the one analysis that matters, and keep every game tied to your current plan.</div>
+            <div class="screen-metrics" id="history-hero-metrics"><span>Seeded matches ready</span><span>Analysis saved</span></div>
+          </div>
+          <div class="screen-actions">
+            <button class="btn btn-primary" id="fetch-btn" onclick="triggerFetch()">Fetch Latest Replays</button>
+          </div>
+        </div>
+      </div>
       <div class="fetch-bar">
         <h1>Match History</h1>
-        <button class="btn btn-primary" id="fetch-btn" onclick="triggerFetch()">▶ Fetch Latest Replays</button>
+        <button class="btn btn-primary" onclick="triggerFetch()">▶ Fetch Latest Replays</button>
       </div>
       <div id="fetch-progress" style="display:none" class="prog-card">
         <div class="prog-head"><span class="spinner"></span>
@@ -649,9 +702,22 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     </div>
 
     <div class="tab-panel" id="tab-stats">
+      <div class="screen-hero">
+        <div class="screen-hero-grid">
+          <div>
+            <div class="screen-kicker">Progression</div>
+            <div class="screen-title">See what is actually moving</div>
+            <div class="screen-copy">Career form, MMR, and skill metrics from your tracked replays.</div>
+            <div class="screen-metrics"><span>MMR trend</span><span>Skill charts</span><span>Replay career stats</span></div>
+          </div>
+          <div class="screen-actions">
+            <button class="btn btn-ghost btn-sm" id="stats-refresh" onclick="loadStats(true)">Refresh</button>
+          </div>
+        </div>
+      </div>
       <div class="fetch-bar">
         <h1>My Stats</h1>
-        <button class="btn btn-ghost btn-sm" id="stats-refresh" onclick="loadStats(true)">↻ Refresh</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadStats(true)">↻ Refresh</button>
       </div>
       <div id="stats-body"></div>
     </div>
@@ -1466,12 +1532,17 @@ async function loadSeriesStatus(){
   try{
     const s=await get('/api/series');
     const empty=document.getElementById('series-empty'),info=document.getElementById('series-info'),vb=document.getElementById('view-series-btn');
-    if(!s.exists){ empty.style.display='block'; info.style.display='none'; vb.style.display='none'; }
+    const hero=document.getElementById('series-hero-metrics');
+    if(!s.exists){
+      empty.style.display='block'; info.style.display='none'; vb.style.display='none';
+      if(hero) hero.innerHTML='<span>Needs 3+ games</span><span>Plan-aware report</span>';
+    }
     else{
       empty.style.display='none'; info.style.display='block'; vb.style.display='';
       document.getElementById('series-title').textContent=`${(_profile.display_name||'Your')} session — ${s.games} games`;
       const d=new Date(s.generated_at).toLocaleDateString();
       document.getElementById('series-meta').innerHTML=`<span>${_profile.gamemode||''}</span><span>${s.games} games</span><span>Generated: ${d}</span>`;
+      if(hero) hero.innerHTML=`<span>${s.games} games analysed</span><span>${_profile.gamemode||'Active playlist'}</span><span>Generated ${d}</span>`;
     }
     loadSeriesHistory();
   }catch(e){}
@@ -1506,10 +1577,18 @@ async function loadMatches() {
     _allMatches = await get('/api/matches');
     if (!_allMatches.length){
       if (toolbar) toolbar.style.display='none';
+      const hero=document.getElementById('history-hero-metrics');
+      if(hero) hero.innerHTML='<span>No replays yet</span><span>Fetch to begin</span>';
       grid.innerHTML=`<div class="empty-state"><div style="font-size:36px">🏎</div><p>No replays yet — click Fetch Latest Replays.</p></div>`;
       return;
     }
     if (toolbar) toolbar.style.display='flex';
+    const hero=document.getElementById('history-hero-metrics');
+    if(hero){
+      const analysed=_allMatches.filter(m=>m.has_analysis).length;
+      const wins=_allMatches.filter(m=>((m.summary&&m.summary.result)||'').startsWith('W')).length;
+      hero.innerHTML=`<span>${_allMatches.length} matches tracked</span><span>${analysed} analysed</span><span>${wins} wins logged</span>`;
+    }
     renderMatches();
   } catch(e){grid.innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`;}
 }
@@ -1650,7 +1729,7 @@ async function loadStats(force) {
       <div class="card" style="margin-top:6px"><h2 style="font-size:15px;font-weight:800;margin-bottom:4px">MMR progression</h2>
         <div class="sub" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px">
           ${((_profile&&_profile.gamemode)||'2v2')} · logged automatically each day you open RLCoach</div>
-        <div id="stats-mmr-chart"></div></div>
+        <div id="stats-mmr-chart" class="stats-chart-scroll"></div></div>
       <div id="stats-progress" style="margin-top:6px"></div>`;
     post('/api/tracker/sync-mmr').catch(()=>{}).finally(drawStatsMmr);
     loadCareer();
@@ -1669,16 +1748,18 @@ async function drawStatsMmr() {
     el.innerHTML=`<div style="font-family:var(--mono);font-size:12px;color:var(--dim)">${log.length?('Current: '+log[log.length-1].mmr+' MMR — '):''}we'll chart your trend as you open the app over the coming days.</div>`;
     return;
   }
-  const W=1000,H=200,pl=44,pr=16,pt=14,pb=26;
+  const compact=window.matchMedia('(max-width:600px)').matches;
+  const W=compact?360:1000,H=compact?220:200,pl=compact?42:44,pr=compact?12:16,pt=compact?18:14,pb=compact?34:26;
   const vals=log.map(p=>p.mmr); let mn=Math.min(...vals),mx=Math.max(...vals);
   if(mn===mx){mn-=20;mx+=20;} const pad=(mx-mn)*0.12; mn-=pad; mx+=pad;
   const x=i=>pl+(log.length<=1?0.5:i/(log.length-1))*(W-pl-pr), y=v=>pt+(1-(v-mn)/(mx-mn))*(H-pt-pb);
   let s=`<svg viewBox="0 0 ${W} ${H}" width="100%">`;
-  for(let g=0;g<=3;g++){const v=mn+(mx-mn)*g/3;s+=`<line x1="${pl}" y1="${y(v)}" x2="${W-pr}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl-8}" y="${y(v)+3}" fill="var(--dim)" font-size="10" font-family="var(--mono)" text-anchor="end">${Math.round(v)}</text>`;}
-  s+=`<polyline points="${log.map((p,i)=>x(i)+','+y(p.mmr)).join(' ')}" fill="none" stroke="var(--cyan)" stroke-width="2.5" stroke-linejoin="round"/>`;
+  for(let g=0;g<=3;g++){const v=mn+(mx-mn)*g/3;s+=`<line x1="${pl}" y1="${y(v)}" x2="${W-pr}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl-8}" y="${y(v)+3}" fill="var(--dim)" font-size="${compact?10:10}" font-family="var(--mono)" text-anchor="end">${Math.round(v)}</text>`;}
+  s+=`<polyline points="${log.map((p,i)=>x(i)+','+y(p.mmr)).join(' ')}" fill="none" stroke="var(--cyan)" stroke-width="${compact?2.2:2.5}" stroke-linejoin="round"/>`;
   log.forEach((p,i)=>{s+=`<circle cx="${x(i)}" cy="${y(p.mmr)}" r="3.5" fill="var(--cyan)"><title>${p.date}: ${p.mmr}</title></circle>`;
-    if(i===log.length-1)s+=`<text x="${x(i)}" y="${y(p.mmr)-9}" fill="var(--cyan)" font-size="11" font-family="var(--mono)" text-anchor="middle">${p.mmr}</text>`;});
-  log.forEach((p,i)=>{if(i%Math.ceil(log.length/6||1)===0||i===log.length-1)s+=`<text x="${x(i)}" y="${H-8}" fill="var(--dim)" font-size="9" font-family="var(--mono)" text-anchor="middle">${(p.date||'').slice(5)}</text>`;});
+    if(i===log.length-1)s+=`<text x="${Math.min(x(i),W-26)}" y="${Math.max(y(p.mmr)-9,12)}" fill="var(--cyan)" font-size="${compact?11:11}" font-family="var(--mono)" text-anchor="middle">${p.mmr}</text>`;});
+  const labelEvery=compact?Math.max(1,Math.ceil(log.length/4)):Math.ceil(log.length/6||1);
+  log.forEach((p,i)=>{if(i%labelEvery===0||i===log.length-1)s+=`<text x="${x(i)}" y="${H-10}" fill="var(--dim)" font-size="${compact?10:9}" font-family="var(--mono)" text-anchor="middle">${(p.date||'').slice(5)}</text>`;});
   el.innerHTML=s+`</svg>`;
 }
 
